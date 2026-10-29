@@ -3,37 +3,539 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PROFILE | MOTION ENGINE</title>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
+<title>PROFILE | MOTION ENGINE | VERTASCAN</title>
+<meta name="description" content="Single-file 3D rigging engine: auto-rig, skin weights and painting, FK/IK with pole vectors and blend, procedural motion, keyframes, GLB and project import/export. By Vertascan."/>
+<meta name="theme-color" content="#08080a"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23000'/%3E%3Cpath d='M6 8l10 18L26 8' fill='none' stroke='%23a6ff7a' stroke-width='3'/%3E%3C/svg%3E"/>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 <style>
-:root{--bg:#08080a;--panel:#121215;--panel2:#1a1a1f;--border:#24242c;--text:#e8e8ea;--muted:#8a8a95;--accent:#a6ff7a}
+:root{--bg:#08080a;--panel:#121215;--p2:#1a1a1f;--bd:#24242c;--tx:#e8e8ea;--mu:#8a8a95;--ac:#a6ff7a}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:Inter,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
-.topbar{height:48px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
-.logo{font-family:JetBrains Mono,monospace;font-weight:800;letter-spacing:0.12em;font-size:13px}
-.logo span{color:var(--accent)}
-.btn{font-family:JetBrains Mono,monospace;font-size:11px;padding:7px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);cursor:pointer;border-radius:4px}
-.btn.accent{background:var(--accent);color:#000;font-weight:700}
-.main{flex:1;display:flex;overflow:hidden}
-.leftbar{width:56px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:8px}
-.tool{width:40px;height:40px;border:1px solid var(--border);background:var(--panel2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;color:var(--muted)}
-.tool.active{border-color:var(--accent);color:var(--accent);background:#1b2a16}
-.viewport{flex:1;position:relative;background:radial-gradient(1200px 800px at 50% -20%,#1a1f2a 0%,#0d0d10 55%,#08080a 100%)}
-#canvas{width:100%;height:100%;display:block}
-.hud{position:absolute;top:12px;left:12px;font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);line-height:1.6;pointer-events:none}
-.right{width:380px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.tabs{display:flex;border-bottom:1px solid var(--border)}
-.tab{flex:1;padding:12px 0;text-align:center;font-family:JetBrains Mono,monospace;font-size:11px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--panel2)}
-.panel{flex:1;overflow:auto;padding:14px;display:none}.panel.active{display:block}
-.group{margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--panel2)}
-.group-head{padding:10px 12px;font-family:JetBrains Mono,monospace;font-size:11px;background:#17171c;border-bottom:1px solid var(--border)}
-.group-body{padding:12px}
-.label{font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted
+body{background:var(--bg);color:var(--tx);font:12px Inter,system-ui,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;user-select:none}
+.mono,.btn,.tab,.label,.hud,.tree{font-family:ui-monospace,Menlo,Consolas,monospace}
+.topbar{height:50px;background:#121215;border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 14px;gap:8px;flex-wrap:nowrap;overflow-x:auto}
+.logo{font-weight:800;letter-spacing:.1em;font-size:13px;white-space:nowrap;margin-right:6px}.logo i{color:var(--ac);font-style:normal}
+.btn{font-size:11px;padding:7px 11px;background:var(--p2);border:1px solid var(--bd);color:var(--tx);cursor:pointer;border-radius:6px;white-space:nowrap}
+.btn:hover{border-color:var(--tx)}.btn.accent,.btn.on{background:var(--ac);color:#000;border-color:var(--ac);font-weight:700}
+.main{flex:1;display:flex;overflow:hidden;min-height:0}
+.leftbar{width:78px;flex:0 0 78px;background:var(--panel);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:stretch;padding:10px 7px;gap:7px;overflow-y:auto;overflow-x:hidden}
+.tool{position:relative;width:100%;min-height:57px;padding:7px 2px 6px;border:1px solid var(--bd);background:var(--p2);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:17px;cursor:pointer;color:var(--mu);transition:border-color .15s,background .15s,color .15s}.tool-icon{font-size:17px;line-height:1}.tool-label{font:9px/1.15 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.02em;text-align:center;color:inherit;white-space:normal}.tool:hover{border-color:var(--ac);color:var(--tx);background:#202326}.tool:focus-visible,.btn:focus-visible,.tab:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.tool.active{border-color:var(--ac);color:var(--ac);background:#1b2a16}
+.viewport{flex:1;position:relative;min-width:0}#canvas{width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;top:10px;left:10px;pointer-events:none;font-size:10px;color:var(--mu);line-height:1.7}.hud b{color:var(--tx)}
+.foot{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.14em;color:var(--mu);background:rgba(0,0,0,.6);border:1px solid var(--bd);padding:5px 12px;border-radius:20px;pointer-events:none;white-space:nowrap}
+.right{width:340px;background:var(--panel);border-left:1px solid var(--bd);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;background:var(--p2);border-bottom:1px solid var(--bd)}
+.tab{flex:1;padding:11px 0;text-align:center;font-size:10px;cursor:pointer;color:var(--mu);border-bottom:2px solid transparent}.tab.active{color:var(--ac);border-bottom-color:var(--ac)}
+.panel{flex:1;overflow:auto;padding:12px;display:none}.panel.active{display:block}
+.group{margin-bottom:14px;border:1px solid var(--bd);border-radius:10px;background:var(--p2);overflow:hidden}
+.gh{padding:9px 12px;font-size:10px;letter-spacing:.08em;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;background:#17171c}
+.gb{padding:12px;display:flex;flex-direction:column;gap:8px}
+.label{font-size:10px;color:var(--mu);display:flex;justify-content:space-between}
+.row{display:flex;gap:6px;flex-wrap:wrap}.row>*{flex:1}
+input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;color:var(--tx);border:1px solid var(--bd);padding:6px;border-radius:5px;font:11px ui-monospace,monospace}
+.tree{font-size:11px;max-height:260px;overflow:auto}#boneTree{max-height:56vh}.ti{padding:4px 8px;cursor:pointer;border-radius:4px;white-space:nowrap}.ti:hover{background:#202028}.ti.sel{background:#1e2e18;color:var(--ac)}
+.timeline{height:238px;flex:0 0 238px;background:var(--panel);border-top:1px solid var(--bd);display:flex;flex-direction:column}
+.tltools{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0}.tltools select{max-width:128px;font-size:10px;padding:5px}.tltools .btn{padding:5px 8px;font-size:10px}.tc{position:relative;flex:1;min-height:0;background:#0c0c0f}.tc canvas{width:100%;height:100%;display:block}#graphCanvas{display:none;touch-action:none}#tl.graph-hidden{display:none}
+@media(max-width:900px){.timeline{height:250px;flex-basis:250px}.th{gap:5px;padding:0 7px}.tltools select{max-width:100px}}
+.th{height:38px;display:flex;align-items:center;padding:0 12px;gap:8px;border-bottom:1px solid var(--bd);background:var(--p2);font-size:11px}
+.tc{flex:1;min-height:0;background:#0c0c0f}#tl{width:100%;height:100%;display:block}
+.badge{font-size:9px;padding:2px 7px;border-radius:12px;border:1px solid var(--bd);color:var(--mu)}.badge.on{border-color:var(--ac);color:var(--ac)}
+#status{position:absolute;bottom:40px;left:12px;font-size:10px;color:#ff8a8a;pointer-events:none;max-width:60%}
+@media(max-width:900px){.right{width:260px}.leftbar{width:72px;flex-basis:72px;padding-left:5px;padding-right:5px}}
+@media(max-width:620px){.topbar{padding:0 8px;gap:5px}.logo{font-size:10px}.btn{padding:7px 8px}.right{width:220px}.tool-label{font-size:8px}}
+
+/* ---------- Vertascan launch / motion intro ---------- */
+#splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 68% 45%,rgba(45,65,42,.22),transparent 42%),linear-gradient(115deg,rgba(5,6,7,.97) 0%,rgba(8,9,11,.84) 48%,rgba(7,8,9,.56) 100%);backdrop-filter:blur(2px);transition:opacity .75s ease,visibility .75s ease}
+#splash.hidden{opacity:0;visibility:hidden;pointer-events:none}
+#splash:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(166,255,122,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(166,255,122,.035) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(90deg,black,transparent 90%);pointer-events:none}
+.splash-wrap{position:relative;width:min(1120px,92vw);display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.72fr);align-items:center;gap:5vw;padding:clamp(24px,5vw,72px);border:1px solid rgba(166,255,122,.22);background:linear-gradient(135deg,rgba(14,16,16,.88),rgba(9,10,12,.58));box-shadow:0 24px 100px #0009}
+.splash-kicker{font:11px ui-monospace,monospace;letter-spacing:.24em;color:var(--ac);margin-bottom:22px}.splash-title{font-size:clamp(34px,5.5vw,72px);font-weight:850;letter-spacing:-.055em;line-height:.94}.splash-title span{display:block;color:var(--ac)}.splash-copy{max-width:470px;margin-top:24px;color:#a8aab0;font-size:13px;line-height:1.8}.splash-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:30px}.splash-enter{padding:13px 18px;border:1px solid var(--ac);background:var(--ac);color:#080a07;font:800 11px ui-monospace,monospace;letter-spacing:.08em;cursor:pointer}.splash-skip{padding:13px 18px;border:1px solid #383b3b;background:#111315;color:#e8e8ea;font:11px ui-monospace,monospace;cursor:pointer}.splash-spec{display:flex;gap:18px;margin-top:32px;color:#777d7a;font:9px ui-monospace,monospace;letter-spacing:.12em}.splash-spec b{display:block;color:#e5e8e3;font-size:15px;letter-spacing:0;margin-bottom:5px}
+ .intro-figure{position:relative;min-height:300px;display:grid;place-items:center;border-left:1px solid rgba(166,255,122,.16);overflow:hidden;background:linear-gradient(180deg,transparent 0%,rgba(166,255,122,.025) 100%)}
+.figure-stage{position:relative;width:min(100%,390px);height:245px;display:flex;align-items:center;justify-content:center}
+.figure-stage:before{content:"";position:absolute;left:7%;right:7%;bottom:28px;height:1px;background:linear-gradient(90deg,transparent,rgba(166,255,122,.45),transparent)}
+.figure-stage:after{content:"";position:absolute;left:28%;right:28%;bottom:20px;height:10px;border-radius:50%;background:#a6ff7a;filter:blur(16px);opacity:.12}
+.stick-rig{position:relative;width:300px;height:245px;overflow:visible;filter:drop-shadow(0 0 5px rgba(166,255,122,.18))}
+.stick-rig .bone{fill:none;stroke:var(--ac);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.stick-rig .joint{fill:#101710;stroke:var(--ac);stroke-width:2}
+.stick-rig .head{fill:none;stroke:var(--ac);stroke-width:3}
+.stick-rig .arm-a{transform-box:view-box;transform-origin:150px 75px;animation:sideArmA .9s ease-in-out infinite alternate}
+.stick-rig .arm-b{transform-box:view-box;transform-origin:150px 75px;animation:sideArmB .9s ease-in-out infinite alternate}
+.stick-rig .leg-a{transform-box:view-box;transform-origin:150px 132px;animation:sideLegA .9s ease-in-out infinite alternate}
+.stick-rig .leg-b{transform-box:view-box;transform-origin:150px 132px;animation:sideLegB .9s ease-in-out infinite alternate}
+.stick-rig .shin-a{transform-box:view-box;transform-origin:150px 172px;animation:sideShinA .9s ease-in-out infinite alternate}
+.stick-rig .shin-b{transform-box:view-box;transform-origin:150px 172px;animation:sideShinB .9s ease-in-out infinite alternate}
+.intro-label{position:absolute;bottom:18px;font:10px ui-monospace,monospace;letter-spacing:.18em;color:var(--ac)}.splash-progress{height:2px;width:100%;background:#252a25;margin-top:25px;overflow:hidden}.splash-progress span{display:block;height:100%;width:0;background:var(--ac);box-shadow:0 0 10px var(--ac);animation:loadBar 7s linear forwards}.splash-status{margin-top:9px;color:#777d7a;font:9px ui-monospace,monospace;letter-spacing:.12em}
+@keyframes sideArmA{from{transform:rotate(-28deg)}to{transform:rotate(24deg)}}@keyframes sideArmB{from{transform:rotate(24deg)}to{transform:rotate(-28deg)}}@keyframes sideLegA{from{transform:rotate(28deg)}to{transform:rotate(-28deg)}}@keyframes sideLegB{from{transform:rotate(-28deg)}to{transform:rotate(28deg)}}@keyframes sideShinA{from{transform:rotate(-8deg)}to{transform:rotate(30deg)}}@keyframes sideShinB{from{transform:rotate(30deg)}to{transform:rotate(-8deg)}}@keyframes loadBar{to{width:100%}}
+@media(max-width:700px){.splash-wrap{grid-template-columns:1fr;padding:28px;gap:18px}.intro-figure{min-height:210px;border-left:0;border-top:1px solid rgba(166,255,122,.16);overflow:hidden}.figure-stage{height:190px;transform:scale(.82);transform-origin:center}.splash-copy{margin-top:16px}.splash-spec{margin-top:20px}}
+
+</style>
+</head>
+<body>
+
+<div id="splash" role="dialog" aria-label="PROFILE Motion Engine introduction">
+  <div class="splash-wrap">
+    <section>
+      <div class="splash-kicker">VERTASCAN / CHARACTER SYSTEMS</div>
+      <h1 class="splash-title">PROFILE<span>MOTION ENGINE</span></h1>
+      <p class="splash-copy">A real-time character rigging workspace for skeletal setup, skin weights, FK / IK posing, procedural motion and animation export. Preview a clean side-profile stick rig walking through a continuous skeletal cycle, then enter the studio.</p>
+      <div class="splash-actions"><button class="splash-enter" id="enterStudio">ENTER STUDIO ↗</button><button class="splash-skip" id="skipIntro">SKIP INTRO</button></div>
+      <div class="splash-spec"><div><b>FK / IK</b>RIG CONTROL</div><div><b>WALK CYCLE</b>SIDE PROFILE</div><div><b>GLB</b>ANIMATION EXPORT</div></div>
+      <div class="splash-progress"><span></span></div><div class="splash-status" id="splashStatus">INITIALIZING DEMO RIG • WALK CYCLE</div>
+    </section>
+    <aside class="intro-figure" id="introFigure" aria-hidden="true"><div class="figure-stage"><svg class="stick-rig" viewBox="0 0 300 245" role="presentation"><circle class="head" cx="150" cy="47" r="15"/><path class="bone" d="M150 63 L150 132"/><circle class="joint" cx="150" cy="75" r="3.5"/><circle class="joint" cx="150" cy="132" r="4"/><g class="arm-a"><path class="bone" d="M150 75 L150 105 L150 127"/><circle class="joint" cx="150" cy="105" r="3"/></g><g class="arm-b"><path class="bone" d="M150 75 L150 105 L150 127"/><circle class="joint" cx="150" cy="105" r="3"/></g><g class="leg-a"><path class="bone" d="M150 132 L150 172"/><circle class="joint" cx="150" cy="172" r="3.5"/></g><g class="shin-a"><path class="bone" d="M150 172 L150 210 L166 210"/></g><g class="leg-b"><path class="bone" d="M150 132 L150 172"/><circle class="joint" cx="150" cy="172" r="3.5"/></g><g class="shin-b"><path class="bone" d="M150 172 L150 210 L166 210"/></g></svg></div><div class="intro-label" id="introLabel">SIDE PROFILE / WALK CYCLE</div></aside>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
+  <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.json" style="display:none"/>
+  <div style="flex:1"></div>
+  <button class="btn" id="btnImport">IMPORT</button>
+  <button class="btn accent" id="btnDemo">DEMO RIG</button>
+  <button class="btn" id="btnNew">NEW</button>
+  <button class="btn accent" id="btnExport">EXPORT GLB</button>
+  <button class="btn" id="btnPlay">▶ PLAY</button>
+  <span class="badge on" id="fps">-- FPS</span>
+</div>
+<div class="main">
+  <div class="leftbar">
+    <button type="button" class="tool active" data-tool="select" title="Select bones and IK handles" aria-label="Select bones and IK handles"><span class="tool-icon">◉</span><span class="tool-label">Select</span></button>
+    <button type="button" class="tool" data-tool="fk" title="Forward kinematics: rotate bones or move the hips" aria-label="Forward kinematics"><span class="tool-icon">↻</span><span class="tool-label">FK / Pose</span></button>
+    <button type="button" class="tool" data-tool="ik" title="Inverse kinematics: move targets and pole controls" aria-label="Inverse kinematics"><span class="tool-icon">⤧</span><span class="tool-label">IK Targets</span></button>
+    <button type="button" class="tool" data-tool="paint" title="Paint and edit skin weights on the mesh" aria-label="Weight paint"><span class="tool-icon">◍</span><span class="tool-label">Weight Paint</span></button>
+  </div>
+  <div class="viewport" id="viewport"><canvas id="canvas"></canvas>
+    <div class="hud"><b>VERTASCAN</b> • <span id="hudInfo">Ready</span><br>Bone: <span id="hudBone">none</span> • IK: <span id="hudIK">0</span> • Source: <span id="hudSrc">pose</span></div>
+    <div id="status"></div>
+    <div class="foot">PROFILE | MOTION ENGINE | VERTASCAN</div>
+  </div>
+  <div class="right">
+    <div class="tabs"><div class="tab active" data-tab="scene">SCENE</div><div class="tab" data-tab="rig">RIG</div><div class="tab" data-tab="skin">SKIN</div><div class="tab" data-tab="motion">MOTION</div><div class="tab" data-tab="export">FILE</div></div>
+    <div class="panel active" id="panel-scene">
+      <div class="group"><div class="gh">SKELETON <span class="badge" id="boneCount">0</span></div><div class="gb"><div class="tree" id="boneTree"></div></div></div>
+    </div>
+    <div class="panel" id="panel-rig">
+      <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
+        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button>
+        <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
+      </div></div>
+      <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
+        <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
+        <div class="label"><span>Rot X</span><span id="vRx">0</span></div><input type="range" id="rx" min="-180" max="180" step="1" value="0"/>
+        <div class="label"><span>Rot Y</span><span id="vRy">0</span></div><input type="range" id="ry" min="-180" max="180" step="1" value="0"/>
+        <div class="label"><span>Rot Z</span><span id="vRz">0</span></div><input type="range" id="rz" min="-180" max="180" step="1" value="0"/>
+        <div class="row"><button class="btn" id="btnResetBone">Reset bone</button><button class="btn" id="btnResetPose">Reset pose</button></div>
+        <div class="row"><button class="btn" id="btnMirLR">Mirror L→R</button><button class="btn" id="btnMirRL">Mirror R→L</button></div>
+      </div></div>
+      <div class="group"><div class="gh">IK • FABRIK + POLE</div><div class="gb">
+        <button class="btn" id="btnCreateIK">Create IK from selected bone</button>
+        <div class="tree" id="ikList"></div>
+        <div class="label"><span>IK ↔ FK blend (selected chain)</span><span id="vBlend">1.00</span></div><input type="range" id="ikfk" min="0" max="1" step="0.01" value="1"/>
+        <div class="row"><button class="btn" id="btnIKOn">Toggle</button><button class="btn" id="btnIKDel">Delete</button><button class="btn" id="btnIKSnap">Snap to bone</button></div>
+      </div></div>
+    </div>
+    <div class="panel" id="panel-skin">
+      <div class="group"><div class="gh">BINDING</div><div class="gb">
+        <div class="label"><span>Falloff exponent</span><span id="vFall">4.0</span></div><input type="range" id="falloff" min="1" max="8" step="0.5" value="4"/>
+        <button class="btn accent" id="btnBind">RE-SOLVE WEIGHTS</button>
+        <div class="row"><button class="btn" id="btnSmooth">Smooth</button><button class="btn" id="btnWView">Weights: OFF</button></div>
+      </div></div>
+      <div class="group"><div class="gh">WEIGHT PAINT • <span id="activeBone">none</span></div><div class="gb">
+        <select id="brushMode"><option value="add">Add</option><option value="sub">Subtract</option></select>
+        <div class="label"><span>Radius</span><span id="vBr">0.12</span></div><input type="range" id="brushSize" min="0.02" max="0.5" step="0.01" value="0.12"/>
+        <div class="label"><span>Strength</span><span id="vBs">0.50</span></div><input type="range" id="brushStrength" min="0.05" max="1" step="0.05" value="0.5"/>
+        <div class="label">Select a bone, choose the paint tool, drag on the mesh.</div>
+      </div></div>
+    </div>
+    <div class="panel" id="panel-motion">
+      <div class="group"><div class="gh">ADD-ON ANIMATIONS <span class="badge" id="addonCount">0</span></div><div class="gb"><div class="tree" id="addonList"></div><div class="label">Clips shipped with the model or imported files. They drive the rig from its original T-pose.</div></div></div>
+      <div class="group"><div class="gh">PROCEDURAL MOTION</div><div class="gb">
+        <div class="row" id="moBtns"><button class="btn accent" data-motion="walk">WALK</button><button class="btn" data-motion="run">RUN</button><button class="btn" data-motion="idle">IDLE</button><button class="btn" data-motion="jump">JUMP</button><button class="btn" data-motion="sneak">SNEAK</button><button class="btn" data-motion="strut">STRUT</button></div>
+        <div class="label"><span>Speed</span><span id="vSp">1.0</span></div><input type="range" id="moSpeed" min="0.2" max="3" step="0.1" value="1"/>
+        <div class="label"><span>Stride</span><span id="vSt">1.0</span></div><input type="range" id="moStride" min="0.2" max="2" step="0.1" value="1"/>
+        <div class="row"><button class="btn" id="btnProc">Preview</button><button class="btn accent" id="btnBake">BAKE TO KEYS</button></div>
+        <div class="row"><button class="btn" id="srcPose">Pose</button><button class="btn" id="srcKeys">Keys</button></div>
+      </div></div>
+    </div>
+    <div class="panel" id="panel-export">
+      <div class="group"><div class="gh">EXPORT / IMPORT</div><div class="gb">
+        <button class="btn accent" id="btnExport2">EXPORT ANIMATED GLB</button>
+        <button class="btn" id="btnSaveJSON">SAVE PROJECT (.json)</button>
+        <button class="btn" id="btnImport2">IMPORT GLB / OBJ / PROJECT</button>
+        <div class="label">GLB export writes the rest pose, skin weights and the keyed animation. Imported skinned GLBs keep their own skeleton and weights.</div>
+      </div></div>
+    </div>
+  </div>
+</div>
+<div class="timeline"><div class="th"><span class="mono">FRAME <span id="frameLabel">0</span>/<span id="maxLabel">120</span> • <span id="timeLabel">0.00s</span></span><div style="flex:1"></div>
+  <div class="tltools"><button class="btn" id="btnGraph" title="Switch between keyframe timeline and editable animation curves">GRAPH EDITOR</button><select id="interpMode" aria-label="Keyframe interpolation" title="Interpolation used between keyframes"><option value="linear">Linear</option><option value="bezier" selected>Smooth S-Curve</option><option value="easeIn">Ease In</option><option value="easeOut">Ease Out</option><option value="easeInOut">Ease In-Out</option><option value="step">Constant / Step</option></select><select id="graphChannel" aria-label="Graph channel" title="Curve channel to inspect and edit"><option value="hipsY">Hips • Y</option><option value="boneX">Selected Bone • Rot X</option></select><button class="btn" id="btnKey" title="Insert a keyframe at the current frame">◆ KEY</button><button class="btn" id="btnDelKey" title="Delete a keyframe at the current frame">DEL KEY</button><button class="btn" id="btnClearKeys" title="Remove all keyframes">CLEAR</button><button class="btn on" id="btnLoop" title="Toggle playback looping">LOOP ON</button></div></div>
+  <div class="tc"><canvas id="tl" aria-label="Animation keyframe timeline"></canvas><canvas id="graphCanvas" aria-label="Editable animation curve graph"></canvas></div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {TransformControls} from 'three/addons/controls/TransformControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+const $=id=>document.getElementById(id), V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z), Q=()=>new THREE.Quaternion();
+const say=(m,bad)=>{const s=$('status');s.style.color=bad?'#ff8a8a':'#a6ff7a';s.textContent=m||'';if(m)clearTimeout(say.t),say.t=setTimeout(()=>s.textContent='',4000)};
+window.addEventListener('error',e=>say('Error: '+e.message,1));window.addEventListener('unhandledrejection',e=>say('Error: '+(e.reason&&e.reason.message||e.reason),1));
+
+/* ---------- scene ---------- */
+const canvas=$('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0d10);scene.fog=new THREE.Fog(0x0d0d10,14,32);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
+const camera=new THREE.PerspectiveCamera(42,1,0.05,100);camera.position.set(2.6,1.7,3.2);
+const controls=new OrbitControls(camera,canvas);controls.target.set(0,0.95,0);controls.enableDamping=true;controls.dampingFactor=0.08;
+function resize(){const vp=$('viewport');if(!vp.clientWidth||!vp.clientHeight)return;renderer.setSize(vp.clientWidth,vp.clientHeight,false);camera.aspect=vp.clientWidth/vp.clientHeight;camera.updateProjectionMatrix();resizeT()}
+new ResizeObserver(resize).observe($('viewport'));
+/* lighting: neutral sky/ground fill + warm shadow-casting key + cool fill + rim */
+scene.add(new THREE.HemisphereLight(0xdde6ff,0x2c2c34,0.85));
+const dir=new THREE.DirectionalLight(0xfff1e0,2.4);dir.position.set(3.2,5.5,4);dir.castShadow=true;dir.shadow.mapSize.set(2048,2048);
+Object.assign(dir.shadow.camera,{left:-3.5,right:3.5,top:3.5,bottom:-3.5,near:.5,far:20});dir.shadow.camera.updateProjectionMatrix();dir.shadow.bias=-0.0004;dir.shadow.normalBias=0.025;dir.shadow.radius=3;scene.add(dir);
+const fill=new THREE.DirectionalLight(0x9db8ff,0.7);fill.position.set(-4,2.5,2.5);scene.add(fill);
+const rim=new THREE.DirectionalLight(0x7affff,0.9);rim.position.set(-2,3,-4);scene.add(rim);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(24,24),new THREE.MeshStandardMaterial({color:0x23242c,roughness:.92,metalness:0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(24,48,0x3a3a46,0x2a2a34);grid.position.y=0.002;scene.add(grid);
+const gizmoRoot=new THREE.Group(),ovl=new THREE.Group();scene.add(gizmoRoot,ovl);
+const tc=new TransformControls(camera,canvas);scene.add(tc.getHelper?tc.getHelper():tc);tc.setSize(0.8);
+tc.addEventListener('dragging-changed',e=>controls.enabled=!e.value);
+
+/* ---------- state ---------- */
+const MO={walk:{f:1,s:.55,l:.14,b:.03,a:.55,tw:.12,lean:.03,c:0},run:{f:1.6,s:.95,l:.28,b:.07,a:1,tw:.2,lean:.2,c:.03},idle:{f:.3,s:0,l:0,b:.004,a:.05,tw:.02,lean:0,c:0},jump:{f:.8,s:0,l:0,b:0,a:1,tw:0,lean:0,c:0},sneak:{f:.7,s:.38,l:.07,b:.02,a:.3,tw:.08,lean:.12,c:.12},strut:{f:.9,s:.6,l:.12,b:.03,a:.35,tw:.25,lean:-.02,c:0}};
+const S={H:0,geo:null,mesh:null,root:null,adopted:false,joints:[],bones:[],roots:[],idx:{},restQ:[],restP:[],fk:[],hips0:V3(),hipsOff:V3(),W:null,N:0,B:0,adj:null,chains:[],markers:[],h:1.8,
+alias:null,baseQ:Q(),baseQi:Q(),unit:1,addons:[],clip:null,clipRt:null,ghost:.45,meshes:[],sel:-1,selChain:-1,gizmoObj:null,tool:'select',src:'pose',motion:'walk',speed:1,stride:1,frame:0,max:120,playing:false,loop:true,keys:new Map(),wview:false,falloff:4,width:1,brush:{r:.12,s:.5,mode:'add'},interpolation:'bezier',graphMode:false,graphDrag:null};
+const mat=new THREE.MeshStandardMaterial({color:0xd9c4b0,roughness:.62,metalness:0,side:THREE.DoubleSide,shadowSide:THREE.FrontSide});
+
+/* ---------- geometry helpers ---------- */
+function mergeGeos(gs){const P=[],N=[],I=[];let off=0;for(const g0 of gs){const g=g0;if(!g.attributes.normal)g.computeVertexNormals();const p=g.attributes.position,n=g.attributes.normal;for(let i=0;i<p.count;i++){P.push(p.getX(i),p.getY(i),p.getZ(i));N.push(n.getX(i),n.getY(i),n.getZ(i))}if(g.index)for(let i=0;i<g.index.count;i++)I.push(g.index.getX(i)+off);else for(let i=0;i<p.count;i++)I.push(i+off);off+=p.count}
+ const m=new THREE.BufferGeometry();m.setAttribute('position',new THREE.Float32BufferAttribute(P,3));m.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));m.setIndex(I);return m}
+const bbox=g=>{g.computeBoundingBox();return g.boundingBox.clone()};
+const base=n=>n.replace(/_[LR]$/,'');
+const J=n=>S.idx[S.alias?S.alias[n]:n],dn=n=>n.replace('mixamorig','');
+/* Full humanoid skeleton. Origin = ground datum (world 0,0,0): `root` sits ON the ground, `hips` is its child. */
+const FINGERS=[['thumb',.456,.775,.012,[[.012,0,.009],[.009,0,.008],[.007,0,.007]]],['index',.498,.78,.016,[[.017,0,0],[.011,0,0],[.009,0,0]]],['middle',.5,.78,.006,[[.019,0,0],[.012,0,0],[.01,0,0]]],['ring',.497,.78,-.005,[[.017,0,0],[.011,0,0],[.009,0,0]]],['pinky',.49,.78,-.015,[[.013,0,0],[.008,0,0],[.007,0,0]]]];
+function buildJoints(h,w){const out=[];
+ const add=(n,p,x,y,z)=>{out.push({name:n,parent:p,pos:V3(x*h*w,y*h,z*h)});return out.length-1};
+ const root=add('root',-1,0,0,0),hips=add('hips',root,0,.53,0),s1=add('spine_01',hips,0,.58,0),s2=add('spine_02',s1,0,.65,0),ch=add('chest',s2,0,.72,0),uc=add('upper_chest',ch,0,.775,0),nk=add('neck',uc,0,.82,0),hd=add('head',nk,0,.87,0);
+ const jw=add('jaw',hd,0,.888,.012);add('jaw_tip',jw,0,.879,.04);add('head_top',hd,0,.97,0);
+ for(const [s,k] of [['L',1],['R',-1]]){
+  add('eye_'+s,hd,k*.0125,.932,.047);
+  const cl=add('clavicle_'+s,uc,k*.03,.79,0),a=add('arm_'+s,cl,k*.12,.78,0),f=add('forearm_'+s,a,k*.29,.78,-.012),hn=add('hand_'+s,f,k*.45,.78,0);
+  for(const [nm,x0,y0,z0,steps] of FINGERS){let x=x0,y=y0,z=z0,p=add(nm+'_01_'+s,hn,k*x,y,z);
+   steps.forEach((d,i)=>{x+=d[0];y+=d[1];z+=d[2];p=add(nm+'_'+(i<2?'0'+(i+2):'tip')+'_'+s,p,k*x,y,z)})}
+  const u=add('upLeg_'+s,hips,k*.05,.50,0),l=add('leg_'+s,u,k*.05,.28,.012),ft=add('foot_'+s,l,k*.05,.05,0);add('heel_'+s,ft,k*.05,.014,-.03);const tb=add('toe_'+s,ft,k*.05,.02,.09);add('toe_tip_'+s,tb,k*.05,.0125,.114)}
+ return out}
+/* Demo body built from the SAME joint table (sole at y=0, crown at y=1.8, symmetric about x=0 and z=0) so mesh and skeleton match exactly. */
+function humanoidGeo(){const H=1.8,JT=buildJoints(H,1),M={};JT.forEach(j=>M[j.name]=j.pos);const p=n=>M[n],gs=[];
+ const strip=g=>{g.deleteAttribute('uv');return g};
+ const ell=(c,rx,ry,rz,d=22)=>{const g=strip(new THREE.SphereGeometry(1,d,Math.round(d*.7)));g.scale(rx,ry,rz);g.translate(c.x,c.y,c.z);gs.push(g)};
+ const seg=(a,b,ra,rb,sx=1,sz=1,d=16)=>{const len=a.distanceTo(b);if(len<1e-5)return;const sd=Math.max(5,Math.round(d*.6));
+  const g=mergeGeos([strip(new THREE.CylinderGeometry(rb,ra,len,d,1,true)),strip(new THREE.SphereGeometry(ra,d,sd).translate(0,-len/2,0)),strip(new THREE.SphereGeometry(rb,d,sd).translate(0,len/2,0))]);
+  g.scale(sx,1,sz);g.applyQuaternion(Q().setFromUnitVectors(V3(0,1,0),b.clone().sub(a).normalize()));const m=a.clone().add(b).multiplyScalar(.5);g.translate(m.x,m.y,m.z);gs.push(g)};
+ /* torso */
+ const hp=p('hips');ell(V3(0,hp.y-.04,0),.165,.115,.115);
+ seg(p('spine_01'),p('spine_02'),.135,.145,1.25,.82);seg(p('spine_02'),p('chest'),.145,.16,1.3,.85);seg(p('chest'),p('upper_chest'),.16,.165,1.35,.85);seg(p('upper_chest'),p('neck'),.165,.07,1.2,.85);
+ seg(p('neck'),p('head'),.052,.05,1,1,14);
+ ell(V3(0,H-.112,.005),.085,.112,.098,26);ell(V3(0,1.655,.098),.014,.018,.02,10);
+ /* arms + hands */
+ for(const [s,k] of [['L',1],['R',-1]]){const q=n=>p(n+'_'+s);
+  seg(q('clavicle'),q('arm'),.052,.05);ell(q('arm'),.06,.06,.06,16);seg(q('arm'),q('forearm'),.05,.042);seg(q('forearm'),q('hand'),.04,.03);
+  const hn=q('hand');ell(V3(hn.x+k*.043,hn.y,0),.046,.013,.042,14);
+  for(const [nm,,,,steps] of FINGERS){const r=nm==='thumb'?.0115:nm==='pinky'?.0075:.0092,ids=[nm+'_01',nm+'_02',nm+'_03',nm+'_tip'];
+   if(nm==='thumb')seg(hn,q(ids[0]),.014,r,1,1,8);
+   for(let i=0;i<3;i++)seg(q(ids[i]),q(ids[i+1]),r*[1,.9,.78][i],r*[.9,.78,.62][i],1,1,8)}
+  /* legs + feet */
+  seg(q('upLeg'),q('leg'),.088,.062);ell(q('leg'),.062,.062,.062,16);seg(q('leg'),q('foot'),.058,.04);ell(q('foot'),.04,.04,.04,14);
+  const fx=q('foot').x;seg(q('foot'),V3(fx,.045,.07),.04,.036,1,1,14);seg(V3(fx,.035,-.03),V3(fx,.022,.2),.035,.022,1.3,1,16)}
+ return mergeGeos(gs)}
+/* Drop a mesh onto the ground datum: sole -> y=0, torso centre -> x=z=0 (limbs/feet are ignored so the centre is stable). */
+function groundGeo(g){const bb=bbox(g),h=bb.max.y-bb.min.y,lo=bb.min.y+h*.4,hi=bb.min.y+h*.7,pos=g.attributes.position,b=new THREE.Box3(),v=V3();
+ for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i);if(v.y>=lo&&v.y<=hi)b.expandByPoint(v)}
+ if(b.isEmpty())b.copy(bb);g.translate(-(b.min.x+b.max.x)/2,-bb.min.y,-(b.min.z+b.max.z)/2);g.computeBoundingBox()}
+function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hips|pelvis/i.test(j.name));S.H=i>=0?i:0}
+function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
+
+/* ---------- rig construction ---------- */
+function clearAll(){tc.detach();if(S.root)scene.remove(S.root);S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.src='pose';S.playing=false;$('btnPlay').textContent='▶ PLAY';refresh()}
+function makeBones(){S.bones=S.joints.map(j=>{const b=new THREE.Bone();b.name=j.name;return b});S.idx={};S.joints.forEach((j,i)=>{S.idx[j.name]=i;if(j.parent>=0){S.bones[j.parent].add(S.bones[i]);S.bones[i].position.copy(j.pos).sub(S.joints[j.parent].pos)}else S.bones[i].position.copy(j.pos)});
+ S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));captureRest()}
+function captureRest(){setHips();S.restQ=S.bones.map(b=>b.quaternion.clone());S.restP=S.bones.map(b=>b.position.clone());S.fk=S.restQ.map(q=>q.clone());S.hips0.copy(S.bones[S.H].position);S.hipsOff.set(0,0,0)}
+function top4(i,bi,bv){bi.fill(0);bv.fill(0);const B=S.B,o=i*B;for(let j=0;j<B;j++){const w=S.W[o+j];if(w>bv[3]){let k=3;while(k>0&&w>bv[k-1]){bv[k]=bv[k-1];bi[k]=bi[k-1];k--}bv[k]=w;bi[k]=j}}let s=bv[0]+bv[1]+bv[2]+bv[3];if(s<1e-6){bi[0]=0;bv[0]=1;s=1}return s}
+function applyWeights(prune){const g=S.geo,si=g.attributes.skinIndex,sw=g.attributes.skinWeight,bi=[0,0,0,0],bv=[0,0,0,0],B=S.B;
+ for(let i=0;i<S.N;i++){const s=top4(i,bi,bv);for(let k=0;k<4;k++){si.array[i*4+k]=bi[k];sw.array[i*4+k]=bv[k]/s}
+  if(prune){S.W.fill(0,i*B,i*B+B);for(let k=0;k<4;k++)S.W[i*B+bi[k]]+=bv[k]/s}}
+ si.needsUpdate=sw.needsUpdate=true}
+function solveWeights(){const {N,B}=S,pos=S.geo.attributes.position;S.W=new Float32Array(N*B);const kids=S.joints.map(()=>[]);S.joints.forEach((j,i)=>{if(j.parent>=0)kids[j.parent].push(i)});
+ const v=V3(),a=V3(),t=V3(),q=V3(),p=S.falloff,noSkin=S.joints.map(j=>/^root$/i.test(j.name));
+ for(let i=0;i<N;i++){v.fromBufferAttribute(pos,i);let sum=0;for(let j=0;j<B;j++){if(noSkin[j]){S.W[i*B+j]=0;continue}a.copy(S.joints[j].pos);let m=v.distanceToSquared(a);for(const k of kids[j]){t.copy(S.joints[k].pos).sub(a);const l2=t.lengthSq()||1e-9;const u=Math.min(1,Math.max(0,q.copy(v).sub(a).dot(t)/l2));q.copy(a).addScaledVector(t,u);m=Math.min(m,v.distanceToSquared(q))}
+  const w=1/(Math.pow(Math.sqrt(m),p)+1e-6);S.W[i*B+j]=w;sum+=w}for(let j=0;j<B;j++)S.W[i*B+j]/=sum}
+ applyWeights(true);updateColors()}
+function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
+ const m=new THREE.SkinnedMesh(g,mat);m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
+function rig(){if(!S.geo){say('Load or create a model first',1);return}
+ if(S.adopted){S.geo=mergeGeos([S.geo]);S.adopted=false}const g=S.geo;['skinIndex','skinWeight','color'].forEach(n=>g.deleteAttribute(n));const keepGeo=g;clearAll();S.geo=keepGeo;
+ groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;S.joints=buildJoints(S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
+ autoChains();
+ buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • root @ ground datum';frameModel()}
+function adopt(sc){let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();
+ if(!S.geo.attributes.color)S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.geo.attributes.position.count*3).fill(1),3));
+ const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
+ S.alias=mixamoAlias();S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));S.B=S.bones.length;S.N=S.geo.attributes.position.count;S.W=new Float32Array(S.N*S.B);const si=S.geo.attributes.skinIndex,sw=S.geo.attributes.skinWeight;for(let i=0;i<S.N;i++)for(let k=0;k<4;k++)S.W[i*S.B+si.getComponent(i,k)]+=sw.getComponent(i,k);
+ S.h=bbox(S.geo).getSize(V3()).y;captureRest();autoChains();buildMarkers();refresh();frameModel();return true}
+
+/* ---------- viz ---------- */
+const COL={c:new THREE.Color(0xa6ff7a),l:new THREE.Color(0x6ec8ff),r:new THREE.Color(0xff9a6e),sel:new THREE.Color(0xffff55)};
+const sideCol=n=>/_L$|Left/.test(n)?COL.l:/_R$|Right/.test(n)?COL.r:COL.c;
+let boneLines=null,datum=null;
+/* every joint = node sphere; every bone = octahedral bone shape (parent -> child); ring + heading tick = ground datum under the root */
+function buildMarkers(){ovl.clear();S.markers=[];const h=S.h,B=S.joints.length,kidMin=S.joints.map(()=>Infinity);
+ S.joints.forEach(j=>{if(j.parent>=0)kidMin[j.parent]=Math.min(kidMin[j.parent],j.pos.distanceTo(S.joints[j.parent].pos))});
+ S.joints.forEach((j,i)=>{const l=isFinite(kidMin[i])?kidMin[i]:h*.03,r=Math.min(h*.012,Math.max(h*.0045,l*.16))*(i===S.H||i===0?1.5:1);
+  const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),new THREE.MeshBasicMaterial({color:sideCol(j.name).clone(),depthTest:false,transparent:true}));m.renderOrder=20;m.userData.bone=i;ovl.add(m);S.markers.push(m)});
+ const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(B*24*3),3));lg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(B*24*3),3));
+ boneLines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({vertexColors:true,depthTest:false,transparent:true,opacity:.9}));boneLines.renderOrder=19;boneLines.frustumCulled=false;ovl.add(boneLines);
+ const rr=h*.13,pts=[];for(let a=0;a<=48;a++)pts.push(V3(Math.cos(a/48*Math.PI*2)*rr,0,Math.sin(a/48*Math.PI*2)*rr));
+ const dm=new THREE.LineBasicMaterial({color:0xa6ff7a,depthTest:false,transparent:true,opacity:.7});datum=new THREE.Group();
+ datum.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),dm),new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([V3(-rr,0,0),V3(rr,0,0),V3(0,0,-rr),V3(0,0,rr),V3(0,0,rr),V3(rr*.2,0,rr*.7),V3(0,0,rr),V3(-rr*.2,0,rr*.7)]),dm));datum.renderOrder=18;ovl.add(datum);
+ S.chains.forEach(c=>{ovl.add(c.target,c.pole)})}
+const _w=V3(),_a=V3(),_b=V3(),_u=V3(),_n1=V3(),_n2=V3(),_ref=V3(),_mid=V3(),_cs=[V3(),V3(),V3(),V3()],_dq=Q(),_de=new THREE.Euler();
+function updateViz(){if(!S.bones.length||!boneLines)return;S.root.updateMatrixWorld(true);
+ S.bones.forEach((b,i)=>{b.getWorldPosition(_w);S.markers[i].position.copy(_w);S.markers[i].material.color.copy(i===S.sel?COL.sel:sideCol(S.joints[i].name))});
+ const pa=boneLines.geometry.attributes.position,ca=boneLines.geometry.attributes.color,h=S.h;
+ S.joints.forEach((j,i)=>{const o=i*24,c=i===S.sel?COL.sel:sideCol(j.name);for(let v=0;v<24;v++)ca.setXYZ(o+v,c.r,c.g,c.b);
+  if(j.parent<0){for(let v=0;v<24;v++)pa.setXYZ(o+v,0,0,0);return}
+  _a.copy(S.markers[j.parent].position);_b.copy(S.markers[i].position);_u.subVectors(_b,_a);const len=_u.length();
+  if(len<1e-6){for(let v=0;v<24;v++)pa.setXYZ(o+v,_a.x,_a.y,_a.z);return}
+  _u.divideScalar(len);_ref.set(0,1,0);if(Math.abs(_u.y)>.9)_ref.set(1,0,0);_n1.crossVectors(_u,_ref).normalize();_n2.crossVectors(_u,_n1);
+  const w=Math.min(len*.13,h*.016);_mid.copy(_a).addScaledVector(_u,len*.22);
+  _cs[0].copy(_mid).addScaledVector(_n1,w);_cs[1].copy(_mid).addScaledVector(_n2,w);_cs[2].copy(_mid).addScaledVector(_n1,-w);_cs[3].copy(_mid).addScaledVector(_n2,-w);
+  let v=o;const put=p=>pa.setXYZ(v++,p.x,p.y,p.z);for(let k=0;k<4;k++){put(_a);put(_cs[k])}for(let k=0;k<4;k++){put(_cs[k]);put(_b)}for(let k=0;k<4;k++){put(_cs[k]);put(_cs[(k+1)%4])}});
+ pa.needsUpdate=ca.needsUpdate=true;
+ const r0=S.markers[0].position;S.bones[0].getWorldQuaternion(_dq);_de.setFromQuaternion(_dq,'YXZ');datum.position.set(r0.x,.004,r0.z);datum.rotation.set(0,_de.y,0)}
+function frameModel(){if(!S.root)return;const bb=new THREE.Box3().setFromObject(S.mesh||S.root);if(bb.isEmpty())return;const c=bb.getCenter(V3()),sz=bb.getSize(V3()),d=Math.max(sz.y*1.2,sz.x*.7,.5)*2.1;
+ controls.target.copy(c);const dv=camera.position.clone().sub(c);if(dv.lengthSq()<1e-6)dv.set(.55,.2,.8);dv.normalize();camera.position.copy(c).addScaledVector(dv,d);camera.near=Math.max(.01,d/200);camera.far=d*40;camera.updateProjectionMatrix();scene.fog.near=d*2.5;scene.fog.far=d*7;controls.update()}
+function updateColors(){if(!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B;for(let i=0;i<S.N;i++){const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
+function setWView(on){S.wview=on;const mm=S.mesh?S.mesh.material:mat;mm.vertexColors=on;mm.needsUpdate=true;$('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);updateColors()}
+
+/* ---------- IK ---------- */
+function autoChains(){const ln=a=>S.alias?S.alias[a]:a;[['upLeg_L','leg_L','foot_L',V3(0,0,.5),1],['upLeg_R','leg_R','foot_R',V3(0,0,.5),1],['arm_L','forearm_L','hand_L',V3(0,0,-.5),0],['arm_R','forearm_R','hand_R',V3(0,0,-.5),0]].forEach(c=>mkChain(c.slice(0,3).map(ln),c[3],c[4]))}
+function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.some(i=>i===undefined))return null;
+ S.root.updateMatrixWorld(true);const end=S.bones[idx[2]].getWorldPosition(V3()),mid=S.bones[idx[1]].getWorldPosition(V3()),r=Math.max(.02,S.h*.02);
+ const target=new THREE.Mesh(new THREE.BoxGeometry(r*1.6,r*1.6,r*1.6),new THREE.MeshBasicMaterial({color:0x55ff55,depthTest:false,transparent:true,opacity:.85}));const pole=new THREE.Mesh(new THREE.SphereGeometry(r,10,10),new THREE.MeshBasicMaterial({color:0x55aaff,depthTest:false,transparent:true,opacity:.85}));
+ target.renderOrder=pole.renderOrder=21;target.position.copy(end);pole.position.copy(mid).add(poleOff.clone().multiplyScalar(S.h/1.8));
+ const c={name:'IK_'+names[2],idx,target,pole,blend:blend,on:true,rest:end.clone(),foot:/foot/i.test(names[2]),side:/(_R$|Right)/.test(names[2])?1:0};const pw=idx.map(i=>S.bones[i].getWorldPosition(V3()));c.len=pw[0].distanceTo(pw[1])+pw[1].distanceTo(pw[2]);c.root0=pw[0];target.userData.chain=pole.userData.chain=S.chains.length;target.userData.kind='target';pole.userData.kind='pole';
+ S.chains.push(c);ovl.add(target,pole);return c}
+function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.bones[i]),n=bs.length;S.root.updateMatrixWorld(true);
+ const P=bs.map(b=>b.getWorldPosition(V3())),L=[];for(let i=0;i<n-1;i++)L.push(P[i].distanceTo(P[i+1]));const T=ch.target.position.clone(),root=P[0].clone(),total=L.reduce((a,b)=>a+b,0),footQ=ch.foot?bs[n-1].getWorldQuaternion(Q()):null,lastFk=bs[n-1].quaternion.clone();
+ if(n===3){/* exact analytic two-bone IK (law of cosines); the knee is pushed toward the pole vector */
+  const ax=T.clone().sub(root),d=ax.length();if(d>1e-6){ax.divideScalar(d);const dd=Math.min(Math.max(d,Math.abs(L[0]-L[1])+1e-4),total-1e-5),x=(L[0]*L[0]+dd*dd-L[1]*L[1])/(2*dd),hh=Math.sqrt(Math.max(0,L[0]*L[0]-x*x));
+   let pd=ch.pole.position.clone().sub(root);pd.addScaledVector(ax,-pd.dot(ax));if(pd.length()<1e-6){pd=P[1].clone().sub(root);pd.addScaledVector(ax,-pd.dot(ax))}if(pd.length()<1e-6)pd=Math.abs(ax.y)<.9?V3(0,1,0).cross(ax):V3(1,0,0).cross(ax);pd.normalize();
+   P[1].copy(root).addScaledVector(ax,x).addScaledVector(pd,hh);P[2].copy(root).addScaledVector(ax,dd)}}
+ else if(root.distanceTo(T)>=total){for(let i=0;i<n-1;i++){const d=T.clone().sub(P[i]).normalize();P[i+1].copy(P[i]).addScaledVector(d,L[i])}}
+ else for(let it=0;it<24;it++){P[n-1].copy(T);
+  for(let i=n-2;i>=0;i--){const d=P[i].clone().sub(P[i+1]).normalize();P[i].copy(P[i+1]).addScaledVector(d,L[i])}   /* read the direction BEFORE overwriting (it was zeroed -> chain collapsed -> legs folded up) */
+  P[0].copy(root);
+  for(let i=0;i<n-1;i++){const d=P[i+1].clone().sub(P[i]).normalize();P[i+1].copy(P[i]).addScaledVector(d,L[i])}
+  if(P[n-1].distanceTo(T)<1e-4)break}
+ const fk=bs.map(b=>b.quaternion.clone()),A=V3(),Bp=V3(),qa=Q(),qw=Q(),pq=Q();
+ for(let i=0;i<n-1;i++){const b=bs[i];b.updateWorldMatrix(true,false);bs[i+1].updateWorldMatrix(true,false);b.getWorldPosition(A);bs[i+1].getWorldPosition(Bp);
+  const cur=Bp.sub(A).normalize(),des=P[i+1].clone().sub(A).normalize();qa.setFromUnitVectors(cur,des);b.getWorldQuaternion(qw);qw.premultiply(qa);b.parent.getWorldQuaternion(pq);b.quaternion.copy(pq.invert().multiply(qw)).normalize()}
+ /* feet keep their flat FK world orientation instead of tilting with the shin */
+ if(footQ){const lb=bs[n-1];lb.parent.updateWorldMatrix(true,false);lb.parent.getWorldQuaternion(pq);lb.quaternion.copy(pq.invert().multiply(footQ)).normalize()}
+ if(ch.blend<1){for(let i=0;i<n-1;i++)bs[i].quaternion.slerpQuaternions(fk[i],bs[i].quaternion.clone(),ch.blend);if(footQ)bs[n-1].quaternion.slerpQuaternions(lastFk,bs[n-1].quaternion.clone(),ch.blend)}}
+function solveAll(){S.chains.forEach(solveChain)}
+function syncTargets(){S.root.updateMatrixWorld(true);S.chains.forEach(c=>c.target.position.copy(S.bones[c.idx[2]].getWorldPosition(V3())))}
+
+/* ---------- pose / motion / keys ---------- */
+function applyPose(){S.bones.forEach((b,i)=>{b.quaternion.copy(S.fk[i]);b.position.copy(S.restP[i])});S.bones[S.H].position.copy(S.hips0).add(S.hipsOff)}
+function wq(i){const q=S.fk[i].clone();let p=S.joints[i].parent;while(p>=0){q.premultiply(S.fk[p]);p=S.joints[p].parent}return q.premultiply(S.baseQ)}
+function rotW(name,axis,ang){const i=J(name);if(i===undefined)return;const p=S.joints[i].parent,Wp=p>=0?wq(p):S.baseQ.clone(),Qw=Q().setFromAxisAngle(axis,ang);
+ S.fk[i].premultiply(Wp.clone().invert().multiply(Qw).multiply(Wp)).normalize()}
+const AX={x:V3(1,0,0),y:V3(0,1,0),z:V3(0,0,1)};
+function procPose(fr){const m=MO[S.motion],ph=fr/30*S.speed*m.f*Math.PI*2,sn=Math.sin(ph),cs=Math.cos(ph),s=m.s*S.stride*S.h/1.8*.5;
+ S.fk.forEach((q,i)=>q.copy(S.restQ[i]));const jump=S.motion==='jump',jy=jump?Math.max(0,sn)*.45*S.h/1.8:0,k=S.h/1.8;
+ for(const side of ['L','R']){const d=side==='L'?1:-1,swing=(side==='L'?1:-1)*sn*m.a;
+  rotW('arm_'+side,AX.z,-d*1.25);rotW('arm_'+side,AX.x,jump?-Math.max(0,sn)*1.4:swing);rotW('forearm_'+side,AX.x,-(.25+.25*Math.abs(sn)*m.a))}
+ rotW('spine_02',AX.x,m.lean+(S.motion==='run'?.08:0));rotW('chest',AX.y,m.tw*cs);if(S.motion==='idle')rotW('chest',AX.x,.025*Math.sin(ph*4));
+ S.hipsOff.set((m.tw>.15?.02:.01)*k*cs,(jump?jy:m.b*k*Math.cos(2*ph)-m.c*k),0).applyQuaternion(S.baseQi).divideScalar(S.unit);
+ let drop=0;
+ S.chains.forEach(c=>{if(!c.foot)return;const p=ph+(c.side?Math.PI:0),R=c.len*.97;let z=Math.max(-R*.8,Math.min(R*.8,Math.sin(p)*s)),y=jump?jy*.9:Math.max(0,Math.cos(p))*m.l*k*(s>0?1:0);c.target.position.copy(c.rest).add(V3(0,y,z));
+  /* lower the pelvis just enough that the planted foot stays inside leg reach (knees bend instead of the leg over-stretching) */
+  const dz=c.target.position.z-c.root0.z,dy=c.root0.y+S.hipsOff.y-c.target.position.y,need=Math.sqrt(Math.max(1e-6,R*R-dz*dz));if(dy>need)drop=Math.max(drop,dy-need)});
+ S.hipsOff.y-=drop}
+function recordKey(f){S.keys.set(f,{q:S.bones.map(b=>b.quaternion.clone()),h:S.bones[S.H].position.clone()})}
+function shapeT(t){switch(S.interpolation){case 'step':return 0;case 'easeIn':return t*t;case 'easeOut':return 1-(1-t)*(1-t);case 'easeInOut':case 'bezier':return t*t*(3-2*t);default:return t}}
+function keyPose(fr){const ks=[...S.keys.keys()].sort((a,b)=>a-b);if(!ks.length)return;let p=null,n=null;for(const k of ks){if(k<=fr)p=k;else if(n===null)n=k}
+ let A,B,t=0;if(p===null){A=B=S.keys.get(ks[0])}else{A=S.keys.get(p);if(n===null){if(S.loop&&ks.length>1){B=S.keys.get(ks[0]);t=(fr-p)/Math.max(1e-6,ks[0]+S.max-p)}else B=A}else{B=S.keys.get(n);t=(fr-p)/(n-p)}}t=shapeT(Math.max(0,Math.min(1,t)));
+ S.fk.forEach((q,i)=>q.slerpQuaternions(A.q[i],B.q[i],t));S.hipsOff.copy(A.h).lerp(B.h,t).sub(S.hips0)}
+const _cq=Q();
+function useClip(a){S.clip=a;const tr=a.clip.tracks,q=[];let p=null;tr.forEach(t=>{const m=t.name.match(/^(.*)\.(quaternion|position)$/);if(!m)return;const i=S.idx[m[1]];if(i===undefined)return;if(m[2]==='quaternion')q.push({i,it:t.createInterpolant()});else if(i===S.H)p=t.createInterpolant()});
+ S.clipRt={q,p};S.max=Math.max(8,Math.round(a.clip.duration*30));S.frame=0;S.src='clip';$('hudSrc').textContent='clip';refresh()}
+function clipPose(fr){const r=S.clipRt;if(!r)return;S.fk.forEach((q,i)=>q.copy(S.restQ[i]));const t=fr/30;r.q.forEach(o=>{const v=o.it.evaluate(t);S.fk[o.i].set(v[0],v[1],v[2],v[3])});
+ if(r.p){const v=r.p.evaluate(t);S.hipsOff.set(v[0]-S.hips0.x,v[1]-S.hips0.y,v[2]-S.hips0.z)}}
+function evaluate(){if(!S.bones.length)return;if(S.src==='proc')procPose(S.frame);else if(S.src==='keys')keyPose(S.frame);else if(S.src==='clip')clipPose(S.frame);applyPose();if(S.src==='pose'||S.src==='proc')solveAll()}
+function toPose(){if(S.src!=='pose'){syncTargets();S.src='pose';$('hudSrc').textContent='pose'}}
+function bake(){if(!S.bones.length)return;const isClip=S.src==='clip'&&S.clipRt,m=MO[S.motion],len=isClip?S.max:Math.min(240,Math.max(8,Math.round(30/(m.f*S.speed)))),step=Math.max(1,Math.ceil(len/240));S.max=len;S.keys.clear();if(!isClip)S.src='proc';for(let f=0;f<=len;f+=step){if(isClip)clipPose(f);else procPose(f);applyPose();if(!isClip)solveAll();recordKey(f)}S.src='keys';S.frame=0;$('hudSrc').textContent='keys';say('Baked '+S.keys.size+' keys ('+(isClip?'add-on clip':S.motion)+')');refresh()}
+function makeClip(){if(!S.keys.size)return[];const ks=[...S.keys.keys()].sort((a,b)=>a-b),times=ks.map(k=>k/30),tr=[];
+ S.bones.forEach((b,i)=>{const v=[];ks.forEach(k=>v.push(...S.keys.get(k).q[i].toArray()));tr.push(new THREE.QuaternionKeyframeTrack(b.name+'.quaternion',times,v))});
+ const hv=[];ks.forEach(k=>hv.push(...S.keys.get(k).h.toArray()));tr.push(new THREE.VectorKeyframeTrack(S.bones[S.H].name+'.position',times,hv));return[new THREE.AnimationClip('Take_'+S.motion,-1,tr)]}
+
+/* ---------- weight painting ---------- */
+function adjust(i,b,d){const B=S.B,o=i*B,W=S.W;const nw=Math.min(1,Math.max(0,W[o+b]+d));let other=0;for(let j=0;j<B;j++)if(j!==b)other+=W[o+j];
+ if(other>1e-6){const k=(1-nw)/other;for(let j=0;j<B;j++)if(j!==b)W[o+j]*=k;W[o+b]=nw}
+ else{const p=S.joints[b].parent;if(p>=0){W[o+p]=1-nw;W[o+b]=nw}else W[o+b]=1}}
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,pdirty=false;
+function setRay(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera)}
+function paintAt(e){if(!S.mesh||!S.W)return;setRay(e);const h=ray.intersectObject(S.mesh,false)[0];if(!h||!h.face)return;const pos=S.geo.attributes.position,c=V3().fromBufferAttribute(pos,h.face.a),v=V3(),b=Math.max(0,S.sel),{r,s,mode}=S.brush;
+ for(let i=0;i<S.N;i++){const d=v.fromBufferAttribute(pos,i).distanceTo(c);if(d>r)continue;const f=Math.pow(1-d/r,2)*s*.35;adjust(i,b,mode==='sub'?-f:f)}pdirty=true}
+function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj){const adj=Array.from({length:S.N},()=>new Set()),ix=S.geo.index;if(ix)for(let i=0;i<ix.count;i+=3){const a=ix.getX(i),b=ix.getX(i+1),c=ix.getX(i+2);adj[a].add(b).add(c);adj[b].add(a).add(c);adj[c].add(a).add(b)}S.adj=adj.map(s=>[...s])}
+ const B=S.B,N=new Float32Array(S.W.length);for(let i=0;i<S.N;i++){const nb=S.adj[i],cnt=nb.length+1;for(let j=0;j<B;j++){let s=S.W[i*B+j];for(const n of nb)s+=S.W[n*B+j];N[i*B+j]=s/cnt}}S.W=N;applyWeights(true);updateColors()}
+
+/* ---------- selection / gizmo ---------- */
+function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace(tc.mode==='rotate'?'local':'world');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace('world');tc.attach(S.gizmoObj)}}
+tc.addEventListener('mouseDown',toPose);
+tc.addEventListener('objectChange',()=>{if(S.tool==='fk'&&S.sel>=0){const b=S.bones[S.sel];if(tc.mode==='rotate')S.fk[S.sel].copy(b.quaternion);else if(S.sel===S.H)S.hipsOff.copy(b.position).sub(S.hips0);syncSliders()}});
+function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();updateColors();refresh()}
+function selectIK(ci,obj){S.selChain=ci;S.gizmoObj=obj;if(S.tool!=='ik'){setTool('ik')}else syncGizmo();refresh()}
+function setTool(t){S.tool=t;document.querySelectorAll('.tool').forEach(e=>e.classList.toggle('active',e.dataset.tool===t));if(t==='fk')tc.setMode($('gMove').classList.contains('on')?'translate':'rotate');syncGizmo()}
+let down=null;
+canvas.addEventListener('pointerdown',e=>{if(tc.axis)return;down={x:e.clientX,y:e.clientY};if(S.tool==='paint'&&S.mesh&&e.button===0){setRay(e);if(ray.intersectObject(S.mesh,false)[0]){painting=true;e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);paintAt(e)}}},{capture:true});
+canvas.addEventListener('pointermove',e=>{if(painting){paintAt(e);e.stopImmediatePropagation()}},{capture:true});
+canvas.addEventListener('pointerup',e=>{if(painting){painting=false;if(pdirty){applyWeights(false);updateColors();pdirty=false}down=null;return}
+ if(!down||tc.dragging)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y)>4;down=null;if(moved||tc.axis)return;if(S.tool==='paint')return;
+ setRay(e);const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
+ if(o.userData.bone!==undefined)selectBone(o.userData.bone);else if(o.userData.kind)selectIK(o.userData.chain,o)});
+function frameFromEvent(e){const r=$('tl').getBoundingClientRect();return Math.max(0,Math.min(S.max,Math.round((e.clientX-r.left)/r.width*S.max)))}
+
+/* ---------- UI ---------- */
+const deg=r=>Math.round(r*180/Math.PI);
+function syncSliders(){const i=S.sel;const nm=i>=0?dn(S.joints[i].name):'none';$('selName').textContent=$('activeBone').textContent=$('hudBone').textContent=nm;
+ if(i>=0&&S.fk[i]){const e=new THREE.Euler().setFromQuaternion(S.fk[i]);[['rx',e.x],['ry',e.y],['rz',e.z]].forEach(([id,v])=>{$(id).value=deg(v);$('v'+id.slice(0,1).toUpperCase()+id.slice(1)).textContent=deg(v)})}}
+function refresh(){$('boneCount').textContent=S.joints.length;$('hudIK').textContent=S.chains.length;
+ const depth=i=>{let d=0,p=S.joints[i].parent;while(p>=0){d++;p=S.joints[p].parent}return d};
+ $('boneTree').innerHTML=S.joints.map((j,i)=>`<div class="ti ${i===S.sel?'sel':''}" data-i="${i}" style="padding-left:${8+depth(i)*10}px">${dn(j.name)}</div>`).join('');
+ $('boneTree').querySelectorAll('.ti').forEach(el=>el.onclick=()=>selectBone(+el.dataset.i));
+ $('ikList').innerHTML=S.chains.map((c,i)=>`<div class="ti ${i===S.selChain?'sel':''}" data-i="${i}">${c.on?'●':'○'} ${dn(c.name)} • ${c.blend.toFixed(2)}</div>`).join('');
+ $('ikList').querySelectorAll('.ti').forEach(el=>el.onclick=()=>selectIK(+el.dataset.i,S.chains[+el.dataset.i].target));
+ const c=S.chains[S.selChain];if(c){$('ikfk').value=c.blend;$('vBlend').textContent=c.blend.toFixed(2)}
+ $('maxLabel').textContent=S.max;$('addonCount').textContent=S.addons.length;
+ $('addonList').innerHTML=S.addons.map((a,i)=>`<div class="ti ${S.clip===a&&S.src==='clip'?'sel':''}" data-i="${i}">▶ ${a.name} • ${a.clip.duration.toFixed(1)}s</div>`).join('')||'<div class="label">None loaded</div>';
+ $('addonList').querySelectorAll('.ti').forEach(el=>el.onclick=()=>{useClip(S.addons[+el.dataset.i]);S.playing=true;$('btnPlay').textContent='⏸ PAUSE'});
+ 
+ syncSliders()}
+document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(t=>t.classList.remove('active'));el.classList.add('active');$('panel-'+el.dataset.tab).classList.add('active')});
+document.querySelectorAll('.tool').forEach(el=>el.onclick=()=>setTool(el.dataset.tool));
+const bind=(id,fn,ev='oninput')=>$(id)[ev]=fn;
+bind('rigWidth',e=>{S.width=+e.target.value;$('vWidth').textContent=S.width.toFixed(2)});
+['rx','ry','rz'].forEach(id=>bind(id,()=>{if(S.sel<0)return;toPose();S.fk[S.sel].setFromEuler(new THREE.Euler($('rx').value*Math.PI/180,$('ry').value*Math.PI/180,$('rz').value*Math.PI/180));['rx','ry','rz'].forEach(k=>$('v'+k[0].toUpperCase()+k[1]).textContent=$(k).value)}));
+bind('gRot',()=>{$('gRot').classList.add('on');$('gMove').classList.remove('on');tc.setMode('rotate');setTool('fk')},'onclick');
+bind('gMove',()=>{$('gMove').classList.add('on');$('gRot').classList.remove('on');if(S.sel!==S.H)selectBone(S.H);tc.setMode('translate');setTool('fk')},'onclick');
+bind('btnResetBone',()=>{if(S.sel<0)return;toPose();S.fk[S.sel].copy(S.restQ[S.sel]);if(S.sel===S.H)S.hipsOff.set(0,0,0);syncSliders()},'onclick');
+bind('btnResetPose',()=>{if(!S.bones.length)return;S.src='pose';S.playing=false;$('btnPlay').textContent='▶ PLAY';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);S.chains.forEach(c=>{c.target.position.copy(c.rest)});$('hudSrc').textContent='pose';syncSliders()},'onclick');
+function mirror(from,to){if(!S.bones.length)return;if(S.alias){say('Mirror needs _L/_R bone names',1);return}toPose();S.joints.forEach((j,i)=>{if(!j.name.endsWith('_'+from))return;const o=S.idx[j.name.slice(0,-1)+to];if(o===undefined)return;const q=S.fk[i];S.fk[o].set(q.x,-q.y,-q.z,q.w)});S.chains.forEach(a=>{if(!a.name.endsWith('_'+from))return;const b=S.chains.find(c=>c.name===a.name.slice(0,-1)+to);if(b){b.blend=a.blend;b.target.position.set(-a.target.position.x,a.target.position.y,a.target.position.z);b.pole.position.set(-a.pole.position.x,a.pole.position.y,a.pole.position.z)}});refresh()}
+bind('btnMirLR',()=>mirror('L','R'),'onclick');bind('btnMirRL',()=>mirror('R','L'),'onclick');
+bind('btnCreateIK',()=>{if(S.sel<2){say('Select a bone at least 2 levels below the root',1);return}const e=S.sel,m=S.joints[e].parent,r=S.joints[m].parent;if(r<0){say('Selected bone needs two ancestors',1);return}
+ const c=mkChain([S.joints[r].name,S.joints[m].name,S.joints[e].name],V3(0,0,.4),1);if(c){c.name='IK_'+S.joints[e].name;selectIK(S.chains.length-1,c.target)}},'onclick');
+bind('ikfk',e=>{const c=S.chains[S.selChain];if(!c)return;c.blend=+e.target.value;$('vBlend').textContent=c.blend.toFixed(2);if(S.src!=='keys')toPose();refresh()});
+bind('btnIKOn',()=>{const c=S.chains[S.selChain];if(c){c.on=!c.on;refresh()}},'onclick');
+bind('btnIKSnap',()=>{const c=S.chains[S.selChain];if(c){toPose();syncTargets();say('Target snapped to bone')}},'onclick');
+bind('btnIKDel',()=>{const c=S.chains[S.selChain];if(!c)return;ovl.remove(c.target,c.pole);S.chains.splice(S.selChain,1);S.chains.forEach((k,i)=>k.target.userData.chain=k.pole.userData.chain=i);S.selChain=-1;S.gizmoObj=null;syncGizmo();refresh()},'onclick');
+bind('falloff',e=>{S.falloff=+e.target.value;$('vFall').textContent=S.falloff.toFixed(1)});
+bind('btnBind',()=>{if(!S.geo||!S.W){say('No rig',1);return}solveWeights();say('Weights re-solved')},'onclick');
+bind('btnSmooth',()=>{smoothWeights();say('Weights smoothed')},'onclick');
+bind('btnWView',()=>setWView(!S.wview),'onclick');
+bind('brushMode',e=>S.brush.mode=e.target.value,'onchange');
+bind('brushSize',e=>{S.brush.r=+e.target.value;$('vBr').textContent=S.brush.r.toFixed(2)});
+bind('brushStrength',e=>{S.brush.s=+e.target.value;$('vBs').textContent=S.brush.s.toFixed(2)});
+document.querySelectorAll('[data-motion]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-motion]').forEach(x=>x.classList.remove('accent'));b.classList.add('accent');S.motion=b.dataset.motion;});
+bind('moSpeed',e=>{S.speed=+e.target.value;$('vSp').textContent=S.speed.toFixed(1)});bind('moStride',e=>{S.stride=+e.target.value;$('vSt').textContent=S.stride.toFixed(1)});
+bind('btnProc',()=>{if(!S.bones.length)return;S.src='proc';S.max=120;S.frame=0;$('hudSrc').textContent='proc';S.playing=true;$('btnPlay').textContent='⏸ PAUSE'},'onclick');
+bind('btnBake',bake,'onclick');
+bind('srcPose',()=>{if(S.bones.length){toPose()}},'onclick');
+bind('srcKeys',()=>{if(S.keys.size){S.src='keys';$('hudSrc').textContent='keys'}else say('No keys yet — bake or add keys',1)},'onclick');
+bind('btnKey',()=>{if(!S.bones.length)return;recordKey(Math.round(S.frame));say('Key @ '+Math.round(S.frame))},'onclick');
+bind('btnDelKey',()=>{S.keys.delete(Math.round(S.frame))},'onclick');bind('btnClearKeys',()=>{S.keys.clear()},'onclick');
+bind('btnLoop',()=>{S.loop=!S.loop;$('btnLoop').textContent='Loop '+(S.loop?'ON':'OFF');$('btnLoop').classList.toggle('on',S.loop)},'onclick');
+bind('btnPlay',()=>{if(!S.bones.length)return;S.playing=!S.playing;if(S.playing&&S.src==='pose'){S.src=S.keys.size?'keys':'proc';$('hudSrc').textContent=S.src}$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY'},'onclick');
+bind('btnDemo',()=>loadDemo(),'onclick');
+bind('btnAutoRig',()=>rig(),'onclick');
+bind('btnNew',()=>{clearAll();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
+bind('btnImport',()=>$('fileInput').click(),'onclick');bind('btnImport2',()=>$('fileInput').click(),'onclick');
+window.addEventListener('keydown',e=>{if(/INPUT|SELECT/.test(e.target.tagName)&&e.target.type!=='range')return;if(e.code==='Space'){e.preventDefault();$('btnPlay').click()}else if(e.key==='k'||e.key==='K')$('btnKey').click()});
+
+/* ---------- timeline + editable graph editor ---------- */
+const tl=$('tl'),tx=tl.getContext('2d'),gc=$('graphCanvas'),gx=gc.getContext('2d');let tdrag=false;
+function resizeCanvas(c,ctx){const r=c.parentElement.getBoundingClientRect();if(!r.width||!r.height)return;c.width=Math.max(1,Math.round(r.width*devicePixelRatio));c.height=Math.max(1,Math.round(r.height*devicePixelRatio));ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+function resizeT(){resizeCanvas(tl,tx);resizeCanvas(gc,gx)}
+function drawTL(){if(S.graphMode)return;const w=tl.width/devicePixelRatio,h=tl.height/devicePixelRatio;tx.fillStyle='#0c0c0f';tx.fillRect(0,0,w,h);const px=w/Math.max(1,S.max);tx.font='9px monospace';
+ for(let i=0;i<=S.max;i+=Math.max(1,Math.round(S.max/12))){tx.strokeStyle='#1e1e24';tx.beginPath();tx.moveTo(i*px,0);tx.lineTo(i*px,h);tx.stroke();tx.fillStyle='#666';tx.fillText(i,i*px+2,10)}
+ tx.fillStyle='#a6ff7a';S.keys.forEach((_,f)=>{const x=f*px,y=h/2;tx.beginPath();tx.moveTo(x,y-5);tx.lineTo(x+4,y);tx.lineTo(x,y+5);tx.lineTo(x-4,y);tx.fill()});tx.fillStyle='#ff5a5a';tx.fillRect(S.frame*px-.5,0,1.5,h)}
+function graphValue(key){if($('graphChannel').value==='hipsY')return key.h.y;const i=S.sel>=0?S.sel:0;const e=new THREE.Euler().setFromQuaternion(key.q[i]||Q(),'XYZ');return e.x}
+function setGraphValue(key,val){if($('graphChannel').value==='hipsY'){key.h.y=val;return}const i=S.sel>=0?S.sel:0,e=new THREE.Euler().setFromQuaternion(key.q[i]||Q(),'XYZ');e.x=val;key.q[i].setFromEuler(e)}
+function drawGraph(){if(!S.graphMode)return;const w=gc.width/devicePixelRatio,h=gc.height/devicePixelRatio;gx.fillStyle='#0b0c0e';gx.fillRect(0,0,w,h);const pad={l:44,r:14,t:14,b:23},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const ks=[...S.keys.keys()].sort((a,b)=>a-b);let vals=ks.map(f=>graphValue(S.keys.get(f)));if(!vals.length){gx.fillStyle='#858590';gx.font='12px monospace';gx.fillText('Add keyframes to edit animation curves',pad.l+10,h/2);return}let lo=Math.min(...vals),hi=Math.max(...vals);if(Math.abs(hi-lo)<.02){lo-=.5;hi+=.5}else{const m=(hi-lo)*.18;lo-=m;hi+=m}const x=f=>pad.l+f/Math.max(1,S.max)*pw,y=v=>pad.t+(hi-v)/(hi-lo)*ph;
+ gx.font='9px monospace';for(let j=0;j<=4;j++){const yy=pad.t+j*ph/4,v=hi-j*(hi-lo)/4;gx.strokeStyle='#26272d';gx.beginPath();gx.moveTo(pad.l,yy);gx.lineTo(w-pad.r,yy);gx.stroke();gx.fillStyle='#858590';gx.fillText(v.toFixed(2),3,yy+3)}for(let j=0;j<=8;j++){const f=Math.round(S.max*j/8),xx=x(f);gx.strokeStyle='#202127';gx.beginPath();gx.moveTo(xx,pad.t);gx.lineTo(xx,h-pad.b);gx.stroke();gx.fillStyle='#858590';gx.fillText(String(f),xx-5,h-6)}
+ gx.strokeStyle='#a6ff7a';gx.lineWidth=1.8;gx.beginPath();let begun=false;for(let frame=0;frame<=S.max;frame++){let a=null,b=null;for(let k=0;k<ks.length;k++){if(ks[k]<=frame)a=ks[k];if(ks[k]>=frame){b=ks[k];break}}let v;if(a===null)v=vals[0];else if(b===null)v=vals[vals.length-1];else if(a===b)v=graphValue(S.keys.get(a));else{const t=shapeT((frame-a)/(b-a));v=graphValue(S.keys.get(a))*(1-t)+graphValue(S.keys.get(b))*t}const xx=x(frame),yy=y(v);if(!begun){gx.moveTo(xx,yy);begun=true}else gx.lineTo(xx,yy)}gx.stroke();
+ ks.forEach((f,i)=>{const xx=x(f),yy=y(vals[i]);gx.fillStyle='#a6ff7a';gx.beginPath();gx.arc(xx,yy,4,0,Math.PI*2);gx.fill();gx.strokeStyle='#101114';gx.stroke()});const cx=x(S.frame);gx.strokeStyle='#ff5a5a';gx.lineWidth=1;gx.beginPath();gx.moveTo(cx,pad.t);gx.lineTo(cx,h-pad.b);gx.stroke();gx.fillStyle='#dfe0e4';gx.fillText($('graphChannel').selectedOptions[0].text+'  •  '+$('interpMode').selectedOptions[0].text,pad.l+6,10)}
+function graphCoords(e){const r=gc.getBoundingClientRect(),w=r.width,h=r.height,pad={l:44,r:14,t:14,b:23},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,ks=[...S.keys.keys()].sort((a,b)=>a-b),vs=ks.map(f=>graphValue(S.keys.get(f)));let lo=vs.length?Math.min(...vs):-.5,hi=vs.length?Math.max(...vs):.5;if(Math.abs(hi-lo)<.02){lo-=.5;hi+=.5}else{const m=(hi-lo)*.18;lo-=m;hi+=m}return{frame:Math.max(0,Math.min(S.max,((e.clientX-r.left-pad.l)/pw)*S.max)),value:hi-((e.clientY-r.top-pad.t)/ph)*(hi-lo),x:e.clientX-r.left,y:e.clientY-r.top,ks,pad,pw,ph,lo,hi}}
+tl.addEventListener('pointerdown',e=>{if(S.graphMode)return;tdrag=true;tl.setPointerCapture(e.pointerId);S.frame=frameFromEvent(e)});tl.addEventListener('pointermove',e=>{if(tdrag)S.frame=frameFromEvent(e)});tl.addEventListener('pointerup',()=>tdrag=false);tl.addEventListener('pointercancel',()=>tdrag=false);
+gc.addEventListener('pointerdown',e=>{if(!S.graphMode)return;const c=graphCoords(e);let nearest=null,dist=13;for(const f of c.ks){const xx=c.pad.l+f/Math.max(1,S.max)*c.pw,yy=c.pad.t+(c.hi-graphValue(S.keys.get(f)))/(c.hi-c.lo)*c.ph,d=Math.hypot(xx-c.x,yy-c.y);if(d<dist){nearest=f;dist=d}}if(nearest!==null){S.graphDrag=nearest;gc.setPointerCapture(e.pointerId);S.frame=nearest;if(S.keys.size){S.src='keys';$('hudSrc').textContent='keys'}}else{S.frame=Math.round(c.frame)}});
+gc.addEventListener('pointermove',e=>{if(S.graphDrag===null||!S.graphMode)return;const c=graphCoords(e),key=S.keys.get(S.graphDrag);if(key){setGraphValue(key,c.value);S.frame=S.graphDrag}});function endGraphDrag(){S.graphDrag=null}gc.addEventListener('pointerup',endGraphDrag);gc.addEventListener('pointercancel',endGraphDrag);
+$('btnGraph').addEventListener('click',()=>{S.graphMode=!S.graphMode;tl.style.display=S.graphMode?'none':'block';gc.style.display=S.graphMode?'block':'none';$('btnGraph').classList.toggle('on',S.graphMode);$('btnGraph').textContent=S.graphMode?'TIMELINE':'GRAPH EDITOR';resizeT();drawTL();drawGraph()});$('interpMode').addEventListener('change',()=>{S.interpolation=$('interpMode').value;drawGraph()});$('graphChannel').addEventListener('change',drawGraph);
+/* ---------- export / import ---------- */
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
+ S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
+ const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
+ const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA)};
+ new GLTFExporter().parse(S.root,res=>{restore();download(new Blob([res],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');say('GLB exported'+(clips.length?' with '+S.keys.size+' keys':''))},err=>{restore();say('Export failed: '+(err.message||err),1)},{binary:true,animations:clips})}
+bind('btnExport',exportGLB,'onclick');bind('btnExport2',exportGLB,'onclick');
+const rd=(a,n=5)=>Array.from(a,x=>+x.toFixed(n));
+function saveJSON(){if(!S.geo||!S.W){say('Nothing to save',1);return}const g=S.geo,si=g.attributes.skinIndex.array,sw=g.attributes.skinWeight.array;
+ const d={format:'vertascan-motion-engine',v:1,motion:S.motion,max:S.max,width:S.width,
+  geo:{p:rd(g.attributes.position.array),i:g.index?Array.from(g.index.array):null},joints:S.joints.map(j=>({n:j.name,p:j.parent,x:rd(j.pos.toArray())})),
+  skin:{i:Array.from(si),w:rd(sw,4)},chains:S.chains.map(c=>({idx:c.idx,t:rd(c.target.position.toArray()),po:rd(c.pole.position.toArray()),r:rd(c.rest.toArray()),b:c.blend,on:c.on,name:c.name,foot:c.foot,side:c.side})),
+  pose:{q:S.fk.map(q=>rd(q.toArray())),h:rd(S.hipsOff.toArray())},keys:[...S.keys].map(([f,k])=>({f,q:k.q.map(q=>rd(q.toArray())),h:rd(k.h.toArray())}))};
+ download(new Blob([JSON.stringify(d)],{type:'application/json'}),'PROFILE_MOTION_PROJECT_'+Date.now()+'.json');say('Project saved')}
+bind('btnSaveJSON',saveJSON,'onclick');
+function loadProject(d){if(d.format!=='vertascan-motion-engine')throw new Error('Not a Motion Engine project file');clearAll();
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(d.geo.p,3));if(d.geo.i)g.setIndex(d.geo.i);g.computeVertexNormals();S.geo=g;S.adopted=false;S.width=d.width||1;S.motion=d.motion||'walk';S.max=d.max||120;
+ S.joints=d.joints.map(j=>({name:j.n,parent:j.p,pos:V3(...j.x)}));S.B=S.joints.length;S.N=g.attributes.position.count;S.h=bbox(g).getSize(V3()).y;makeBones();buildSkinned();
+ const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;si.array.set(d.skin.i);sw.array.set(d.skin.w);si.needsUpdate=sw.needsUpdate=true;S.W=new Float32Array(S.N*S.B);for(let i=0;i<S.N;i++)for(let k=0;k<4;k++)S.W[i*S.B+d.skin.i[i*4+k]]+=d.skin.w[i*4+k];updateColors();
+ d.chains.forEach(c=>{const ch=mkChain(c.idx.map(i=>S.joints[i].name),V3(),c.b);if(!ch)return;ch.target.position.set(...c.t);ch.pole.position.set(...c.po);ch.rest.set(...c.r);ch.on=c.on;ch.name=c.name;ch.foot=c.foot;ch.side=c.side});
+ buildMarkers();if(d.pose){d.pose.q.forEach((q,i)=>S.fk[i].fromArray(q));S.hipsOff.fromArray(d.pose.h)}d.keys.forEach(k=>S.keys.set(k.f,{q:k.q.map(q=>Q().fromArray(q)),h:V3(...k.h)}));
+ S.src=S.keys.size?'keys':'pose';$('hudSrc').textContent=S.src;evaluate();refresh();say('Project loaded')}
+async function loadFile(file){const ext=file.name.split('.').pop().toLowerCase();
+ if(ext==='json'){loadProject(JSON.parse(await file.text()));return}
+ if(ext==='obj'){const o=new OBJLoader().parse(await file.text());return staticFrom(o)}
+ const url=URL.createObjectURL(file);try{const gl=await new GLTFLoader().loadAsync(url);if(!adopt(gl.scene)){staticFrom(gl.scene)}else{S.addons=gl.animations.map((c,i)=>({name:c.name||'Clip '+(i+1),clip:c}));evaluate();refresh();say('Imported skinned model — existing skeleton and weights kept');$('hudInfo').textContent=S.B+' bones • '+S.N+' verts (imported rig)'}}finally{URL.revokeObjectURL(url)}}
+function staticFrom(o){o.updateMatrixWorld(true);const gs=[];o.traverse(m=>{if(m.isMesh&&m.geometry){const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);['uv','uv1','color','tangent','skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));if(g.attributes.position.count)gs.push(g)}});
+ if(!gs.length)throw new Error('No meshes found in file');S.geo=mergeGeos(gs);S.adopted=false;rig()}
+$('fileInput').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{await loadFile(f)}catch(err){say('Import failed: '+err.message,1)}};
+
+function loadDemo(){clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
+
+/* ---------- loop ---------- */
+const clock=new THREE.Clock();let fpsT=0,fpsN=0;
+function animate(){requestAnimationFrame(animate);const d=Math.min(clock.getDelta(),.1);controls.update();
+ if(S.playing){S.frame+=d*30;if(S.frame>S.max){if(S.loop)S.frame=0;else{S.frame=S.max;S.playing=false;$('btnPlay').textContent='▶ PLAY'}}}
+ evaluate();updateViz();
+ $('frameLabel').textContent=Math.floor(S.frame);$('timeLabel').textContent=(S.frame/30).toFixed(2)+'s';
+ renderer.render(scene,camera);drawTL();drawGraph();fpsT+=d;fpsN++;if(fpsT>.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsT=fpsN=0}}
+// Consistent discoverability: visible tool labels, native hover tips and keyboard-accessible names.
+const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Load the built-in humanoid demonstration rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
+document.querySelectorAll('button, .tab, .tool').forEach(el=>{const id=el.id;const txt=(el.innerText||'').replace(/\s+/g,' ').trim();const tip=tooltipHints[id]||el.getAttribute('title')||txt;if(tip&&!el.hasAttribute('title'))el.setAttribute('title',tip);if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',tip||txt);});
+document.querySelectorAll('input[type=range]').forEach(el=>{const label=el.previousElementSibling?.innerText?.replace(/\s+/g,' ').trim();if(label&&!el.title)el.title=label;});
+resize();setTool('select');animate();loadDemo();
+// Intro sequence: keep the workspace demo rig on a continuous walk cycle.
+const splash=$('splash'),introFigure=$('introFigure');
+function closeSplash(){splash.classList.add('hidden');S.playing=false;$('btnPlay').textContent='▶ PLAY';}
+$('enterStudio').onclick=closeSplash;$('skipIntro').onclick=closeSplash;
+S.motion='walk';S.speed=1.15;S.stride=1;S.src='proc';S.frame=0;S.playing=true;$('hudSrc').textContent='proc';$('btnPlay').textContent='⏸ PAUSE';
+const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='MOTION PREVIEW • CONTINUOUS WALK CYCLE';},2800);
+const introEndTimer=setTimeout(()=>{if(!splash.classList.contains('hidden'))closeSplash();},7200);
+console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');
+</script>
+</body>
+</html>
