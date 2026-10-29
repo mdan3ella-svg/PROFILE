@@ -111,7 +111,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
-  <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.json" style="display:none"/>
+  <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
   <div style="flex:1"></div>
   <button class="btn about-btn" id="btnAbout">ABOUT / TUTORIALS</button>
   <button class="btn" id="btnImport">IMPORT</button>
@@ -257,6 +257,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {TransformControls} from 'three/addons/controls/TransformControls.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
 import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 const $=id=>document.getElementById(id), V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z), Q=()=>new THREE.Quaternion();
 const say=(m,bad)=>{const s=$('status');s.style.color=bad?'#ff8a8a':'#a6ff7a';s.textContent=m||'';if(m)clearTimeout(say.t),say.t=setTimeout(()=>s.textContent='',4000)};
@@ -667,13 +668,34 @@ function loadProject(d){if(d.format!=='vertascan-motion-engine')throw new Error(
  d.chains.forEach(c=>{const ch=mkChain(c.idx.map(i=>S.joints[i].name),V3(),c.b);if(!ch)return;ch.target.position.set(...c.t);ch.pole.position.set(...c.po);ch.rest.set(...c.r);ch.on=c.on;ch.name=c.name;ch.foot=c.foot;ch.side=c.side});
  buildMarkers();if(d.pose){d.pose.q.forEach((q,i)=>S.fk[i].fromArray(q));S.hipsOff.fromArray(d.pose.h)}d.keys.forEach(k=>S.keys.set(k.f,{q:k.q.map(q=>Q().fromArray(q)),h:V3(...k.h)}));
  S.src=S.keys.size?'keys':'pose';$('hudSrc').textContent=S.src;evaluate();refresh();say('Project loaded')}
-async function loadFile(file){const ext=file.name.split('.').pop().toLowerCase();
- if(ext==='json'){loadProject(JSON.parse(await file.text()));return}
+function basename(s){return String(s||'').split(/[\\/]/).pop().split(/[?#]/)[0].toLowerCase()}
+async function loadFile(file,allFiles=[]){const ext=file.name.split('.').pop().toLowerCase();
+ if(ext==='json'){let data;try{data=JSON.parse(await file.text())}catch{throw new Error('Project JSON is invalid or incomplete. Re-export it from PROFILE and try again.')}loadProject(data);return}
  if(ext==='obj'){const o=new OBJLoader().parse(await file.text());return staticFrom(o)}
- const url=URL.createObjectURL(file);try{const gl=await new GLTFLoader().loadAsync(url);if(!adopt(gl.scene)){staticFrom(gl.scene)}else{S.addons=gl.animations.map((c,i)=>({name:c.name||'Clip '+(i+1),clip:c}));evaluate();refresh();say('Imported skinned model — existing skeleton and weights kept');$('hudInfo').textContent=S.B+' bones • '+S.N+' verts (imported rig)'}}finally{URL.revokeObjectURL(url)}}
-function staticFrom(o){o.updateMatrixWorld(true);const gs=[];o.traverse(m=>{if(m.isMesh&&m.geometry){const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);['uv','uv1','color','tangent','skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));if(g.attributes.position.count)gs.push(g)}});
- if(!gs.length)throw new Error('No meshes found in file');S.geo=mergeGeos(gs);S.adopted=false;rig()}
-$('fileInput').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{await loadFile(f)}catch(err){say('Import failed: '+err.message,1)}};
+ if(!['glb','gltf','fbx'].includes(ext))throw new Error('Unsupported file type. Choose GLB, GLTF, OBJ, FBX or a PROFILE JSON project.');
+ const localFiles=allFiles.length?allFiles:[file],urlMap=new Map(),urls=[];
+ localFiles.forEach(f=>{const u=URL.createObjectURL(f);urls.push(u);urlMap.set(basename(f.name),u)});
+ try{
+  let object;
+  if(ext==='fbx'){
+   const manager=new THREE.LoadingManager();manager.setURLModifier(url=>urlMap.get(basename(url))||url);
+   object=new FBXLoader(manager).parse(await file.arrayBuffer(),'');
+   staticFrom(object);say('FBX geometry imported. Build a rig to animate it; embedded FBX skeletons are not adopted yet.');return;
+  }
+  const manager=new THREE.LoadingManager();manager.setURLModifier(url=>{const hit=urlMap.get(basename(url));return hit||url});
+  const loader=new GLTFLoader(manager);
+  const gl=await new Promise((resolve,reject)=>{
+   const done=x=>resolve(x),fail=e=>reject(new Error('Could not read '+file.name+'. For .gltf files, select the .gltf together with its .bin and texture files. '+(e?.message||'Check the file and try again.')));
+   if(ext==='glb')file.arrayBuffer().then(buf=>loader.parse(buf,'',done,fail)).catch(fail);
+   else file.text().then(txt=>loader.parse(txt,'',done,fail)).catch(fail);
+  });
+  if(!gl?.scene)throw new Error('No scene was found in the imported model.');
+  if(!adopt(gl.scene)){staticFrom(gl.scene);say('Model geometry imported. Build a rig to animate this static mesh.')}else{S.addons=gl.animations.map((c,i)=>({name:c.name||'Clip '+(i+1),clip:c}));evaluate();refresh();say('Imported skinned model — existing skeleton and weights kept');$('hudInfo').textContent=S.B+' bones • '+S.N+' verts (imported rig)'}
+ }finally{urls.forEach(URL.revokeObjectURL)}
+}
+function staticFrom(o){o.updateMatrixWorld(true);const gs=[];o.traverse(m=>{if((m.isMesh||m.isSkinnedMesh)&&m.geometry){const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);['uv','uv1','color','tangent','skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));if(g.attributes.position?.count)gs.push(g)}});
+ if(!gs.length)throw new Error('No usable mesh geometry found. The file may contain only cameras, lights or unsupported objects.');S.geo=mergeGeos(gs);S.adopted=false;rig()}
+$('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;const main=files.find(f=>/\.(glb|gltf|obj|fbx|json)$/i.test(f.name))||files[0];try{await loadFile(main,files)}catch(err){console.error('PROFILE import error:',err);say('Import failed: '+(err?.message||String(err)),1)}};
 
 function loadDemo(){clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
 
