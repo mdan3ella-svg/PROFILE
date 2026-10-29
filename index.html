@@ -339,30 +339,65 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){tc.detach();if(S.root)scene.remove(S.root);S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.src='pose';S.playing=false;$('btnPlay').textContent='▶ PLAY';refresh()}
-function makeBones(){S.bones=S.joints.map(j=>{const b=new THREE.Bone();b.name=j.name;return b});S.idx={};S.joints.forEach((j,i)=>{S.idx[j.name]=i;if(j.parent>=0){S.bones[j.parent].add(S.bones[i]);S.bones[i].position.copy(j.pos).sub(S.joints[j.parent].pos)}else S.bones[i].position.copy(j.pos)});
- S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));captureRest()}
+function clearAll(){tc.detach();if(S.root)scene.remove(S.root);S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function makeBones(){
+ // Normalize the joint table before creating a hierarchy. A malformed parent index,
+ // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
+ const used=new Set();
+ S.joints=S.joints.map((j,i)=>{
+  let name=String(j?.name||('joint_'+String(i+1).padStart(2,'0'))).trim()||('joint_'+(i+1));
+  const baseName=name;let suffix=1;while(used.has(name))name=baseName+'_'+suffix++;
+  used.add(name);
+  const pos=j?.pos?.isVector3?j.pos.clone():V3(Number(j?.pos?.x)||0,Number(j?.pos?.y)||0,Number(j?.pos?.z)||0);
+  if(!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||!Number.isFinite(pos.z))pos.set(0,0,0);
+  let parent=Number.isInteger(j?.parent)?j.parent:-1;
+  if(parent< -1)parent=-1;else if(parent>=i)parent=i>0?0:-1;
+  return {name,parent,pos};
+ });
+ S.bones=S.joints.map(j=>{const b=new THREE.Bone();b.name=j.name;return b});S.idx={};
+ S.joints.forEach((j,i)=>{S.idx[j.name]=i;if(j.parent>=0){S.bones[j.parent].add(S.bones[i]);S.bones[i].position.copy(j.pos).sub(S.joints[j.parent].pos)}else S.bones[i].position.copy(j.pos)});
+ S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));captureRest()
+}
 function captureRest(){setHips();S.restQ=S.bones.map(b=>b.quaternion.clone());S.restP=S.bones.map(b=>b.position.clone());S.fk=S.restQ.map(q=>q.clone());S.hips0.copy(S.bones[S.H].position);S.hipsOff.set(0,0,0)}
 function top4(i,bi,bv){bi.fill(0);bv.fill(0);const B=S.B,o=i*B;for(let j=0;j<B;j++){const w=S.W[o+j];if(w>bv[3]){let k=3;while(k>0&&w>bv[k-1]){bv[k]=bv[k-1];bi[k]=bi[k-1];k--}bv[k]=w;bi[k]=j}}let s=bv[0]+bv[1]+bv[2]+bv[3];if(s<1e-6){bi[0]=0;bv[0]=1;s=1}return s}
 function applyWeights(prune){const g=S.geo,si=g.attributes.skinIndex,sw=g.attributes.skinWeight,bi=[0,0,0,0],bv=[0,0,0,0],B=S.B;
  for(let i=0;i<S.N;i++){const s=top4(i,bi,bv);for(let k=0;k<4;k++){si.array[i*4+k]=bi[k];sw.array[i*4+k]=bv[k]/s}
   if(prune){S.W.fill(0,i*B,i*B+B);for(let k=0;k<4;k++)S.W[i*B+bi[k]]+=bv[k]/s}}
  si.needsUpdate=sw.needsUpdate=true}
-function solveWeights(){const {N,B}=S,pos=S.geo.attributes.position;S.W=new Float32Array(N*B);const kids=S.joints.map(()=>[]);S.joints.forEach((j,i)=>{if(j.parent>=0)kids[j.parent].push(i)});
- const v=V3(),a=V3(),t=V3(),q=V3(),p=S.falloff,noSkin=S.joints.map(j=>/^root$/i.test(j.name));
- for(let i=0;i<N;i++){v.fromBufferAttribute(pos,i);let sum=0;for(let j=0;j<B;j++){if(noSkin[j]){S.W[i*B+j]=0;continue}a.copy(S.joints[j].pos);let m=v.distanceToSquared(a);for(const k of kids[j]){t.copy(S.joints[k].pos).sub(a);const l2=t.lengthSq()||1e-9;const u=Math.min(1,Math.max(0,q.copy(v).sub(a).dot(t)/l2));q.copy(a).addScaledVector(t,u);m=Math.min(m,v.distanceToSquared(q))}
-  const w=1/(Math.pow(Math.sqrt(m),p)+1e-6);S.W[i*B+j]=w;sum+=w}for(let j=0;j<B;j++)S.W[i*B+j]/=sum}
- applyWeights(true);updateColors()}
+function solveWeights(){
+ if(!S.geo?.attributes?.position||!S.joints.length){say('Cannot solve weights: mesh or skeleton is missing',1);return}
+ const {N,B}=S,pos=S.geo.attributes.position;S.W=new Float32Array(N*B);
+ const v=V3(),a=V3(),b=V3(),ab=V3(),q=V3(),p=Math.max(1,Math.min(8,Number(S.falloff)||4));
+ const deform=[];for(let j=0;j<B;j++)if(!/^root$/i.test(S.joints[j].name))deform.push(j);
+ if(!deform.length){say('Cannot solve weights: skeleton has no deforming joints',1);return}
+ const eps=Math.max(1e-10,(Math.max(S.h,1)*.006)**2);
+ for(let i=0;i<N;i++){
+  v.fromBufferAttribute(pos,i);let sum=0,best=-1,bestD=Infinity;
+  for(const j of deform){
+   const joint=S.joints[j],parent=joint.parent;
+   if(parent>=0){a.copy(S.joints[parent].pos);b.copy(joint.pos)}else{a.copy(joint.pos);b.copy(joint.pos)}
+   ab.subVectors(b,a);const l2=ab.lengthSq();
+   let u=l2>1e-12?Math.max(0,Math.min(1,q.subVectors(v,a).dot(ab)/l2)):0;
+   q.copy(a).addScaledVector(ab,u);const d2=v.distanceToSquared(q);
+   if(d2<bestD){bestD=d2;best=j}
+   // Distance-to-segment falloff avoids point-joint spikes and keeps influence local.
+   const w=1/Math.pow(d2+eps,p*.5);S.W[i*B+j]=w;sum+=w;
+  }
+  if(!(sum>0)||!Number.isFinite(sum)){S.W.fill(0,i*B,(i+1)*B);S.W[i*B+(best>=0?best:deform[0])]=1;continue}
+  for(const j of deform)S.W[i*B+j]/=sum;
+ }
+ applyWeights(true);updateColors()
+}
 function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
  const m=new THREE.SkinnedMesh(g,mat);m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
 function buildCreatureJoints(type,bb,h,w){
  if(type==='humanoid')return buildJoints(h,w);
  const out=[],sz=bb.getSize(V3()),mn=bb.min,mx=bb.max;
- const add=(name,parent,x,y,z)=>{const pos=V3(mn.x+sz.x*x,mn.y+sz.y*y,mn.z+sz.z*z);out.push({name,parent,pos});return out.length-1};
+ const add=(name,parent,x,y,z)=>{const pos=V3(mn.x+sz.x*(.5+(x-.5)*Math.max(.25,Math.min(2,w))),mn.y+sz.y*y,mn.z+sz.z*z);out.push({name,parent,pos});return out.length-1};
  if(type==='mecha'){
   const j=buildJoints(h,w);out.push(...j);
   const idx={};out.forEach((o,i)=>idx[o.name]=i);
-  const anchor=(n,parent,x,y,z)=>{const pi=idx[parent]??idx.hips;const i=out.length;out.push({name:n,parent:pi,pos:V3(mn.x+sz.x*x,mn.y+sz.y*y,mn.z+sz.z*z)});idx[n]=i;return i};
+  const anchor=(n,parent,x,y,z)=>{const pi=idx[parent]??idx.hips;const i=out.length;out.push({name:n,parent:pi,pos:V3(mn.x+sz.x*(.5+(x-.5)*Math.max(.25,Math.min(2,w))),mn.y+sz.y*y,mn.z+sz.z*z)});idx[n]=i;return i};
   anchor('mech_torso_core','spine_02',.5,.66,.5);anchor('mech_chest_plate','chest',.5,.76,.54);anchor('mech_backpack','upper_chest',.5,.76,.43);
   for(const [side,x] of [['L',.32],['R',.68]]){anchor('mech_shoulder_'+side,'clavicle_'+side,x,.79,.5);anchor('mech_forearm_guard_'+side,'forearm_'+side,x,.61,.52);anchor('mech_hip_armor_'+side,'hips',x,.51,.5);anchor('mech_thigh_actuator_'+side,'upLeg_'+side,x,.38,.5);anchor('mech_knee_'+side,'leg_'+side,x,.23,.52);anchor('mech_shin_guard_'+side,'leg_'+side,x,.12,.52)}
   return out;
@@ -542,15 +577,19 @@ function makeClip(){if(!S.keys.size)return[];const ks=[...S.keys.keys()].sort((a
  const hv=[];ks.forEach(k=>hv.push(...S.keys.get(k).h.toArray()));tr.push(new THREE.VectorKeyframeTrack(S.bones[S.H].name+'.position',times,hv));return[new THREE.AnimationClip('Take_'+S.motion,-1,tr)]}
 
 /* ---------- weight painting ---------- */
-function adjust(i,b,d){const B=S.B,o=i*B,W=S.W;const nw=Math.min(1,Math.max(0,W[o+b]+d));let other=0;for(let j=0;j<B;j++)if(j!==b)other+=W[o+j];
- if(other>1e-6){const k=(1-nw)/other;for(let j=0;j<B;j++)if(j!==b)W[o+j]*=k;W[o+b]=nw}
- else{const p=S.joints[b].parent;if(p>=0){W[o+p]=1-nw;W[o+b]=nw}else W[o+b]=1}}
+function adjust(i,b,d){const B=S.B,o=i*B,W=S.W;if(!Number.isInteger(b)||b<0||b>=B)return;const nw=Math.min(1,Math.max(0,(Number(W[o+b])||0)+d));let other=0;for(let j=0;j<B;j++)if(j!==b)other+=Math.max(0,Number(W[o+j])||0);
+ if(other>1e-8){const k=(1-nw)/other;for(let j=0;j<B;j++)if(j!==b)W[o+j]=Math.max(0,W[o+j])*k;W[o+b]=nw}
+ else{const p=S.joints[b].parent;if(p>=0&&p!==b){W[o+p]=1-nw;W[o+b]=nw}else{W.fill(0,o,o+B);W[o+b]=1}}}
 const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,pdirty=false,vertexJointMode=false;
 function setRay(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera)}
 function paintAt(e){if(!S.mesh||!S.W)return;setRay(e);const h=ray.intersectObject(S.mesh,false)[0];if(!h||!h.face)return;const pos=S.geo.attributes.position,c=V3().fromBufferAttribute(pos,h.face.a),v=V3(),b=Math.max(0,S.sel),{r,s,mode}=S.brush;
  for(let i=0;i<S.N;i++){const d=v.fromBufferAttribute(pos,i).distanceTo(c);if(d>r)continue;const f=Math.pow(1-d/r,2)*s*.35;adjust(i,b,mode==='sub'?-f:f)}pdirty=true}
-function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj){const adj=Array.from({length:S.N},()=>new Set()),ix=S.geo.index;if(ix)for(let i=0;i<ix.count;i+=3){const a=ix.getX(i),b=ix.getX(i+1),c=ix.getX(i+2);adj[a].add(b).add(c);adj[b].add(a).add(c);adj[c].add(a).add(b)}S.adj=adj.map(s=>[...s])}
- const B=S.B,N=new Float32Array(S.W.length);for(let i=0;i<S.N;i++){const nb=S.adj[i],cnt=nb.length+1;for(let j=0;j<B;j++){let s=S.W[i*B+j];for(const n of nb)s+=S.W[n*B+j];N[i*B+j]=s/cnt}}S.W=N;applyWeights(true);updateColors()}
+function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj){const adj=Array.from({length:S.N},()=>new Set()),ix=S.geo.index;
+ const link=(a,b,c)=>{adj[a].add(b).add(c);adj[b].add(a).add(c);adj[c].add(a).add(b)};
+ if(ix){for(let i=0;i+2<ix.count;i+=3)link(ix.getX(i),ix.getX(i+1),ix.getX(i+2))}
+ else for(let i=0;i+2<S.N;i+=3)link(i,i+1,i+2);
+ S.adj=adj.map(s=>[...s])}
+ const B=S.B,N=new Float32Array(S.W.length);for(let i=0;i<S.N;i++){const nb=S.adj[i],cnt=nb.length+1;for(let j=0;j<B;j++){let sum=S.W[i*B+j];for(const n of nb)sum+=S.W[n*B+j];N[i*B+j]=sum/cnt}}S.W=N;applyWeights(true);updateColors()}
 
 /* ---------- selection / gizmo ---------- */
 function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace(tc.mode==='rotate'?'local':'world');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace('world');tc.attach(S.gizmoObj)}}
@@ -560,14 +599,31 @@ function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();update
 function selectIK(ci,obj){S.selChain=ci;S.gizmoObj=obj;if(S.tool!=='ik'){setTool('ik')}else syncGizmo();refresh()}
 function setTool(t){S.tool=t;document.querySelectorAll('.tool').forEach(e=>e.classList.toggle('active',e.dataset.tool===t));if(t==='fk')tc.setMode($('gMove').classList.contains('on')?'translate':'rotate');syncGizmo()}
 let down=null;
-function addJointAtVertex(worldPoint){if(!S.mesh||!S.W||S.adopted){say('Build a generated rig first; vertex joints are not available for adopted skin rigs yet.',1);return}const local=S.mesh.worldToLocal(worldPoint.clone()),parent=S.sel>=0?S.sel:(S.idx.hips??0),nameBase='custom_joint_'+String(S.joints.filter(j=>j.name.startsWith('custom_joint_')).length+1).padStart(2,'0');let name=nameBase;while(S.idx[name]!==undefined)name+='_';const ji=S.joints.length;S.joints.push({name,parent,pos:local.clone()});const b=new THREE.Bone();b.name=name;b.position.copy(local).sub(S.joints[parent].pos);S.bones[parent].add(b);S.bones.push(b);S.idx[name]=ji;S.B=S.joints.length;S.mesh.updateMatrixWorld(true);S.mesh.bind(new THREE.Skeleton(S.bones));captureRest();solveWeights();buildMarkers();evaluate();selectBone(ji);say('Created '+name+' at picked mesh vertex. Re-solve and inspect weights.');return ji}
+function addJointAtVertex(worldPoint){
+ if(!S.mesh||!S.W||S.adopted){say('Build a generated rig first; vertex joints are not available for adopted skin rigs yet.',1);return}
+ const parent=S.sel>=0?S.sel:(S.idx.hips??0);
+ if(!Number.isInteger(parent)||parent<0||parent>=S.bones.length){say('Select a valid parent joint before creating a custom joint.',1);return}
+ const local=worldPoint.isVector3?worldPoint.clone():V3();
+ if(!Number.isFinite(local.x)||!Number.isFinite(local.y)||!Number.isFinite(local.z)){say('Joint placement failed: picked vertex has invalid coordinates.',1);return}
+ if(local.distanceTo(S.joints[parent].pos)<Math.max(1e-5,S.h*.002)){say('Joint is too close to its parent. Pick a vertex farther along the mesh.',1);return}
+ const nameBase='custom_joint_'+String(S.joints.filter(j=>j.name.startsWith('custom_joint_')).length+1).padStart(2,'0');let name=nameBase,n=1;while(S.idx[name]!==undefined)name=nameBase+'_'+n++;
+ // Build the new joint against the true bind pose, not a temporary animated pose.
+ S.src='pose';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();syncTargets();
+ const ji=S.joints.length;S.joints.push({name,parent,pos:local.clone()});
+ const b=new THREE.Bone();b.name=name;b.position.copy(local).sub(S.joints[parent].pos);S.bones[parent].add(b);S.bones.push(b);S.idx[name]=ji;S.B=S.joints.length;
+ // Rebuild the skeleton inverse bind matrices after extending the hierarchy. Keep
+ // the mesh bind matrix so existing vertices do not jump when a joint is added.
+ S.root.updateMatrixWorld(true);S.mesh.updateMatrixWorld(true);
+ const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();S.mesh.bind(skeleton,S.mesh.bindMatrix.clone());
+ captureRest();solveWeights();buildMarkers();evaluate();selectBone(ji);say('Created connected joint '+name+' under '+S.joints[parent].name+'.');return ji
+}
 function toggleVertexJoint(){vertexJointMode=!vertexJointMode;$('btnVertexJoint').classList.toggle('on',vertexJointMode);$('btnVertexJoint').textContent=vertexJointMode?'● CLICK MESH TO CREATE JOINT':'＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent=vertexJointMode?'Vertex mode active: click the mesh to place a joint under the selected bone.':'Select a parent bone first; then enable vertex mode and click the mesh.';setTool(vertexJointMode?'select':S.tool)}
 $('btnVertexJoint').addEventListener('click',toggleVertexJoint);
 canvas.addEventListener('pointerdown',e=>{if(tc.axis)return;down={x:e.clientX,y:e.clientY};if(S.tool==='paint'&&S.mesh&&e.button===0){setRay(e);if(ray.intersectObject(S.mesh,false)[0]){painting=true;e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);paintAt(e)}}},{capture:true});
 canvas.addEventListener('pointermove',e=>{if(painting){paintAt(e);e.stopImmediatePropagation()}},{capture:true});
 canvas.addEventListener('pointerup',e=>{if(painting){painting=false;if(pdirty){applyWeights(false);updateColors();pdirty=false}down=null;return}
  if(!down||tc.dragging)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y)>4;down=null;if(moved||tc.axis)return;if(S.tool==='paint')return;
- setRay(e);if(vertexJointMode&&S.mesh){const vh=ray.intersectObject(S.mesh,false)[0];if(vh){let best=vh.face?.a??0,bd=Infinity;const lp=S.mesh.worldToLocal(vh.point.clone()),pa=S.geo.attributes.position;for(const vi of [vh.face?.a,vh.face?.b,vh.face?.c].filter(v=>v!==undefined)){const d=lp.distanceToSquared(V3().fromBufferAttribute(pa,vi));if(d<bd){bd=d;best=vi}}const vp=V3().fromBufferAttribute(pa,best);S.mesh.localToWorld(vp);vertexJointMode=false;$('btnVertexJoint').classList.remove('on');$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';addJointAtVertex(vp);return}}const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
+ setRay(e);if(vertexJointMode&&S.mesh){const vh=ray.intersectObject(S.mesh,false)[0];if(vh?.face){let best=vh.face.a,bd=Infinity;const pa=S.geo.attributes.position,hitLocal=S.mesh.worldToLocal(vh.point.clone());for(const vi of [vh.face.a,vh.face.b,vh.face.c]){const deformed=S.mesh.getVertexPosition?S.mesh.getVertexPosition(vi,V3()):V3().fromBufferAttribute(pa,vi),d=hitLocal.distanceToSquared(deformed);if(d<bd){bd=d;best=vi}}const vp=V3().fromBufferAttribute(pa,best);vertexJointMode=false;$('btnVertexJoint').classList.remove('on');$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';addJointAtVertex(vp);return}}const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
  if(o.userData.bone!==undefined)selectBone(o.userData.bone);else if(o.userData.kind)selectIK(o.userData.chain,o)});
 function frameFromEvent(e){const r=$('tl').getBoundingClientRect();return Math.max(0,Math.min(S.max,Math.round((e.clientX-r.left)/r.width*S.max)))}
 
@@ -652,22 +708,30 @@ function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}cons
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
  const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
  const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(S.src==='pose'||S.src==='proc')solveAll();S.root.updateMatrixWorld(true)};
- new GLTFExporter().parse(S.root,res=>{restore();download(new Blob([res],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');say('GLB exported'+(clips.length?' with '+S.keys.size+' keys':''))},err=>{restore();say('Export failed: '+(err.message||err),1)},{binary:true,animations:clips})}
+ try{new GLTFExporter().parse(S.root,res=>{restore();download(new Blob([res],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');say('GLB exported'+(clips.length?' with '+S.keys.size+' keys':''))},err=>{restore();say('Export failed: '+(err?.message||err),1)},{binary:true,animations:clips})}catch(err){restore();say('Export failed: '+(err?.message||String(err)),1)} }
 bind('btnExport',exportGLB,'onclick');bind('btnExport2',exportGLB,'onclick');
 const rd=(a,n=5)=>Array.from(a,x=>+x.toFixed(n));
 function saveJSON(){if(!S.geo||!S.W){say('Nothing to save',1);return}const g=S.geo,si=g.attributes.skinIndex.array,sw=g.attributes.skinWeight.array;
- const d={format:'vertascan-motion-engine',v:1,motion:S.motion,max:S.max,width:S.width,
+ const d={format:'vertascan-motion-engine',v:1,motion:S.motion,rigType:S.rigType||'humanoid',max:S.max,width:S.width,
   geo:{p:rd(g.attributes.position.array),i:g.index?Array.from(g.index.array):null},joints:S.joints.map(j=>({n:j.name,p:j.parent,x:rd(j.pos.toArray())})),
   skin:{i:Array.from(si),w:rd(sw,4)},chains:S.chains.map(c=>({idx:c.idx,t:rd(c.target.position.toArray()),po:rd(c.pole.position.toArray()),r:rd(c.rest.toArray()),b:c.blend,on:c.on,name:c.name,foot:c.foot,side:c.side})),
   pose:{q:S.fk.map(q=>rd(q.toArray())),h:rd(S.hipsOff.toArray())},keys:[...S.keys].map(([f,k])=>({f,q:k.q.map(q=>rd(q.toArray())),h:rd(k.h.toArray())}))};
  download(new Blob([JSON.stringify(d)],{type:'application/json'}),'PROFILE_MOTION_PROJECT_'+Date.now()+'.json');say('Project saved')}
 bind('btnSaveJSON',saveJSON,'onclick');
-function loadProject(d){if(d.format!=='vertascan-motion-engine')throw new Error('Not a Motion Engine project file');clearAll();
- const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(d.geo.p,3));if(d.geo.i)g.setIndex(d.geo.i);g.computeVertexNormals();S.geo=g;S.adopted=false;S.width=d.width||1;S.motion=d.motion||'walk';S.max=d.max||120;
- S.joints=d.joints.map(j=>({name:j.n,parent:j.p,pos:V3(...j.x)}));S.B=S.joints.length;S.N=g.attributes.position.count;S.h=bbox(g).getSize(V3()).y;makeBones();buildSkinned();
- const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;si.array.set(d.skin.i);sw.array.set(d.skin.w);si.needsUpdate=sw.needsUpdate=true;S.W=new Float32Array(S.N*S.B);for(let i=0;i<S.N;i++)for(let k=0;k<4;k++)S.W[i*S.B+d.skin.i[i*4+k]]+=d.skin.w[i*4+k];updateColors();
- d.chains.forEach(c=>{const ch=mkChain(c.idx.map(i=>S.joints[i].name),V3(),c.b);if(!ch)return;ch.target.position.set(...c.t);ch.pole.position.set(...c.po);ch.rest.set(...c.r);ch.on=c.on;ch.name=c.name;ch.foot=c.foot;ch.side=c.side});
- buildMarkers();if(d.pose){d.pose.q.forEach((q,i)=>S.fk[i].fromArray(q));S.hipsOff.fromArray(d.pose.h)}d.keys.forEach(k=>S.keys.set(k.f,{q:k.q.map(q=>Q().fromArray(q)),h:V3(...k.h)}));
+function loadProject(d){
+ if(d?.format!=='vertascan-motion-engine')throw new Error('Not a Motion Engine project file');
+ if(!Array.isArray(d.geo?.p)||d.geo.p.length<9||d.geo.p.length%3||!d.geo.p.every(Number.isFinite)||!Array.isArray(d.joints)||!d.joints.length)throw new Error('Project mesh or joint data is missing or malformed.');
+ const vertexCount=d.geo.p.length/3,boneCount=d.joints.length;
+ if(!Array.isArray(d.skin?.i)||!Array.isArray(d.skin?.w)||d.skin.i.length!==vertexCount*4||d.skin.w.length!==vertexCount*4)throw new Error('Project skin data does not match its mesh vertex count.');
+ if(d.joints.some(j=>!Array.isArray(j.x)||j.x.length!==3||!j.x.every(Number.isFinite)))throw new Error('Project contains a joint with invalid coordinates.');
+ if(d.skin.i.some(i=>!Number.isInteger(i)||i<0||i>=boneCount)||d.skin.w.some(w=>!Number.isFinite(w)||w<0))throw new Error('Project contains invalid skin indices or weights.');
+ if(d.geo.i!=null&&(!Array.isArray(d.geo.i)||d.geo.i.length%3||d.geo.i.some(i=>!Number.isInteger(i)||i<0||i>=vertexCount)))throw new Error('Project contains invalid mesh indices.');
+ clearAll();
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(d.geo.p,3));if(d.geo.i)g.setIndex(d.geo.i);g.computeVertexNormals();S.geo=g;S.adopted=false;S.width=Number(d.width)||1;S.motion=d.motion||'walk';S.rigType=d.rigType||'humanoid';if($('rigType'))$('rigType').value=S.rigType;S.max=Math.max(1,Number(d.max)||120);
+ S.joints=d.joints.map(j=>({name:j.n,parent:Number.isInteger(j.p)?j.p:-1,pos:V3(...j.x)}));S.B=S.joints.length;S.N=g.attributes.position.count;S.h=bbox(g).getSize(V3()).y;makeBones();buildSkinned();
+ const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;si.array.set(d.skin.i);sw.array.set(d.skin.w);si.needsUpdate=sw.needsUpdate=true;S.W=new Float32Array(S.N*S.B);for(let i=0;i<S.N;i++){let sum=0;for(let k=0;k<4;k++){const bi=d.skin.i[i*4+k],w=d.skin.w[i*4+k];S.W[i*S.B+bi]+=w;sum+=w}if(sum>1e-8)for(let j=0;j<S.B;j++)S.W[i*S.B+j]/=sum;else S.W[i*S.B+(S.joints.findIndex(j=>!/^root$/i.test(j.name))||0)]=1}applyWeights(true);updateColors();
+ (Array.isArray(d.chains)?d.chains:[]).forEach(c=>{if(!Array.isArray(c.idx)||c.idx.length<2||c.idx.some(i=>!Number.isInteger(i)||i<0||i>=S.joints.length)||!Array.isArray(c.t)||c.t.length!==3||!c.t.every(Number.isFinite)||!Array.isArray(c.po)||c.po.length!==3||!c.po.every(Number.isFinite)||!Array.isArray(c.r)||c.r.length!==3||!c.r.every(Number.isFinite))return;const ch=mkChain(c.idx.map(i=>S.joints[i].name),V3(),Number(c.b)||0);if(!ch)return;ch.target.position.fromArray(c.t);ch.pole.position.fromArray(c.po);ch.rest.fromArray(c.r);ch.on=c.on!==false;ch.name=c.name||ch.name;ch.foot=!!c.foot;ch.side=Number(c.side)||0});
+ buildMarkers();if(d.pose&&Array.isArray(d.pose.q)){d.pose.q.forEach((q,i)=>{if(i<S.fk.length&&Array.isArray(q)&&q.length===4&&q.every(Number.isFinite))S.fk[i].fromArray(q)});if(Array.isArray(d.pose.h)&&d.pose.h.length===3&&d.pose.h.every(Number.isFinite))S.hipsOff.fromArray(d.pose.h)}(Array.isArray(d.keys)?d.keys:[]).forEach(k=>{if(!Number.isFinite(k.f)||!Array.isArray(k.q)||k.q.length!==S.B||k.q.some(q=>!Array.isArray(q)||q.length!==4||!q.every(Number.isFinite))||!Array.isArray(k.h)||k.h.length!==3||!k.h.every(Number.isFinite))return;S.keys.set(k.f,{q:k.q.map(q=>Q().fromArray(q)),h:V3(...k.h)})});
  S.src=S.keys.size?'keys':'pose';$('hudSrc').textContent=S.src;evaluate();refresh();say('Project loaded')}
 function basename(s){return String(s||'').split(/[\\/]/).pop().split(/[?#]/)[0].toLowerCase()}
 async function loadFile(file,allFiles=[]){const ext=file.name.split('.').pop().toLowerCase();
