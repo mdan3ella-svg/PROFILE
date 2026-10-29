@@ -360,33 +360,46 @@ function makeBones(){
 }
 function captureRest(){setHips();S.restQ=S.bones.map(b=>b.quaternion.clone());S.restP=S.bones.map(b=>b.position.clone());S.fk=S.restQ.map(q=>q.clone());S.hips0.copy(S.bones[S.H].position);S.hipsOff.set(0,0,0)}
 function top4(i,bi,bv){bi.fill(0);bv.fill(0);const B=S.B,o=i*B;for(let j=0;j<B;j++){const w=S.W[o+j];if(w>bv[3]){let k=3;while(k>0&&w>bv[k-1]){bv[k]=bv[k-1];bi[k]=bi[k-1];k--}bv[k]=w;bi[k]=j}}let s=bv[0]+bv[1]+bv[2]+bv[3];if(s<1e-6){bi[0]=0;bv[0]=1;s=1}return s}
-function applyWeights(prune){const g=S.geo,si=g.attributes.skinIndex,sw=g.attributes.skinWeight,bi=[0,0,0,0],bv=[0,0,0,0],B=S.B;
- for(let i=0;i<S.N;i++){const s=top4(i,bi,bv);for(let k=0;k<4;k++){si.array[i*4+k]=bi[k];sw.array[i*4+k]=bv[k]/s}
-  if(prune){S.W.fill(0,i*B,i*B+B);for(let k=0;k<4;k++)S.W[i*B+bi[k]]+=bv[k]/s}}
+function applyWeights(prune,list){const g=S.geo,si=g.attributes.skinIndex,sw=g.attributes.skinWeight,bi=[0,0,0,0],bv=[0,0,0,0],B=S.B;
+ const one=i=>{const s=top4(i,bi,bv);for(let k=0;k<4;k++){si.array[i*4+k]=bi[k];sw.array[i*4+k]=bv[k]/s}
+  if(prune){S.W.fill(0,i*B,i*B+B);for(let k=0;k<4;k++)S.W[i*B+bi[k]]+=bv[k]/s}};
+ if(list)for(const i of list)one(i);else for(let i=0;i<S.N;i++)one(i);
  si.needsUpdate=sw.needsUpdate=true}
+/* Imported skins can use normalized Uint8/Uint16 weights or interleaved buffers; writing floats into those truncates to 0/1. Always work on plain Uint16 + Float32 copies. */
+function ensureSkinAttrs(g){const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;if(!si||!sw)return;
+ if(!(si.array instanceof Uint16Array)||si.isInterleavedBufferAttribute){const a=new Uint16Array(si.count*4);for(let i=0;i<si.count;i++){a[i*4]=si.getX(i);a[i*4+1]=si.getY(i);a[i*4+2]=si.getZ(i);a[i*4+3]=si.getW(i)}g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(a,4))}
+ if(!(sw.array instanceof Float32Array)||sw.normalized||sw.isInterleavedBufferAttribute){const a=new Float32Array(sw.count*4);for(let i=0;i<sw.count;i++){a[i*4]=sw.getX(i);a[i*4+1]=sw.getY(i);a[i*4+2]=sw.getZ(i);a[i*4+3]=sw.getW(i)}g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(a,4))}}
+/* Rest joint positions in the mesh's own (geometry) space, read from the actual bind: inverse(boneInverse) is the bone's world matrix at bind time and bindMatrixInverse brings it into geometry space.
+   For generated rigs this equals S.joints[i].pos; for imported rigs (scaled/rotated armature or mesh node) S.joints holds world positions and would NOT line up with the vertices. */
+function bindPositions(){const m=S.mesh,sk=m&&m.skeleton;
+ if(sk&&sk.boneInverses&&sk.boneInverses.length===S.joints.length){const inv=new THREE.Matrix4();return S.joints.map((_,i)=>V3().setFromMatrixPosition(inv.copy(sk.boneInverses[i]).invert()).applyMatrix4(m.bindMatrixInverse))}
+ return S.joints.map(j=>j.pos.clone())}
+/* Automatic weights. A joint is the PIVOT of its bone, so each bone owns the segments from its joint OUT to its children (upper arm = arm->forearm belongs to `arm`; bending the elbow
+   rotates `forearm` and must not touch the upper arm). End joints with no children own just their own point. A parent whose only child sits on top of it (wheel hub -> wheel) owns nothing,
+   so the child bone gets that region alone. Weights = inverse distance to the owned segments, normalised against the nearest bone so the result does not depend on model scale. */
+function computeAutoWeights(){
+ const {N,B}=S,pos=S.geo.attributes.position,JP=bindPositions(),p=Math.max(1,Math.min(8,Number(S.falloff)||4)),half=p*.5;
+ const deform=[];for(let j=0;j<B;j++)if(!/^root$/i.test(S.joints[j].name))deform.push(j);
+ if(!deform.length)return null;
+ const kids=S.joints.map(()=>[]);S.joints.forEach((j,i)=>{if(j.parent>=0&&j.parent<B&&j.parent!==i)kids[j.parent].push(i)});
+ const tiny=Math.max(S.h,1e-6)*1e-4,list=[];
+ for(const j of deform){const a=JP[j],ks=kids[j];let n=0;
+  for(const k of ks)if(a.distanceTo(JP[k])>tiny){list.push(j,a.x,a.y,a.z,JP[k].x,JP[k].y,JP[k].z);n++}
+  if(!ks.length)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
+ const SG=Float64Array.from(list),nS=SG.length/7,dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
+ for(let i=0;i<N;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
+  for(let s=0;s<nS;s++){const o=s*7,own=SG[o],ax=SG[o+1],ay=SG[o+2],az=SG[o+3],bx=SG[o+4]-ax,by=SG[o+5]-ay,bz=SG[o+6]-az,l2=bx*bx+by*by+bz*bz,px=x-ax,py=y-ay,pz=z-az;
+   let u=l2>1e-18?(px*bx+py*by+pz*bz)/l2:0;u=u<0?0:u>1?1:u;const dx=px-bx*u,dy=py-by*u,dz=pz-bz*u,d2=dx*dx+dy*dy+dz*dz;if(d2<dj[own])dj[own]=d2}
+  let best=-1,bd=Infinity;for(const j of deform)if(dj[j]<bd){bd=dj[j];best=j}
+  if(best<0){W[i*B+deform[0]]=1;continue}
+  let sum=0;for(const j of deform){if(dj[j]===Infinity)continue;const w=Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
+  if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
+  for(const j of deform)W[i*B+j]/=sum}
+ return W}
 function solveWeights(){
  if(!S.geo?.attributes?.position||!S.joints.length){say('Cannot solve weights: mesh or skeleton is missing',1);return}
- const {N,B}=S,pos=S.geo.attributes.position;S.W=new Float32Array(N*B);
- const v=V3(),a=V3(),b=V3(),ab=V3(),q=V3(),p=Math.max(1,Math.min(8,Number(S.falloff)||4));
- const deform=[];for(let j=0;j<B;j++)if(!/^root$/i.test(S.joints[j].name))deform.push(j);
- if(!deform.length){say('Cannot solve weights: skeleton has no deforming joints',1);return}
- const eps=Math.max(1e-10,(Math.max(S.h,1)*.006)**2);
- for(let i=0;i<N;i++){
-  v.fromBufferAttribute(pos,i);let sum=0,best=-1,bestD=Infinity;
-  for(const j of deform){
-   const joint=S.joints[j],parent=joint.parent;
-   if(parent>=0){a.copy(S.joints[parent].pos);b.copy(joint.pos)}else{a.copy(joint.pos);b.copy(joint.pos)}
-   ab.subVectors(b,a);const l2=ab.lengthSq();
-   let u=l2>1e-12?Math.max(0,Math.min(1,q.subVectors(v,a).dot(ab)/l2)):0;
-   q.copy(a).addScaledVector(ab,u);const d2=v.distanceToSquared(q);
-   if(d2<bestD){bestD=d2;best=j}
-   // Distance-to-segment falloff avoids point-joint spikes and keeps influence local.
-   const w=1/Math.pow(d2+eps,p*.5);S.W[i*B+j]=w;sum+=w;
-  }
-  if(!(sum>0)||!Number.isFinite(sum)){S.W.fill(0,i*B,(i+1)*B);S.W[i*B+(best>=0?best:deform[0])]=1;continue}
-  for(const j of deform)S.W[i*B+j]/=sum;
- }
- applyWeights(true);updateColors()
+ const W=computeAutoWeights();if(!W){say('Cannot solve weights: skeleton has no deforming joints',1);return}
+ S.W=W;applyWeights(true);updateColors()
 }
 function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
  const m=new THREE.SkinnedMesh(g,mat);m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
@@ -440,10 +453,10 @@ function rig(){if(!S.geo){say('Load or create a model first',1);return}
  groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
  autoChains();
  buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel()}
-function adopt(sc){let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();
+function adopt(sc){let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
  if(!S.geo.attributes.color)S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.geo.attributes.position.count*3).fill(1),3));
  const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
- S.alias=mixamoAlias();S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));S.B=S.bones.length;S.N=S.geo.attributes.position.count;S.W=new Float32Array(S.N*S.B);const si=S.geo.attributes.skinIndex,sw=S.geo.attributes.skinWeight;for(let i=0;i<S.N;i++)for(let k=0;k<4;k++)S.W[i*S.B+si.getComponent(i,k)]+=sw.getComponent(i,k);
+ S.alias=mixamoAlias();S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));S.B=S.bones.length;S.N=S.geo.attributes.position.count;S.W=new Float32Array(S.N*S.B);const si=S.geo.attributes.skinIndex,sw=S.geo.attributes.skinWeight;for(let i=0;i<S.N;i++)for(let k=0;k<4;k++){const bi=si.array[i*4+k];if(bi<S.B)S.W[i*S.B+bi]+=sw.array[i*4+k]}
  S.h=bbox(S.geo).getSize(V3()).y;captureRest();autoChains();buildMarkers();refresh();frameModel();return true}
 
 /* ---------- viz ---------- */
@@ -477,7 +490,7 @@ function updateViz(){if(!S.bones.length||!boneLines)return;S.root.updateMatrixWo
  const r0=S.markers[0].position;S.bones[0].getWorldQuaternion(_dq);_de.setFromQuaternion(_dq,'YXZ');datum.position.set(r0.x,.004,r0.z);datum.rotation.set(0,_de.y,0)}
 function frameModel(){if(!S.root)return;const bb=new THREE.Box3().setFromObject(S.mesh||S.root);if(bb.isEmpty())return;const c=bb.getCenter(V3()),sz=bb.getSize(V3()),d=Math.max(sz.y*1.2,sz.x*.7,.5)*2.1;
  controls.target.copy(c);const dv=camera.position.clone().sub(c);if(dv.lengthSq()<1e-6)dv.set(.55,.2,.8);dv.normalize();camera.position.copy(c).addScaledVector(dv,d);camera.near=Math.max(.01,d/200);camera.far=d*40;camera.updateProjectionMatrix();scene.fog.near=d*2.5;scene.fog.far=d*7;controls.update()}
-function updateColors(){if(!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B;for(let i=0;i<S.N;i++){const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
+function updateColors(list){if(!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B,n=list?list.length:S.N;for(let q=0;q<n;q++){const i=list?list[q]:q;const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
 function setWView(on){S.wview=on;const mm=S.mesh?S.mesh.material:mat;mm.vertexColors=on;mm.needsUpdate=true;$('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);updateColors()}
 
 /* ---------- IK ---------- */
@@ -533,13 +546,13 @@ function wq(i){const q=S.fk[i].clone();let p=S.joints[i].parent;while(p>=0){q.pr
 function rotW(name,axis,ang){const i=J(name);if(i===undefined)return;const p=S.joints[i].parent,Wp=p>=0?wq(p):S.baseQ.clone(),Qw=Q().setFromAxisAngle(axis,ang);
  S.fk[i].premultiply(Wp.clone().invert().multiply(Qw).multiply(Wp)).normalize()}
 const AX={x:V3(1,0,0),y:V3(0,1,0),z:V3(0,0,1)};
-function procPose(fr){const m=MO[S.motion],ph=fr/30*S.speed*m.f*Math.PI*2,sn=Math.sin(ph),cs=Math.cos(ph),s=m.s*S.stride*S.h/1.8*.5;
+function procPose(fr){S.fkDriven=false;const m=MO[S.motion],ph=fr/30*S.speed*m.f*Math.PI*2,sn=Math.sin(ph),cs=Math.cos(ph),s=m.s*S.stride*S.h/1.8*.5;
  S.fk.forEach((q,i)=>q.copy(S.restQ[i]));const jump=S.motion==='jump',jy=jump?Math.max(0,sn)*.45*S.h/1.8:0,k=S.h/1.8;
- if(S.rigType==='quadruped'){
+ if(S.rigType==='quadruped'){S.fkDriven=true;
   for(const side of ['L','R']){const d=side==='L'?1:-1;rotW('foreLeg_'+side,AX.x,d*sn*m.a*.7);rotW('foreShin_'+side,AX.x,Math.max(0,-d*sn)*.45*m.a);rotW('rearLeg_'+side,AX.x,-d*sn*m.a*.75);rotW('rearShin_'+side,AX.x,Math.max(0,d*sn)*.5*m.a)}
   rotW('spine_02',AX.x,.04*cs);rotW('head',AX.x,-.04*cs);S.hipsOff.set(0,m.b*k*Math.cos(2*ph)-m.c*k,0);return;
  }
- if(S.rigType==='scorpion'){
+ if(S.rigType==='scorpion'){S.fkDriven=true;
   // Alternating tripod gait: pairs 1/3 move together, pair 2 in opposition; left/right alternate.
   for(let pair=1;pair<=3;pair++)for(const side of ['L','R']){
    const sidePhase=side==='L'?0:Math.PI, pairPhase=(pair===2?Math.PI:0)+sidePhase, a=ph+pairPhase, d=side==='L'?1:-1;
@@ -563,15 +576,17 @@ function recordKey(f){S.keys.set(f,{q:S.bones.map(b=>b.quaternion.clone()),h:S.b
 function shapeT(t){switch(S.interpolation){case 'step':return 0;case 'easeIn':return t*t;case 'easeOut':return 1-(1-t)*(1-t);case 'easeInOut':case 'bezier':return t*t*(3-2*t);default:return t}}
 function keyPose(fr){const ks=[...S.keys.keys()].sort((a,b)=>a-b);if(!ks.length)return;let p=null,n=null;for(const k of ks){if(k<=fr)p=k;else if(n===null)n=k}
  let A,B,t=0;if(p===null){A=B=S.keys.get(ks[0])}else{A=S.keys.get(p);if(n===null){if(S.loop&&ks.length>1){B=S.keys.get(ks[0]);t=(fr-p)/Math.max(1e-6,ks[0]+S.max-p)}else B=A}else{B=S.keys.get(n);t=(fr-p)/(n-p)}}t=shapeT(Math.max(0,Math.min(1,t)));
- S.fk.forEach((q,i)=>q.slerpQuaternions(A.q[i],B.q[i],t));S.hipsOff.copy(A.h).lerp(B.h,t).sub(S.hips0)}
+ S.fk.forEach((q,i)=>{const a=A.q[i],b=B.q[i];if(a&&b)q.slerpQuaternions(a,b,t);else if(a||b)q.copy(a||b)});S.hipsOff.copy(A.h).lerp(B.h,t).sub(S.hips0)}
 const _cq=Q();
 function useClip(a){S.clip=a;const tr=a.clip.tracks,q=[];let p=null;tr.forEach(t=>{const m=t.name.match(/^(.*)\.(quaternion|position)$/);if(!m)return;const i=S.idx[m[1]];if(i===undefined)return;if(m[2]==='quaternion')q.push({i,it:t.createInterpolant()});else if(i===S.H)p=t.createInterpolant()});
  S.clipRt={q,p};S.max=Math.max(8,Math.round(a.clip.duration*30));S.frame=0;S.src='clip';$('hudSrc').textContent='clip';refresh()}
 function clipPose(fr){const r=S.clipRt;if(!r)return;S.fk.forEach((q,i)=>q.copy(S.restQ[i]));const t=fr/30;r.q.forEach(o=>{const v=o.it.evaluate(t);S.fk[o.i].set(v[0],v[1],v[2],v[3])});
  if(r.p){const v=r.p.evaluate(t);S.hipsOff.set(v[0]-S.hips0.x,v[1]-S.hips0.y,v[2]-S.hips0.z)}}
-function evaluate(){if(!S.bones.length)return;if(S.src==='proc')procPose(S.frame);else if(S.src==='keys')keyPose(S.frame);else if(S.src==='clip')clipPose(S.frame);applyPose();if(S.src==='pose'||S.src==='proc')solveAll()}
+/* Quadruped/scorpion procedural walks pose the legs and tail with FK; their IK targets are never animated, so running IK on top pinned every limb back to its rest pose. */
+function ikActive(){return S.src==='pose'||(S.src==='proc'&&!S.fkDriven)}
+function evaluate(){if(!S.bones.length)return;if(S.src==='proc')procPose(S.frame);else if(S.src==='keys')keyPose(S.frame);else if(S.src==='clip')clipPose(S.frame);applyPose();if(ikActive())solveAll()}
 function toPose(){if(S.src!=='pose'){syncTargets();S.src='pose';$('hudSrc').textContent='pose'}}
-function bake(){if(!S.bones.length)return;const isClip=S.src==='clip'&&S.clipRt,m=MO[S.motion],len=isClip?S.max:Math.min(240,Math.max(8,Math.round(30/(m.f*S.speed)))),step=Math.max(1,Math.ceil(len/240));S.max=len;S.keys.clear();if(!isClip)S.src='proc';for(let f=0;f<=len;f+=step){if(isClip)clipPose(f);else procPose(f);applyPose();if(!isClip)solveAll();recordKey(f)}S.src='keys';S.frame=0;$('hudSrc').textContent='keys';say('Baked '+S.keys.size+' keys ('+(isClip?'add-on clip':S.motion)+')');refresh()}
+function bake(){if(!S.bones.length)return;const isClip=S.src==='clip'&&S.clipRt,m=MO[S.motion],len=isClip?S.max:Math.min(240,Math.max(8,Math.round(30/(m.f*S.speed)))),step=Math.max(1,Math.ceil(len/240));S.max=len;S.keys.clear();/* baked keys are one frame apart: easing between them makes every frame stop-and-go */S.interpolation='linear';if($('interpMode'))$('interpMode').value='linear';if(!isClip)S.src='proc';for(let f=0;f<=len;f+=step){if(isClip)clipPose(f);else procPose(f);applyPose();if(!isClip&&ikActive())solveAll();recordKey(f)}S.src='keys';S.frame=0;$('hudSrc').textContent='keys';say('Baked '+S.keys.size+' keys ('+(isClip?'add-on clip':S.motion)+')');refresh()}
 function makeClip(){if(!S.keys.size)return[];const ks=[...S.keys.keys()].sort((a,b)=>a-b),times=ks.map(k=>k/30),tr=[];
  S.bones.forEach((b,i)=>{const v=[];ks.forEach(k=>v.push(...S.keys.get(k).q[i].toArray()));tr.push(new THREE.QuaternionKeyframeTrack(b.name+'.quaternion',times,v))});
  const hv=[];ks.forEach(k=>hv.push(...S.keys.get(k).h.toArray()));tr.push(new THREE.VectorKeyframeTrack(S.bones[S.H].name+'.position',times,hv));return[new THREE.AnimationClip('Take_'+S.motion,-1,tr)]}
@@ -580,16 +595,28 @@ function makeClip(){if(!S.keys.size)return[];const ks=[...S.keys.keys()].sort((a
 function adjust(i,b,d){const B=S.B,o=i*B,W=S.W;if(!Number.isInteger(b)||b<0||b>=B)return;const nw=Math.min(1,Math.max(0,(Number(W[o+b])||0)+d));let other=0;for(let j=0;j<B;j++)if(j!==b)other+=Math.max(0,Number(W[o+j])||0);
  if(other>1e-8){const k=(1-nw)/other;for(let j=0;j<B;j++)if(j!==b)W[o+j]=Math.max(0,W[o+j])*k;W[o+b]=nw}
  else{const p=S.joints[b].parent;if(p>=0&&p!==b){W[o+p]=1-nw;W[o+b]=nw}else{W.fill(0,o,o+B);W[o+b]=1}}}
-const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,pdirty=false,vertexJointMode=false;
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,vertexJointMode=false;
 function setRay(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera)}
-function paintAt(e){if(!S.mesh||!S.W)return;setRay(e);const h=ray.intersectObject(S.mesh,false)[0];if(!h||!h.face)return;const pos=S.geo.attributes.position,c=V3().fromBufferAttribute(pos,h.face.a),v=V3(),b=Math.max(0,S.sel),{r,s,mode}=S.brush;
- for(let i=0;i<S.N;i++){const d=v.fromBufferAttribute(pos,i).distanceTo(c);if(d>r)continue;const f=Math.pow(1-d/r,2)*s*.35;adjust(i,b,mode==='sub'?-f:f)}pdirty=true}
-function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj){const adj=Array.from({length:S.N},()=>new Set()),ix=S.geo.index;
- const link=(a,b,c)=>{adj[a].add(b).add(c);adj[b].add(a).add(c);adj[c].add(a).add(b)};
- if(ix){for(let i=0;i+2<ix.count;i+=3)link(ix.getX(i),ix.getX(i+1),ix.getX(i+2))}
- else for(let i=0;i+2<S.N;i+=3)link(i,i+1,i+2);
- S.adj=adj.map(s=>[...s])}
- const B=S.B,N=new Float32Array(S.W.length);for(let i=0;i<S.N;i++){const nb=S.adj[i],cnt=nb.length+1;for(let j=0;j<B;j++){let sum=S.W[i*B+j];for(const n of nb)sum+=S.W[n*B+j];N[i*B+j]=sum/cnt}}S.W=N;applyWeights(true);updateColors()}
+const paintSet=new Set();
+function paintAt(e){if(!S.mesh||!S.W||S.sel<0)return;setRay(e);const h=ray.intersectObject(S.mesh,false)[0];if(!h||!h.face)return;
+ const pos=S.geo.attributes.position,hl=S.mesh.worldToLocal(h.point.clone()),v=V3();let ci=h.face.a,bd=Infinity;
+ for(const vi of [h.face.a,h.face.b,h.face.c]){if(S.mesh.getVertexPosition)S.mesh.getVertexPosition(vi,v);else v.fromBufferAttribute(pos,vi);const d=v.distanceToSquared(hl);if(d<bd){bd=d;ci=vi}}
+ const c=V3().fromBufferAttribute(pos,ci),b=S.sel,{s,mode}=S.brush,r=S.brush.r*Math.max(S.h,1e-6)/1.8,hit=[];
+ for(let i=0;i<S.N;i++){const d=v.fromBufferAttribute(pos,i).distanceTo(c);if(d>r)continue;const f=Math.pow(1-d/r,2)*s*.35;adjust(i,b,mode==='sub'?-f:f);hit.push(i);paintSet.add(i)}
+ if(hit.length){applyWeights(false,hit);updateColors(hit)}}
+function endPaint(){if(!paintSet.size)return;const l=[...paintSet];paintSet.clear();applyWeights(true,l);updateColors(l)}
+/* Weld vertices that share a position (mesh seams, merged primitives, UV/normal splits) so smoothing treats them as one point and never tears a seam open. */
+function buildAdj(){const pos=S.geo.attributes.position,N=S.N,q=Math.max(S.h,1e-3)*1e-5,map=new Map(),grp=new Int32Array(N),reps=[];
+ for(let i=0;i<N;i++){const key=Math.round(pos.getX(i)/q)+','+Math.round(pos.getY(i)/q)+','+Math.round(pos.getZ(i)/q);let g=map.get(key);if(g===undefined){g=reps.length;map.set(key,g);reps.push(i)}grp[i]=g}
+ const nb=reps.map(()=>new Set()),ix=S.geo.index,link=(a,b)=>{const ga=grp[a],gb=grp[b];if(ga!==gb){nb[ga].add(gb);nb[gb].add(ga)}};
+ const tri=(a,b,c)=>{link(a,b);link(b,c);link(c,a)};
+ if(ix){for(let i=0;i+2<ix.count;i+=3)tri(ix.getX(i),ix.getX(i+1),ix.getX(i+2))}else for(let i=0;i+2<N;i+=3)tri(i,i+1,i+2);
+ S.adj={grp,reps,nb:nb.map(x=>[...x])}}
+function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj)buildAdj();
+ const {grp,reps,nb}=S.adj,B=S.B,W=S.W,out=new Float32Array(W.length);
+ for(let g=0;g<reps.length;g++){const r=reps[g],ns=nb[g],cnt=ns.length+1,o=r*B;for(let j=0;j<B;j++){let sum=W[o+j];for(const n of ns)sum+=W[reps[n]*B+j];out[o+j]=sum/cnt}}
+ for(let i=0;i<S.N;i++){const r=reps[grp[i]];if(r!==i)out.copyWithin(i*B,r*B,r*B+B)}
+ S.W=out;applyWeights(true);updateColors()}
 
 /* ---------- selection / gizmo ---------- */
 function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace(tc.mode==='rotate'?'local':'world');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace('world');tc.attach(S.gizmoObj)}}
@@ -615,13 +642,16 @@ function addJointAtVertex(worldPoint){
  // the mesh bind matrix so existing vertices do not jump when a joint is added.
  S.root.updateMatrixWorld(true);S.mesh.updateMatrixWorld(true);
  const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();S.mesh.bind(skeleton,S.mesh.bindMatrix.clone());
- captureRest();solveWeights();buildMarkers();evaluate();selectBone(ji);say('Created connected joint '+name+' under '+S.joints[parent].name+'.');return ji
+ captureRest();
+ // Keep every existing (possibly hand-painted) weight. Only carve out the new joint's own region; its handle vertex becomes fully driven by it.
+ {const B=S.B,B0=B-1,N=S.N,oldW=S.W,nw=new Float32Array(N*B),auto=computeAutoWeights();for(let i=0;i<N;i++){nw.set(oldW.subarray(i*B0,i*B0+B0),i*B);const t=auto?Math.min(1,auto[i*B+ji]*2):0;if(t>0){for(let j=0;j<B0;j++)nw[i*B+j]*=1-t;nw[i*B+ji]=t}}S.W=nw;applyWeights(true);S.keys.forEach(k=>k.q.push(S.restQ[ji].clone()))}
+ updateColors();buildMarkers();evaluate();selectBone(ji);say('Created connected joint '+name+' under '+S.joints[parent].name+'.');return ji
 }
 function toggleVertexJoint(){vertexJointMode=!vertexJointMode;$('btnVertexJoint').classList.toggle('on',vertexJointMode);$('btnVertexJoint').textContent=vertexJointMode?'● CLICK MESH TO CREATE JOINT':'＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent=vertexJointMode?'Vertex mode active: click the mesh to place a joint under the selected bone.':'Select a parent bone first; then enable vertex mode and click the mesh.';setTool(vertexJointMode?'select':S.tool)}
 $('btnVertexJoint').addEventListener('click',toggleVertexJoint);
-canvas.addEventListener('pointerdown',e=>{if(tc.axis)return;down={x:e.clientX,y:e.clientY};if(S.tool==='paint'&&S.mesh&&e.button===0){setRay(e);if(ray.intersectObject(S.mesh,false)[0]){painting=true;e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);paintAt(e)}}},{capture:true});
+canvas.addEventListener('pointerdown',e=>{if(tc.axis)return;down={x:e.clientX,y:e.clientY};if(S.tool==='paint'&&S.mesh&&e.button===0){if(S.sel<0){say('Select a bone in the Bones tab first, then paint its weights',1)}else{setRay(e);if(ray.intersectObject(S.mesh,false)[0]){painting=true;e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);paintAt(e)}}}},{capture:true});
 canvas.addEventListener('pointermove',e=>{if(painting){paintAt(e);e.stopImmediatePropagation()}},{capture:true});
-canvas.addEventListener('pointerup',e=>{if(painting){painting=false;if(pdirty){applyWeights(false);updateColors();pdirty=false}down=null;return}
+canvas.addEventListener('pointerup',e=>{if(painting){painting=false;endPaint();down=null;return}
  if(!down||tc.dragging)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y)>4;down=null;if(moved||tc.axis)return;if(S.tool==='paint')return;
  setRay(e);if(vertexJointMode&&S.mesh){const vh=ray.intersectObject(S.mesh,false)[0];if(vh?.face){let best=vh.face.a,bd=Infinity;const pa=S.geo.attributes.position,hitLocal=S.mesh.worldToLocal(vh.point.clone());for(const vi of [vh.face.a,vh.face.b,vh.face.c]){const deformed=S.mesh.getVertexPosition?S.mesh.getVertexPosition(vi,V3()):V3().fromBufferAttribute(pa,vi),d=hitLocal.distanceToSquared(deformed);if(d<bd){bd=d;best=vi}}const vp=V3().fromBufferAttribute(pa,best);vertexJointMode=false;$('btnVertexJoint').classList.remove('on');$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';addJointAtVertex(vp);return}}const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
  if(o.userData.bone!==undefined)selectBone(o.userData.bone);else if(o.userData.kind)selectIK(o.userData.chain,o)});
@@ -707,7 +737,7 @@ function download(blob,name){const a=document.createElement('a');a.href=URL.crea
 function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
  const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
- const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(S.src==='pose'||S.src==='proc')solveAll();S.root.updateMatrixWorld(true)};
+ const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(ikActive())solveAll();S.root.updateMatrixWorld(true)};
  try{new GLTFExporter().parse(S.root,res=>{restore();download(new Blob([res],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');say('GLB exported'+(clips.length?' with '+S.keys.size+' keys':''))},err=>{restore();say('Export failed: '+(err?.message||err),1)},{binary:true,animations:clips})}catch(err){restore();say('Export failed: '+(err?.message||String(err)),1)} }
 bind('btnExport',exportGLB,'onclick');bind('btnExport2',exportGLB,'onclick');
 const rd=(a,n=5)=>Array.from(a,x=>+x.toFixed(n));
