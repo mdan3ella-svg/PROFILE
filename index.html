@@ -40,50 +40,72 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 @media(max-width:900px){.timeline{height:250px;flex-basis:250px}.th{gap:5px;padding:0 7px}.tltools select{max-width:100px}}
 .th{height:38px;display:flex;align-items:center;padding:0 12px;gap:8px;border-bottom:1px solid var(--bd);background:var(--p2);font-size:11px}
 .tc{flex:1;min-height:0;background:#0c0c0f}#tl{width:100%;height:100%;display:block}
+.about-btn{border-color:rgba(166,255,122,.5)}
+#aboutModal{position:fixed;inset:0;z-index:1200;display:none;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);padding:3vh 3vw;align-items:center;justify-content:center}
+#aboutModal.open{display:flex}
+.about-shell{width:min(1120px,96vw);height:min(90vh,900px);display:flex;flex-direction:column;border:1px solid #3b4936;background:#0d0f0e;box-shadow:0 24px 100px #000b;min-height:0}
+.about-head{display:flex;align-items:center;gap:14px;padding:17px 20px;border-bottom:1px solid var(--bd);background:#141714}.about-head h2{font-size:17px;letter-spacing:.05em}.about-head h2 span{color:var(--ac)}.about-head p{font-size:11px;color:var(--mu);margin-top:4px}.about-close{margin-left:auto;font-size:18px;min-width:40px}
+.about-nav{display:flex;gap:6px;padding:10px 16px;border-bottom:1px solid var(--bd);overflow-x:auto;background:#101210}.about-nav button{flex:0 0 auto}.about-content{overflow:auto;padding:20px;min-height:0}.about-pane{display:none}.about-pane.active{display:block}.about-intro{padding:18px;border:1px solid #2e3b2b;background:linear-gradient(120deg,#182017,#101210);border-radius:10px;margin-bottom:18px}.about-intro h3{font-size:20px;margin-bottom:8px}.about-intro p,.guide-card p,.guide-card li{color:#b8bbb6;line-height:1.65;font-size:12px}.guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.guide-card{border:1px solid var(--bd);background:#141518;border-radius:9px;padding:15px;min-width:0}.guide-card h3{font-size:13px;color:var(--ac);margin-bottom:8px;letter-spacing:.04em}.guide-card h4{font-size:11px;margin:12px 0 5px;color:#e7e9e5}.guide-card ol,.guide-card ul{padding-left:18px}.guide-card li{margin:4px 0}.guide-tag{display:inline-block;font:9px ui-monospace,monospace;color:var(--ac);border:1px solid #34462d;padding:3px 7px;border-radius:20px;margin-bottom:8px}.guide-note{border-left:2px solid var(--ac);padding:8px 11px;background:#171b16;color:#aeb4a9;line-height:1.6;font-size:11px;margin-top:12px}.about-content code{color:var(--ac);font:11px ui-monospace,monospace}.about-footer{padding:10px 18px;border-top:1px solid var(--bd);font-size:10px;color:var(--mu);display:flex;justify-content:space-between;gap:10px}
+@media(max-width:700px){#aboutModal{padding:1vh 1vw}.about-shell{height:96vh;width:98vw}.about-content{padding:12px}.guide-grid{grid-template-columns:1fr}.about-head{padding:12px}}
 .badge{font-size:9px;padding:2px 7px;border-radius:12px;border:1px solid var(--bd);color:var(--mu)}.badge.on{border-color:var(--ac);color:var(--ac)}
 #status{position:absolute;bottom:40px;left:12px;font-size:10px;color:#ff8a8a;pointer-events:none;max-width:60%}
 @media(max-width:900px){.right{width:260px}.leftbar{width:72px;flex-basis:72px;padding-left:5px;padding-right:5px}}
 @media(max-width:620px){.topbar{padding:0 8px;gap:5px}.logo{font-size:10px}.btn{padding:7px 8px}.right{width:220px}.tool-label{font-size:8px}}
 
-/* ---------- Vertascan launch / motion intro ---------- */
-#splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 68% 45%,rgba(45,65,42,.22),transparent 42%),linear-gradient(115deg,rgba(5,6,7,.97) 0%,rgba(8,9,11,.84) 48%,rgba(7,8,9,.56) 100%);backdrop-filter:blur(2px);transition:opacity .75s ease,visibility .75s ease}
+/* ---------- Vertascan launch / vector-wing identity ---------- */
+#splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:auto;padding:clamp(12px,3vh,32px);background:radial-gradient(ellipse at 76% 48%,rgba(73,111,57,.2),transparent 39%),radial-gradient(ellipse at 12% 90%,rgba(166,255,122,.055),transparent 38%),linear-gradient(115deg,#050607 0%,#0a0d0b 56%,#08090a 100%);backdrop-filter:blur(2px);transition:opacity .75s ease,visibility .75s ease}
 #splash.hidden{opacity:0;visibility:hidden;pointer-events:none}
-#splash:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(166,255,122,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(166,255,122,.035) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(90deg,black,transparent 90%);pointer-events:none}
-.splash-wrap{position:relative;width:min(1120px,92vw);display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.72fr);align-items:center;gap:5vw;padding:clamp(24px,5vw,72px);border:1px solid rgba(166,255,122,.22);background:linear-gradient(135deg,rgba(14,16,16,.88),rgba(9,10,12,.58));box-shadow:0 24px 100px #0009}
-.splash-kicker{font:11px ui-monospace,monospace;letter-spacing:.24em;color:var(--ac);margin-bottom:22px}.splash-title{font-size:clamp(34px,5.5vw,72px);font-weight:850;letter-spacing:-.055em;line-height:.94}.splash-title span{display:block;color:var(--ac)}.splash-copy{max-width:470px;margin-top:24px;color:#a8aab0;font-size:13px;line-height:1.8}.splash-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:30px}.splash-enter{padding:13px 18px;border:1px solid var(--ac);background:var(--ac);color:#080a07;font:800 11px ui-monospace,monospace;letter-spacing:.08em;cursor:pointer}.splash-skip{padding:13px 18px;border:1px solid #383b3b;background:#111315;color:#e8e8ea;font:11px ui-monospace,monospace;cursor:pointer}.splash-spec{display:flex;gap:18px;margin-top:32px;color:#777d7a;font:9px ui-monospace,monospace;letter-spacing:.12em}.splash-spec b{display:block;color:#e5e8e3;font-size:15px;letter-spacing:0;margin-bottom:5px}
- .intro-figure{position:relative;min-height:300px;display:grid;place-items:center;border-left:1px solid rgba(166,255,122,.16);overflow:hidden;background:linear-gradient(180deg,transparent 0%,rgba(166,255,122,.025) 100%)}
-.figure-stage{position:relative;width:min(100%,390px);height:245px;display:flex;align-items:center;justify-content:center}
-.figure-stage:before{content:"";position:absolute;left:7%;right:7%;bottom:28px;height:1px;background:linear-gradient(90deg,transparent,rgba(166,255,122,.45),transparent)}
-.figure-stage:after{content:"";position:absolute;left:28%;right:28%;bottom:20px;height:10px;border-radius:50%;background:#a6ff7a;filter:blur(16px);opacity:.12}
-.stick-rig{position:relative;width:300px;height:245px;overflow:visible;filter:drop-shadow(0 0 5px rgba(166,255,122,.18))}
-.stick-rig .bone{fill:none;stroke:var(--ac);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
-.stick-rig .joint{fill:#101710;stroke:var(--ac);stroke-width:2}
-.stick-rig .head{fill:none;stroke:var(--ac);stroke-width:3}
-.stick-rig .arm-a{transform-box:view-box;transform-origin:150px 75px;animation:sideArmA .9s ease-in-out infinite alternate}
-.stick-rig .arm-b{transform-box:view-box;transform-origin:150px 75px;animation:sideArmB .9s ease-in-out infinite alternate}
-.stick-rig .leg-a{transform-box:view-box;transform-origin:150px 132px;animation:sideLegA .9s ease-in-out infinite alternate}
-.stick-rig .leg-b{transform-box:view-box;transform-origin:150px 132px;animation:sideLegB .9s ease-in-out infinite alternate}
-.stick-rig .shin-a{transform-box:view-box;transform-origin:150px 172px;animation:sideShinA .9s ease-in-out infinite alternate}
-.stick-rig .shin-b{transform-box:view-box;transform-origin:150px 172px;animation:sideShinB .9s ease-in-out infinite alternate}
-.intro-label{position:absolute;bottom:18px;font:10px ui-monospace,monospace;letter-spacing:.18em;color:var(--ac)}.splash-progress{height:2px;width:100%;background:#252a25;margin-top:25px;overflow:hidden}.splash-progress span{display:block;height:100%;width:0;background:var(--ac);box-shadow:0 0 10px var(--ac);animation:loadBar 7s linear forwards}.splash-status{margin-top:9px;color:#777d7a;font:9px ui-monospace,monospace;letter-spacing:.12em}
-@keyframes sideArmA{from{transform:rotate(-28deg)}to{transform:rotate(24deg)}}@keyframes sideArmB{from{transform:rotate(24deg)}to{transform:rotate(-28deg)}}@keyframes sideLegA{from{transform:rotate(28deg)}to{transform:rotate(-28deg)}}@keyframes sideLegB{from{transform:rotate(-28deg)}to{transform:rotate(28deg)}}@keyframes sideShinA{from{transform:rotate(-8deg)}to{transform:rotate(30deg)}}@keyframes sideShinB{from{transform:rotate(30deg)}to{transform:rotate(-8deg)}}@keyframes loadBar{to{width:100%}}
-@media(max-width:700px){.splash-wrap{grid-template-columns:1fr;padding:28px;gap:18px}.intro-figure{min-height:210px;border-left:0;border-top:1px solid rgba(166,255,122,.16);overflow:hidden}.figure-stage{height:190px;transform:scale(.82);transform-origin:center}.splash-copy{margin-top:16px}.splash-spec{margin-top:20px}}
+#splash:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(166,255,122,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(166,255,122,.035) 1px,transparent 1px);background-size:clamp(24px,3vw,42px) clamp(24px,3vw,42px);mask-image:linear-gradient(90deg,black,transparent 96%);pointer-events:none}
+.splash-wrap{position:relative;width:min(1240px,94vw);min-height:min(620px,88vh);display:grid;grid-template-columns:minmax(0,1.04fr) minmax(300px,.96fr);align-items:stretch;gap:clamp(22px,4vw,64px);padding:clamp(28px,5.2vw,76px);border:1px solid rgba(166,255,122,.23);background:linear-gradient(135deg,rgba(15,18,16,.94),rgba(8,10,11,.8));box-shadow:0 24px 100px #000b;overflow:hidden}
+.splash-wrap:after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,transparent,var(--ac),transparent);opacity:.8}
+.splash-copy-col{position:relative;z-index:2;align-self:center;min-width:0}.splash-kicker{font:clamp(9px,.8vw,11px) ui-monospace,monospace;letter-spacing:.22em;color:var(--ac);margin-bottom:clamp(18px,3vh,30px)}.splash-title{font-size:clamp(36px,5.7vw,82px);font-weight:850;letter-spacing:-.06em;line-height:.91;overflow-wrap:anywhere}.splash-title span{display:block;color:var(--ac);font-size:.72em;letter-spacing:-.045em;margin-top:.16em}.splash-copy{max-width:500px;margin-top:clamp(18px,3vh,28px);color:#b0b6af;font-size:clamp(12px,.95vw,14px);line-height:1.8}.splash-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:clamp(22px,4vh,36px)}.splash-enter,.splash-skip{min-height:44px;padding:13px 18px;border:1px solid var(--ac);font:800 10px ui-monospace,monospace;letter-spacing:.08em;cursor:pointer;transition:transform .2s ease,background .2s ease}.splash-enter{background:var(--ac);color:#080a07}.splash-skip{border-color:#383f39;background:#111513;color:#e8e8ea}.splash-enter:hover,.splash-skip:hover{transform:translateY(-2px)}.splash-spec{display:flex;gap:clamp(14px,2vw,28px);flex-wrap:wrap;margin-top:clamp(24px,4vh,42px);color:#858c85;font:9px ui-monospace,monospace;letter-spacing:.1em}.splash-spec b{display:block;color:#e5e8e3;font-size:14px;letter-spacing:0;margin-bottom:5px}.splash-progress{height:2px;width:min(100%,480px);background:#252a25;margin-top:clamp(20px,3vh,30px);overflow:hidden}.splash-progress span{display:block;height:100%;width:0;background:var(--ac);box-shadow:0 0 10px var(--ac);animation:loadBar 7s linear forwards}.splash-status{margin-top:9px;color:#777d7a;font:9px ui-monospace,monospace;letter-spacing:.12em}
+.intro-figure{position:relative;min-width:0;min-height:clamp(300px,54vh,510px);display:grid;place-items:center;overflow:hidden;border-left:1px solid rgba(166,255,122,.15);background:radial-gradient(ellipse at 50% 48%,rgba(166,255,122,.075),transparent 63%)}
+.intro-figure:before,.intro-figure:after{content:"";position:absolute;pointer-events:none}.intro-figure:before{inset:9% 5%;border:1px solid rgba(166,255,122,.09);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}.intro-figure:after{left:12%;right:12%;bottom:13%;height:1px;background:linear-gradient(90deg,transparent,rgba(166,255,122,.45),transparent)}
+.figure-stage{position:relative;width:min(100%,560px);aspect-ratio:1/1;display:grid;place-items:center}.v-wing-mark{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 12px rgba(166,255,122,.16))}.v-wing-mark .vector{fill:none;stroke:var(--ac);stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}.v-wing-mark .fine{stroke-width:1;opacity:.44}.v-wing-mark .core{stroke-width:3.2;opacity:.95}.v-wing-mark .wing-left{transform-box:view-box;transform-origin:280px 280px;animation:wingLeft 2.8s ease-in-out infinite alternate}.v-wing-mark .wing-right{transform-box:view-box;transform-origin:280px 280px;animation:wingRight 2.8s ease-in-out infinite alternate}.v-wing-mark .pulse-ring{fill:none;stroke:rgba(166,255,122,.24);stroke-width:1;stroke-dasharray:2 10;transform-origin:280px 280px;animation:ringTurn 28s linear infinite}.v-wing-mark .node{fill:#0b100b;stroke:var(--ac);stroke-width:1.5}.intro-label{position:absolute;bottom:clamp(22px,4vh,42px);font:10px ui-monospace,monospace;letter-spacing:.2em;color:var(--ac);text-align:center}.splash-index{position:absolute;top:clamp(16px,3vh,28px);right:clamp(16px,3vw,32px);font:9px ui-monospace,monospace;letter-spacing:.15em;color:#788175}.splash-index span{color:var(--ac)}
+@keyframes wingLeft{0%{transform:rotate(-7deg) scaleY(.96)}100%{transform:rotate(7deg) scaleY(1.035)}}@keyframes wingRight{0%{transform:rotate(7deg) scaleY(.96)}100%{transform:rotate(-7deg) scaleY(1.035)}}@keyframes ringTurn{to{transform:rotate(360deg)}}@keyframes loadBar{to{width:100%}}
+@media(max-width:760px){#splash{padding:12px}.splash-wrap{width:min(620px,96vw);min-height:0;grid-template-columns:1fr;padding:clamp(22px,6vw,34px);gap:16px}.splash-copy-col{order:1}.intro-figure{order:2;min-height:0;height:clamp(210px,32vh,290px);border-left:0;border-top:1px solid rgba(166,255,122,.15)}.figure-stage{height:100%;width:auto;aspect-ratio:1/1;max-width:100%}.splash-title{font-size:clamp(34px,10vw,56px)}.splash-copy{margin-top:16px}.splash-actions{margin-top:20px}.splash-spec{margin-top:22px}.splash-progress{margin-top:20px}.intro-label{bottom:12px}.splash-index{top:10px;right:12px}}
+@media(max-width:420px){.splash-wrap{padding:20px}.splash-kicker{letter-spacing:.15em}.splash-title{font-size:34px}.splash-spec{gap:12px}.splash-spec b{font-size:12px}.splash-actions button{flex:1;padding:12px 10px}.intro-figure{height:190px}}
+@media(prefers-reduced-motion:reduce){.v-wing-mark .wing-left,.v-wing-mark .wing-right,.v-wing-mark .pulse-ring,.splash-progress span{animation:none}.splash-enter,.splash-skip{transition:none}}
 
 </style>
 </head>
 <body>
 
-<div id="splash" role="dialog" aria-label="PROFILE Motion Engine introduction">
+<div id="splash" role="dialog" aria-label="PROFILE Motion Engine introduction" aria-modal="true">
   <div class="splash-wrap">
-    <section>
+    <section class="splash-copy-col">
       <div class="splash-kicker">VERTASCAN / CHARACTER SYSTEMS</div>
       <h1 class="splash-title">PROFILE<span>MOTION ENGINE</span></h1>
-      <p class="splash-copy">A real-time character rigging workspace for skeletal setup, skin weights, FK / IK posing, procedural motion and animation export. Preview a clean side-profile stick rig walking through a continuous skeletal cycle, then enter the studio.</p>
+      <p class="splash-copy">A character rigging and motion workspace for skeletal setup, skin weights, FK / IK posing, procedural animation and export. Build a rig, shape movement, and refine every keyframe in one focused studio.</p>
       <div class="splash-actions"><button class="splash-enter" id="enterStudio">ENTER STUDIO ↗</button><button class="splash-skip" id="skipIntro">SKIP INTRO</button></div>
-      <div class="splash-spec"><div><b>FK / IK</b>RIG CONTROL</div><div><b>WALK CYCLE</b>SIDE PROFILE</div><div><b>GLB</b>ANIMATION EXPORT</div></div>
-      <div class="splash-progress"><span></span></div><div class="splash-status" id="splashStatus">INITIALIZING DEMO RIG • WALK CYCLE</div>
+      <div class="splash-spec"><div><b>FK / IK</b>RIG CONTROL</div><div><b>4 PRESETS</b>CREATURE SYSTEMS</div><div><b>GLB</b>ANIMATION EXPORT</div></div>
+      <div class="splash-progress"><span></span></div><div class="splash-status" id="splashStatus">PROFILE / VECTOR MOTION SYSTEM</div>
     </section>
-    <aside class="intro-figure" id="introFigure" aria-hidden="true"><div class="figure-stage"><svg class="stick-rig" viewBox="0 0 300 245" role="presentation"><circle class="head" cx="150" cy="47" r="15"/><path class="bone" d="M150 63 L150 132"/><circle class="joint" cx="150" cy="75" r="3.5"/><circle class="joint" cx="150" cy="132" r="4"/><g class="arm-a"><path class="bone" d="M150 75 L150 105 L150 127"/><circle class="joint" cx="150" cy="105" r="3"/></g><g class="arm-b"><path class="bone" d="M150 75 L150 105 L150 127"/><circle class="joint" cx="150" cy="105" r="3"/></g><g class="leg-a"><path class="bone" d="M150 132 L150 172"/><circle class="joint" cx="150" cy="172" r="3.5"/></g><g class="shin-a"><path class="bone" d="M150 172 L150 210 L166 210"/></g><g class="leg-b"><path class="bone" d="M150 132 L150 172"/><circle class="joint" cx="150" cy="172" r="3.5"/></g><g class="shin-b"><path class="bone" d="M150 172 L150 210 L166 210"/></g></svg></div><div class="intro-label" id="introLabel">SIDE PROFILE / WALK CYCLE</div></aside>
+    <aside class="intro-figure" id="introFigure" aria-hidden="true">
+      <div class="splash-index">VERTASCAN <span>/// 01</span></div>
+      <div class="figure-stage">
+        <svg class="v-wing-mark" viewBox="0 0 560 560" role="presentation">
+          <circle class="pulse-ring" cx="280" cy="280" r="218"/><circle class="vector fine" cx="280" cy="280" r="180"/>
+          <g class="wing-left">
+            <path class="vector core" d="M280 280 L90 115 L160 250 L280 280"/>
+            <path class="vector" d="M280 280 L58 164 L145 280 L280 280"/><path class="vector" d="M280 280 L82 213 L165 310 L280 280"/>
+            <path class="vector" d="M280 280 L120 72 L190 224 L280 280"/><path class="vector fine" d="M280 280 L44 210 L145 330 L280 280"/>
+            <path class="vector fine" d="M280 280 L130 145 L190 275 L280 280"/><path class="vector" d="M280 280 L106 270 L180 350 L280 280"/>
+            <path class="vector fine" d="M280 280 L72 105 L166 225"/>
+          </g>
+          <g class="wing-right">
+            <path class="vector core" d="M280 280 L470 115 L400 250 L280 280"/>
+            <path class="vector" d="M280 280 L502 164 L415 280 L280 280"/><path class="vector" d="M280 280 L478 213 L395 310 L280 280"/>
+            <path class="vector" d="M280 280 L440 72 L370 224 L280 280"/><path class="vector fine" d="M280 280 L516 210 L415 330 L280 280"/>
+            <path class="vector fine" d="M280 280 L430 145 L370 275 L280 280"/><path class="vector" d="M280 280 L454 270 L380 350 L280 280"/>
+            <path class="vector fine" d="M280 280 L488 105 L394 225"/>
+          </g>
+          <path class="vector core" d="M280 200 L250 280 L280 365 L310 280 Z"/><path class="vector fine" d="M280 224 L280 338"/>
+          <circle class="node" cx="280" cy="280" r="7"/><circle class="node" cx="160" cy="250" r="4"/><circle class="node" cx="400" cy="250" r="4"/>
+        </svg>
+      </div>
+      <div class="intro-label">V / VECTOR WING SYSTEM — MOTION IN SYMMETRY</div>
+    </aside>
   </div>
 </div>
 
@@ -91,6 +113,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.json" style="display:none"/>
   <div style="flex:1"></div>
+  <button class="btn about-btn" id="btnAbout">ABOUT / TUTORIALS</button>
   <button class="btn" id="btnImport">IMPORT</button>
   <button class="btn accent" id="btnDemo">DEMO RIG</button>
   <button class="btn" id="btnNew">NEW</button>
@@ -118,7 +141,10 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
     <div class="panel" id="panel-rig">
       <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
         <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button>
+        <label class="label" for="rigType">Rig preset</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
+        <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
+        <div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
@@ -172,6 +198,59 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
   <div class="tltools"><button class="btn" id="btnGraph" title="Switch between keyframe timeline and editable animation curves">GRAPH EDITOR</button><select id="interpMode" aria-label="Keyframe interpolation" title="Interpolation used between keyframes"><option value="linear">Linear</option><option value="bezier" selected>Smooth S-Curve</option><option value="easeIn">Ease In</option><option value="easeOut">Ease Out</option><option value="easeInOut">Ease In-Out</option><option value="step">Constant / Step</option></select><select id="graphChannel" aria-label="Graph channel" title="Curve channel to inspect and edit"><option value="hipsY">Hips • Y</option><option value="boneX">Selected Bone • Rot X</option></select><button class="btn" id="btnKey" title="Insert a keyframe at the current frame">◆ KEY</button><button class="btn" id="btnDelKey" title="Delete a keyframe at the current frame">DEL KEY</button><button class="btn" id="btnClearKeys" title="Remove all keyframes">CLEAR</button><button class="btn on" id="btnLoop" title="Toggle playback looping">LOOP ON</button></div></div>
   <div class="tc"><canvas id="tl" aria-label="Animation keyframe timeline"></canvas><canvas id="graphCanvas" aria-label="Editable animation curve graph"></canvas></div></div>
 
+
+<div id="aboutModal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+ <div class="about-shell">
+  <header class="about-head"><div><h2 id="aboutTitle">PROFILE <span>| FEATURES & TUTORIALS</span></h2><p>Rig presets, tool explanations and a practical start-to-finish workflow.</p></div><button class="btn about-close" id="aboutClose" aria-label="Close tutorials">✕</button></header>
+  <nav class="about-nav" aria-label="Tutorial sections"><button class="btn on" data-about-tab="overview">OVERVIEW</button><button class="btn" data-about-tab="rigs">RIG PRESETS</button><button class="btn" data-about-tab="rigtools">RIG + IK TOOLS</button><button class="btn" data-about-tab="skinning">SKINNING</button><button class="btn" data-about-tab="animation">ANIMATION + GRAPH</button><button class="btn" data-about-tab="files">IMPORT / EXPORT</button></nav>
+  <div class="about-content">
+   <section class="about-pane active" data-about-pane="overview"><div class="about-intro"><span class="guide-tag">QUICK START</span><h3>From mesh to motion</h3><p>PROFILE is a character rigging and animation workspace. Load a supported model, choose a rig preset, build the skeleton and skin binding, pose with FK or IK, create motion, refine keyframes, then export. For best results, use a clean mesh with its feet near the ground and its forward direction aligned to the app's expected axis.</p></div><div class="guide-grid">
+    <article class="guide-card"><h3>01 / LOAD A MODEL</h3><p>Use <b>IMPORT</b> or the FILE panel to load GLB/GLTF, OBJ or a saved PROFILE JSON project. Use <b>DEMO RIG</b> to restore the built-in humanoid example. OBJ imports are static geometry and need a generated rig.</p></article>
+    <article class="guide-card"><h3>02 / BUILD + CHECK THE RIG</h3><p>Open <b>RIG</b>, choose a preset, adjust <b>Rig width</b> if needed, then press <b>BUILD RIG + BIND</b>. Inspect the bone tree and joints. The procedural preset is a starting skeleton, not an automatic guarantee of production-ready topology or weights.</p></article>
+    <article class="guide-card"><h3>03 / POSE + DEFORM</h3><p>Select a bone in the viewport or Scene tree. Use <b>FK / Pose</b> to rotate individual joints or <b>IK Targets</b> to move a chain endpoint. Open <b>SKIN</b> to re-solve, smooth or paint weights if the mesh pinches or stretches incorrectly.</p></article>
+    <article class="guide-card"><h3>04 / CREATE MOTION</h3><p>Choose Walk, Run, Idle, Jump, Sneak or Strut under <b>MOTION</b>. Adjust speed and stride, preview it, then use <b>BAKE TO KEYS</b> to convert procedural motion to editable keyframes. Use the timeline and Graph Editor for refinement.</p></article>
+   </div><div class="guide-note">Important: deformation quality depends on mesh topology, skeleton placement and skin weights. Always test extreme poses, foot contacts and the exported file in your target 3D application or engine.</div></section>
+   <section class="about-pane" data-about-pane="rigs"><div class="about-intro"><h3>Rig preset tutorials</h3><p>Each preset builds a different joint layout. The library includes bipeds, mecha, quadrupeds, scorpion mecha, winged dragons and vehicles. Set spine density before building; use vertex-to-joint mode to extend generated rigs for unusual silhouettes. Presets are editable starting points for compatible meshes.</p></div><div class="guide-grid">
+    <article class="guide-card"><span class="guide-tag">2 LEGS</span><h3>Humanoid / Biped</h3><p>For people, stylized characters and upright creatures with two arms and two legs.</p><h4>How to use</h4><ol><li>Load a humanoid mesh facing the expected forward direction, or press <b>DEMO RIG</b>.</li><li>Choose <code>Humanoid / Biped</code> and press <b>BUILD RIG + BIND</b>.</li><li>Check hips, spine, head, shoulders, elbows, wrists, knees and ankles in the bone tree.</li><li>Select an arm or leg bone; use FK for posing or create an IK chain for end-effector control.</li><li>Test a walk pose and inspect shoulders, hips and knees for weight artifacts.</li></ol><div class="guide-note">Best for standard biped motion. Hand/finger articulation depends on the generated skeleton or imported rig.</div></article>
+    <article class="guide-card"><span class="guide-tag">ARMORED BIPED</span><h3>Mecha Torso / Biped</h3><p>For robots, armored characters and mechanical suits with a reinforced core and actuator-like joints.</p><h4>How to use</h4><ol><li>Load a robot mesh with its torso centered around the body root.</li><li>Choose <code>Mecha Torso / Biped</code> and build the rig.</li><li>Inspect the torso/core and limb joint placement; adjust width if the skeleton is too narrow or broad.</li><li>Use FK to articulate mechanical segments; add IK to feet or hands where endpoint control is useful.</li><li>Test hard-surface intersections at shoulders, elbows, hips and knees.</li></ol><div class="guide-note">Rigid armor may need rigid or carefully painted weights. A single smooth skin bind will not automatically preserve every mechanical panel gap.</div></article>
+    <article class="guide-card"><span class="guide-tag">ADAPTIVE SKELETON</span><h3>Multipurpose Spine + Vertex Joint Creator</h3><p>Use a denser spine for serpentine, elongated, flexible or unusual characters. Add joints directly at picked mesh vertices to create controls for custom silhouettes.</p><h4>How to use</h4><ol><li>Set <b>Spine segments</b> from 3–14 before building; more segments provide finer articulation but need careful weights.</li><li>Press <b>BUILD RIG + BIND</b> to regenerate the selected preset with that spine density.</li><li>Select a bone in the tree to use it as the parent for a custom joint.</li><li>Press <b>CREATE JOINT FROM VERTEX</b>, then click the desired point on the mesh. The nearest triangle vertex is used.</li><li>Re-solve weights and inspect the new joint’s influence; rename or reposition it by editing the project data if needed.</li></ol><div class="guide-note">Custom vertex joints are added to the current generated rig and weights are recalculated. Use sensible joint spacing; too many close joints can cause unstable-looking deformation.</div></article>
+    <article class="guide-card"><span class="guide-tag">WINGS + TAIL</span><h3>Dragon / Winged Creature</h3><p>Creates a long-bodied creature skeleton with articulated forelimbs, hind limbs, paired multi-joint wings and a segmented tail.</p><h4>How to use</h4><ol><li>Set the mesh facing the expected +Z direction, with its body centered and feet near ground level.</li><li>Choose <code>Dragon / Winged Creature + Tail</code>, set the desired spine segment count, then build.</li><li>Inspect the left/right wing chains from shoulder through wrist and finger-like wing struts.</li><li>Create or use IK controls for limb chains; pose wing joints with FK for folding and spread poses.</li><li>Check membrane deformation manually in Skin and paint weights around wing roots and tail transitions.</li></ol><div class="guide-note">This generates a control skeleton, not wing membranes or automatic aerodynamic animation. Mesh topology and weights determine deformation quality.</div></article>
+    <article class="guide-card"><span class="guide-tag">CHASSIS + RUNNING GEAR</span><h3>Vehicle / Chassis + Wheels</h3><p>Builds a mechanical hierarchy for a vehicle body, four suspension corners, wheel rotation, steering pivots and optional turret/door anchor points.</p><h4>How to use</h4><ol><li>Load a vehicle mesh with its length aligned to the expected forward axis and wheels near the ground.</li><li>Choose <code>Vehicle / Chassis + Wheels + Steering</code> and build.</li><li>Inspect chassis, axle, suspension and wheel joints; select a wheel joint to rotate it for a roll test.</li><li>Use FK for wheel rotation and steering pivots. Add vertex joints to connect custom parts such as doors, mirrors or articulated equipment.</li><li>Re-solve weights, then test wheels and chassis independently before keyframing.</li></ol><div class="guide-note">A single merged vehicle mesh may deform poorly under skeletal skinning. For rigid parts, separate object parenting or rigid per-part weights are preferable; this preset is a starter hierarchy.</div></article>
+    <article class="guide-card"><span class="guide-tag">4 LEGS</span><h3>Quadruped / Four Legs</h3><p>For animal-like bodies with forelegs, hind legs, a spine and a tail/body line where supported by the preset.</p><h4>How to use</h4><ol><li>Align the animal body with its feet near the ground and facing +Z as described by the rig selector hint.</li><li>Choose <code>Quadruped / Four Legs</code> and build the rig.</li><li>Check front and rear hip/shoulder positions, knee/hock bends and foot endpoints.</li><li>Use the leg IK targets to place each foot; adjust pole controls to guide bend direction.</li><li>Test stance and walk poses, then fix weight transitions around shoulders, hips and belly.</li></ol><div class="guide-note">Quadruped proportions vary widely. Long-backed, hoofed, digitigrade or unusual animals may need manual joint adjustment and custom weights.</div></article>
+    <article class="guide-card"><span class="guide-tag">6 LEGS + TAIL</span><h3>Scorpion Mecha / Six Legs + Tail</h3><p>For a mechanical scorpion with three pairs of legs, a segmented articulated tail and a stinger endpoint.</p><h4>How to use</h4><ol><li>Align the chassis centrally, keep the six feet close to the ground and point the model along +Z.</li><li>Choose <code>Scorpion Mecha / Six Legs + Tail</code> and build the rig.</li><li>Inspect left/right leg pairs and tail segments <code>tail_seg_01–06</code> plus <code>tail_stinger</code>.</li><li>Select a leg IK chain and move its target to test reach; use the pole control to influence knee bend.</li><li>Select the tail IK chain and move its target to articulate the distal tail and stinger; pose individual tail bones with FK for fine adjustments.</li><li>Preview motion and check all six feet, tail clearance and body balance before baking keys.</li></ol><div class="guide-note">The tail and leg chains are controllable, but realistic contact, balance and collision avoidance still require manual review.</div></article>
+   </div></section>
+   <section class="about-pane" data-about-pane="rigtools"><div class="guide-grid">
+    <article class="guide-card"><h3>Select</h3><p>Choose a bone, IK target or pole control. Use the Scene bone tree when overlapping joints are hard to click. The selected bone name appears in the HUD and RIG panel.</p></article>
+    <article class="guide-card"><h3>FK / Pose</h3><p>Forward kinematics rotates the selected joint and carries its descendants. Select a bone, choose <b>ROTATE</b>, then use the transform gizmo or Rot X/Y/Z sliders. <b>MOVE HIPS</b> moves the root/hips rather than rotating a joint.</p></article>
+    <article class="guide-card"><h3>IK Targets</h3><p>Inverse kinematics solves a chain toward a target. Create a chain from a selected bone with <b>Create IK from selected bone</b>, select a chain in the IK list, and move its target. IK/FK Blend mixes between the chain solution and FK pose; Toggle enables/disables the chain, Delete removes it, and Snap places its target at the endpoint.</p></article>
+    <article class="guide-card"><h3>Pole controls</h3><p>A pole vector helps determine which way a multi-joint limb bends. Move the pole control to steer a knee or elbow away from an unwanted flip. Keep the pole off the limb's straight line and test the full range of movement.</p></article>
+    <article class="guide-card"><h3>Rig width</h3><p>Controls the generated rig's lateral scale/width before building. Use small increments, then rebuild and inspect joint alignment. It does not replace manual per-joint placement for nonstandard anatomy.</p></article>
+    <article class="guide-card"><h3>Reset + Mirror</h3><p><b>Reset bone</b> returns the selected bone to its rest rotation. <b>Reset pose</b> restores the overall pose. <b>Mirror L→R</b> copies left-side pose values to the right; <b>Mirror R→L</b> does the reverse. Check asymmetrical rigs after mirroring.</p></article>
+   </div></section>
+   <section class="about-pane" data-about-pane="skinning"><div class="guide-grid">
+    <article class="guide-card"><h3>Bind / Re-solve weights</h3><p>Skin weights determine how strongly each vertex follows each bone. Press <b>RE-SOLVE WEIGHTS</b> after rig changes to calculate a new distance-based distribution. Treat the result as a starting point and inspect bends.</p></article>
+    <article class="guide-card"><h3>Weight Paint tool</h3><p>Select a bone, switch to <b>Weight Paint</b> in the left toolbar, then drag over the mesh. <b>Add</b> increases the selected bone's influence and <b>Subtract</b> reduces it. Radius sets brush reach; Strength sets the amount applied per stroke.</p></article>
+    <article class="guide-card"><h3>Smooth</h3><p>Smooth blends abrupt weight changes to reduce visible creases. Use it gently around shoulders, hips and other bending zones, then test again. Excessive smoothing can cause unwanted deformation or loss of rigid separation.</p></article>
+    <article class="guide-card"><h3>Weights: ON / OFF</h3><p>Toggle the weight-color display to inspect influence distribution. Choose a bone and check whether nearby vertices show a plausible falloff. The color view is diagnostic; it does not itself edit the weights.</p></article>
+   </div><div class="guide-note">If the mesh collapses, stretches or slides at a joint, inspect the joint location first, then weights. Re-solving weights may overwrite custom paint, so save a project copy before doing so.</div></section>
+   <section class="about-pane" data-about-pane="animation"><div class="guide-grid">
+    <article class="guide-card"><h3>Procedural motion presets</h3><p><b>Walk</b> creates a standard gait; <b>Run</b> increases the action; <b>Idle</b> adds subtle movement; <b>Jump</b> adds a vertical action; <b>Sneak</b> lowers and softens movement; <b>Strut</b> exaggerates the gait. Creature rigs may interpret these as generalized procedural poses rather than species-specific motion capture.</p></article>
+    <article class="guide-card"><h3>Speed + Stride</h3><p><b>Speed</b> changes the motion rate. <b>Stride</b> changes the extent of the gait. Preview before baking. Use modest changes first to avoid feet sliding or extreme joint angles.</p></article>
+    <article class="guide-card"><h3>Preview + Bake to Keys</h3><p><b>Preview</b> evaluates the chosen procedural motion. <b>BAKE TO KEYS</b> writes the motion into timeline keyframes so you can scrub, edit and export it. Choose Pose or Keys as the animation source depending on whether you want the live pose or stored animation.</p></article>
+    <article class="guide-card"><h3>Timeline + keyframes</h3><p>Click or scrub the timeline to change frame. <b>KEY</b> inserts a key at the current frame; <b>DEL KEY</b> removes the key at that frame; <b>CLEAR</b> clears keys. <b>LOOP ON</b> toggles repeat playback. Space plays/pauses and K inserts a key.</p></article>
+    <article class="guide-card"><h3>Graph Editor</h3><p>Press <b>GRAPH EDITOR</b> to switch from the timeline to the curve view. Select a channel (Hips Y or Selected Bone Rot X), then drag a plotted key to edit its value. Choose Linear, Smooth S-Curve, Ease In/Out, Ease In-Out or Constant/Step interpolation to control transitions.</p></article>
+    <article class="guide-card"><h3>Clip source</h3><p>Imported GLB/GLTF animation clips appear under Add-on Animations when available. These clips are listed from the imported file; the built-in procedural controls and the app's keyframe timeline are separate editing paths.</p></article>
+   </div></section>
+   <section class="about-pane" data-about-pane="files"><div class="guide-grid">
+    <article class="guide-card"><h3>Import</h3><p>Use <b>IMPORT</b> or <b>IMPORT GLB / OBJ / PROJECT</b>. GLB/GLTF can contain meshes, skinning and animation clips; OBJ is geometry-only; JSON loads a saved PROFILE project. Imported skinned GLBs retain their existing skeleton and weights when successfully adopted.</p></article>
+    <article class="guide-card"><h3>Export Animated GLB</h3><p>Use <b>EXPORT GLB</b> or <b>EXPORT ANIMATED GLB</b> to write the rig/mesh and keyed animation in glTF binary form. Re-import the result or test it in your target app to verify materials, skeleton, weights and animation playback.</p></article>
+    <article class="guide-card"><h3>Save Project (.json)</h3><p>Save a project JSON to preserve the editable scene/rig data and keyframes supported by this application. Keep the source mesh and project together; a JSON project is not a replacement for a portable mesh/animation export.</p></article>
+    <article class="guide-card"><h3>New + Demo</h3><p><b>NEW</b> clears the current working scene; save first if needed. <b>DEMO RIG</b> loads the built-in humanoid mesh and rig for learning the interface without importing a character.</p></article>
+   </div><div class="guide-note">File format support can vary by asset complexity. Always verify exported deformation and animation in a separate viewer or engine before delivery.</div></section>
+  </div><footer class="about-footer"><span>VERTASCAN • PROFILE MOTION ENGINE</span><span>Choose a section above • close with Esc</span></footer>
+ </div>
+</div>
+
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
@@ -218,7 +297,7 @@ const J=n=>S.idx[S.alias?S.alias[n]:n],dn=n=>n.replace('mixamorig','');
 const FINGERS=[['thumb',.456,.775,.012,[[.012,0,.009],[.009,0,.008],[.007,0,.007]]],['index',.498,.78,.016,[[.017,0,0],[.011,0,0],[.009,0,0]]],['middle',.5,.78,.006,[[.019,0,0],[.012,0,0],[.01,0,0]]],['ring',.497,.78,-.005,[[.017,0,0],[.011,0,0],[.009,0,0]]],['pinky',.49,.78,-.015,[[.013,0,0],[.008,0,0],[.007,0,0]]]];
 function buildJoints(h,w){const out=[];
  const add=(n,p,x,y,z)=>{out.push({name:n,parent:p,pos:V3(x*h*w,y*h,z*h)});return out.length-1};
- const root=add('root',-1,0,0,0),hips=add('hips',root,0,.53,0),s1=add('spine_01',hips,0,.58,0),s2=add('spine_02',s1,0,.65,0),ch=add('chest',s2,0,.72,0),uc=add('upper_chest',ch,0,.775,0),nk=add('neck',uc,0,.82,0),hd=add('head',nk,0,.87,0);
+ const root=add('root',-1,0,0,0),hips=add('hips',root,0,.53,0);let spParent=hips,spIds=[];const spineN=Math.max(3,Math.min(14,Math.round(S.spineCount||5)));for(let si=1;si<=spineN;si++){const t=si/(spineN+1);spParent=add('spine_'+String(si).padStart(2,'0'),spParent,0,.53+.19*t,0);spIds.push(spParent)}const s1=spIds[0],s2=spIds[Math.min(1,spIds.length-1)],ch=add('chest',spParent,0,.72,0),uc=add('upper_chest',ch,0,.775,0),nk=add('neck',uc,0,.82,0),hd=add('head',nk,0,.87,0);
  const jw=add('jaw',hd,0,.888,.012);add('jaw_tip',jw,0,.879,.04);add('head_top',hd,0,.97,0);
  for(const [s,k] of [['L',1],['R',-1]]){
   add('eye_'+s,hd,k*.0125,.932,.047);
@@ -274,11 +353,56 @@ function solveWeights(){const {N,B}=S,pos=S.geo.attributes.position;S.W=new Floa
  applyWeights(true);updateColors()}
 function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
  const m=new THREE.SkinnedMesh(g,mat);m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
+function buildCreatureJoints(type,bb,h,w){
+ if(type==='humanoid')return buildJoints(h,w);
+ const out=[],sz=bb.getSize(V3()),mn=bb.min,mx=bb.max;
+ const add=(name,parent,x,y,z)=>{const pos=V3(mn.x+sz.x*x,mn.y+sz.y*y,mn.z+sz.z*z);out.push({name,parent,pos});return out.length-1};
+ if(type==='mecha'){
+  const j=buildJoints(h,w);out.push(...j);
+  const idx={};out.forEach((o,i)=>idx[o.name]=i);
+  const anchor=(n,parent,x,y,z)=>{const pi=idx[parent]??idx.hips;const i=out.length;out.push({name:n,parent:pi,pos:V3(mn.x+sz.x*x,mn.y+sz.y*y,mn.z+sz.z*z)});idx[n]=i;return i};
+  anchor('mech_torso_core','spine_02',.5,.66,.5);anchor('mech_chest_plate','chest',.5,.76,.54);anchor('mech_backpack','upper_chest',.5,.76,.43);
+  for(const [side,x] of [['L',.32],['R',.68]]){anchor('mech_shoulder_'+side,'clavicle_'+side,x,.79,.5);anchor('mech_forearm_guard_'+side,'forearm_'+side,x,.61,.52);anchor('mech_hip_armor_'+side,'hips',x,.51,.5);anchor('mech_thigh_actuator_'+side,'upLeg_'+side,x,.38,.5);anchor('mech_knee_'+side,'leg_'+side,x,.23,.52);anchor('mech_shin_guard_'+side,'leg_'+side,x,.12,.52)}
+  return out;
+ }
+ const root=add('root',-1,.5,0,.5);if(type==='vehicle'){const chassis=add('chassis',root,.5,.47,.5),body=add('body_mount',chassis,.5,.58,.5),cab=add('cab_mount',body,.5,.7,.38),steer=add('steering_column',cab,.5,.56,.36);add('steering_wheel',steer,.5,.55,.34);add('front_axle',chassis,.5,.28,.78);add('rear_axle',chassis,.5,.28,.22);for(const [side,x] of [['L',.12],['R',.88]])for(const [axle,z] of [['front',.79],['rear',.21]]){const corner=add('suspension_'+axle+'_'+side,chassis,x,.25,z),hub=add('wheel_hub_'+axle+'_'+side,corner,x,.19,z);add('wheel_'+axle+'_'+side,hub,x,.19,z);if(axle==='front')add('steer_pivot_'+side,corner,x,.22,z)}add('turret_mount',chassis,.5,.62,.55);add('door_hinge_L',body,.18,.48,.48);add('door_hinge_R',body,.82,.48,.48);add('rear_equipment_mount',chassis,.5,.5,.12);return out}const pelvis=add('hips',root,.5,.57,.48);let spineParent=pelvis,spineIds=[];const spineN=Math.max(3,Math.min(14,Math.round(S.spineCount||5)));for(let si=1;si<=spineN;si++){const t=si/(spineN+1);spineParent=add('spine_'+String(si).padStart(2,'0'),spineParent,.5,.57+.08*t,.48-.23*t);spineIds.push(spineParent)}const sp1=spineIds[0],sp2=spineIds[Math.min(1,spineIds.length-1)],ch=add('chest',spineParent,.5,.65,.25),neck=add('neck',ch,.5,.66,.18),head=add('head',neck,.5,.7,.14);
+ if(type==='dragon'){
+  // Winged creature: four limbs, paired articulated wings and a long, controllable tail.
+  const shoulder=add('shoulder_girdle',ch,.5,.63,.28),rear=add('rear_girdle',pelvis,.5,.56,.57);
+  for(const [side,x] of [['L',.28],['R',.72]]){
+   let a=add('foreLeg_'+side,shoulder,x,.43,.3),b=add('foreShin_'+side,a,x,.2,.28);add('foreFoot_'+side,b,x,.04,.25);
+   a=add('rearLeg_'+side,rear,x,.4,.58);b=add('rearShin_'+side,a,x,.19,.61);add('rearFoot_'+side,b,x,.04,.64);
+   let w0=add('wing_'+side+'_shoulder',ch,side==='L'?.48:.52,.66,.31),w1=add('wing_'+side+'_elbow',w0,side==='L'?.18:.82,.69,.34),w2=add('wing_'+side+'_wrist',w1,side==='L'?.04:.96,.73,.37),w3=add('wing_'+side+'_tip',w2,side==='L'?.01:.99,.76,.42);
+   add('wing_'+side+'_finger_01',w1,side==='L'?.12:.88,.61,.40);add('wing_'+side+'_finger_02',w2,side==='L'?.02:.98,.58,.46);add('wing_'+side+'_finger_03',w2,side==='L'?.10:.90,.67,.48);
+  }
+  let tail=pelvis;for(let i=1;i<=Math.max(5,spineN);i++){const t=i/Math.max(5,spineN);tail=add('dragon_tail_'+String(i).padStart(2,'0'),tail,.5,.55-.16*t,.58+.32*t)}add('dragon_tail_tip',tail,.5,.35,.94);add('dragon_jaw',head,.5,.68,.10);return out;
+ }
+ if(type==='vehicle'){
+  const chassis=add('chassis',root,.5,.47,.5),body=add('body_mount',chassis,.5,.58,.5),cab=add('cab_mount',body,.5,.7,.38),steer=add('steering_column',cab,.5,.56,.36);add('steering_wheel',steer,.5,.55,.34);add('front_axle',chassis,.5,.28,.78);add('rear_axle',chassis,.5,.28,.22);
+  for(const [side,x] of [['L',.12],['R',.88]])for(const [axle,z,label] of [['front',.79,'F'],['rear',.21,'R']]){const corner=add('suspension_'+axle+'_'+side,chassis,x,.25,z),hub=add('wheel_hub_'+axle+'_'+side,corner,x,.19,z);add('wheel_'+axle+'_'+side,hub,x,.19,z);if(axle==='front')add('steer_pivot_'+side,corner,x,.22,z)}
+  add('turret_mount',chassis,.5,.62,.55);add('door_hinge_L',body,.18,.48,.48);add('door_hinge_R',body,.82,.48,.48);add('rear_equipment_mount',chassis,.5,.5,.12);return out;
+ }
+ if(type==='quadruped'){
+  const shoulder=add('shoulder_girdle',ch,.5,.62,.3),rear=add('rear_girdle',pelvis,.5,.57,.58);
+  for(const [side,x] of [['L',.28],['R',.72]]){
+   let a=add('foreLeg_'+side,shoulder,x,.43,.3),b=add('foreShin_'+side,a,x,.2,.28);add('foreFoot_'+side,b,x,.04,.25);
+   a=add('rearLeg_'+side,rear,x,.4,.58);b=add('rearShin_'+side,a,x,.19,.61);add('rearFoot_'+side,b,x,.04,.64);
+  }
+  add('tail_base',pelvis,.5,.58,.68);return out;
+ }
+ // Scorpion-style mecha: three articulated leg pairs and a six-segment controllable tail.
+ add('mech_core',ch,.5,.64,.28);add('abdomen_01',pelvis,.5,.55,.57);add('abdomen_02',pelvis,.5,.59,.66);
+ for(let pair=1;pair<=3;pair++)for(const [side,x] of [['L',.18],['R',.82]]){
+  const z=.34+pair*.105,tag='leg'+pair+'_'+side,hip=add(tag+'_hip',pelvis,x,.52,z),upper=add(tag+'_upper',hip,x<.5?.08:.92,.38,z-.015),lower=add(tag+'_lower',upper,x<.5?.035:.965,.2,z-.04);add(tag+'_foot',lower,x<.5?.015:.985,.035,z-.07);
+ }
+ let par=pelvis;for(let i=1;i<=6;i++){const z=.57-i*.075,y=.58+i*.045;par=add('tail_seg_'+String(i).padStart(2,'0'),par,.5,y,z)}add('tail_stinger',par,.5,.91,.08);
+ add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
+}
 function rig(){if(!S.geo){say('Load or create a model first',1);return}
  if(S.adopted){S.geo=mergeGeos([S.geo]);S.adopted=false}const g=S.geo;['skinIndex','skinWeight','color'].forEach(n=>g.deleteAttribute(n));const keepGeo=g;clearAll();S.geo=keepGeo;
- groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;S.joints=buildJoints(S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
+ groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
  autoChains();
- buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • root @ ground datum';frameModel()}
+ buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel()}
 function adopt(sc){let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();
  if(!S.geo.attributes.color)S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.geo.attributes.position.count*3).fill(1),3));
  const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
@@ -320,12 +444,20 @@ function updateColors(){if(!S.geo||!S.geo.attributes.color||!S.W)return;const c=
 function setWView(on){S.wview=on;const mm=S.mesh?S.mesh.material:mat;mm.vertexColors=on;mm.needsUpdate=true;$('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);updateColors()}
 
 /* ---------- IK ---------- */
-function autoChains(){const ln=a=>S.alias?S.alias[a]:a;[['upLeg_L','leg_L','foot_L',V3(0,0,.5),1],['upLeg_R','leg_R','foot_R',V3(0,0,.5),1],['arm_L','forearm_L','hand_L',V3(0,0,-.5),0],['arm_R','forearm_R','hand_R',V3(0,0,-.5),0]].forEach(c=>mkChain(c.slice(0,3).map(ln),c[3],c[4]))}
+function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg_L','leg_L','foot_L',V3(0,0,.5),1],['upLeg_R','leg_R','foot_R',V3(0,0,.5),1],['arm_L','forearm_L','hand_L',V3(0,0,-.5),0],['arm_R','forearm_R','hand_R',V3(0,0,-.5),0],['foreLeg_L','foreShin_L','foreFoot_L',V3(0,0,.5),1],['foreLeg_R','foreShin_R','foreFoot_R',V3(0,0,.5),1],['rearLeg_L','rearShin_L','rearFoot_L',V3(0,0,-.5),1],['rearLeg_R','rearShin_R','rearFoot_R',V3(0,0,-.5),1]];
+ // Creature leg chains start enabled; quadruped chains were previously forced to blend=0.
+ for(let p=1;p<=3;p++)for(const side of ['L','R'])candidates.push([`leg${p}_${side}_upper`,`leg${p}_${side}_lower`,`leg${p}_${side}_foot`,V3(side==='L'?-1:1,.15,(p-2)*.35),1]);
+ candidates.forEach(c=>mkChain(c.slice(0,3).map(ln),c[3],c[4]));
+ for(const side of ['L','R']){const wn=['wing_'+side+'_shoulder','wing_'+side+'_elbow','wing_'+side+'_wrist','wing_'+side+'_tip'];if(wn.every(n=>S.idx[n]!==undefined))mkChain(wn,V3(side==='L'?-1:1,.35,.2),1)}
+ // Dedicated tail chain includes the stinger so the actual tip is the IK endpoint.
+ const tailNames=['tail_seg_03','tail_seg_04','tail_seg_05','tail_seg_06','tail_stinger'];
+ if(tailNames.every(n=>S.idx[n]!==undefined))mkChain(tailNames,V3(0,1,-.7),1);
+}
 function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.some(i=>i===undefined))return null;
- S.root.updateMatrixWorld(true);const end=S.bones[idx[2]].getWorldPosition(V3()),mid=S.bones[idx[1]].getWorldPosition(V3()),r=Math.max(.02,S.h*.02);
+ S.root.updateMatrixWorld(true);const end=S.bones[idx[idx.length-1]].getWorldPosition(V3()),mid=S.bones[idx[Math.min(1,idx.length-2)]].getWorldPosition(V3()),r=Math.max(.02,S.h*.02);
  const target=new THREE.Mesh(new THREE.BoxGeometry(r*1.6,r*1.6,r*1.6),new THREE.MeshBasicMaterial({color:0x55ff55,depthTest:false,transparent:true,opacity:.85}));const pole=new THREE.Mesh(new THREE.SphereGeometry(r,10,10),new THREE.MeshBasicMaterial({color:0x55aaff,depthTest:false,transparent:true,opacity:.85}));
  target.renderOrder=pole.renderOrder=21;target.position.copy(end);pole.position.copy(mid).add(poleOff.clone().multiplyScalar(S.h/1.8));
- const c={name:'IK_'+names[2],idx,target,pole,blend:blend,on:true,rest:end.clone(),foot:/foot/i.test(names[2]),side:/(_R$|Right)/.test(names[2])?1:0};const pw=idx.map(i=>S.bones[i].getWorldPosition(V3()));c.len=pw[0].distanceTo(pw[1])+pw[1].distanceTo(pw[2]);c.root0=pw[0];target.userData.chain=pole.userData.chain=S.chains.length;target.userData.kind='target';pole.userData.kind='pole';
+ const endName=names[names.length-1];const c={name:'IK_'+endName,idx,target,pole,blend:blend,on:true,rest:end.clone(),foot:/foot/i.test(endName),side:/(?:_R(?:_|$)|Right)/.test(names.join('_'))?1:0};const pw=idx.map(i=>S.bones[i].getWorldPosition(V3()));c.len=pw.slice(1).reduce((sum,v,i)=>sum+v.distanceTo(pw[i]),0);c.root0=pw[0];target.userData.chain=pole.userData.chain=S.chains.length;target.userData.kind='target';pole.userData.kind='pole';
  S.chains.push(c);ovl.add(target,pole);return c}
 function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.bones[i]),n=bs.length;S.root.updateMatrixWorld(true);
  const P=bs.map(b=>b.getWorldPosition(V3())),L=[];for(let i=0;i<n-1;i++)L.push(P[i].distanceTo(P[i+1]));const T=ch.target.position.clone(),root=P[0].clone(),total=L.reduce((a,b)=>a+b,0),footQ=ch.foot?bs[n-1].getWorldQuaternion(Q()):null,lastFk=bs[n-1].quaternion.clone();
@@ -338,6 +470,16 @@ function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.b
   for(let i=n-2;i>=0;i--){const d=P[i].clone().sub(P[i+1]).normalize();P[i].copy(P[i+1]).addScaledVector(d,L[i])}   /* read the direction BEFORE overwriting (it was zeroed -> chain collapsed -> legs folded up) */
   P[0].copy(root);
   for(let i=0;i<n-1;i++){const d=P[i+1].clone().sub(P[i]).normalize();P[i+1].copy(P[i]).addScaledVector(d,L[i])}
+  // Pole-vector correction for multi-segment tails: rotate each intermediate joint
+  // around its neighbouring-joint axis while preserving its axial offset and radius.
+  if(n>3){for(let i=1;i<n-1;i++){
+   const axis=P[i+1].clone().sub(P[i-1]);if(axis.lengthSq()<1e-10)continue;axis.normalize();
+   const rel=P[i].clone().sub(P[i-1]),axial=axis.clone().multiplyScalar(rel.dot(axis)),perp=rel.sub(axial);
+   const pv=ch.pole.position.clone().sub(P[i-1]);pv.addScaledVector(axis,-pv.dot(axis));
+   if(perp.lengthSq()<1e-10||pv.lengthSq()<1e-10)continue;
+   const pn=perp.clone().normalize(),vn=pv.normalize(),ang=Math.atan2(axis.dot(pn.clone().cross(vn)),Math.max(-1,Math.min(1,pn.dot(vn))));
+   perp.applyAxisAngle(axis,ang);P[i].copy(P[i-1]).add(axial).add(perp);
+  }}
   if(P[n-1].distanceTo(T)<1e-4)break}
  const fk=bs.map(b=>b.quaternion.clone()),A=V3(),Bp=V3(),qa=Q(),qw=Q(),pq=Q();
  for(let i=0;i<n-1;i++){const b=bs[i];b.updateWorldMatrix(true,false);bs[i+1].updateWorldMatrix(true,false);b.getWorldPosition(A);bs[i+1].getWorldPosition(Bp);
@@ -346,7 +488,7 @@ function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.b
  if(footQ){const lb=bs[n-1];lb.parent.updateWorldMatrix(true,false);lb.parent.getWorldQuaternion(pq);lb.quaternion.copy(pq.invert().multiply(footQ)).normalize()}
  if(ch.blend<1){for(let i=0;i<n-1;i++)bs[i].quaternion.slerpQuaternions(fk[i],bs[i].quaternion.clone(),ch.blend);if(footQ)bs[n-1].quaternion.slerpQuaternions(lastFk,bs[n-1].quaternion.clone(),ch.blend)}}
 function solveAll(){S.chains.forEach(solveChain)}
-function syncTargets(){S.root.updateMatrixWorld(true);S.chains.forEach(c=>c.target.position.copy(S.bones[c.idx[2]].getWorldPosition(V3())))}
+function syncTargets(){S.root.updateMatrixWorld(true);S.chains.forEach(c=>c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3())))}
 
 /* ---------- pose / motion / keys ---------- */
 function applyPose(){S.bones.forEach((b,i)=>{b.quaternion.copy(S.fk[i]);b.position.copy(S.restP[i])});S.bones[S.H].position.copy(S.hips0).add(S.hipsOff)}
@@ -356,6 +498,21 @@ function rotW(name,axis,ang){const i=J(name);if(i===undefined)return;const p=S.j
 const AX={x:V3(1,0,0),y:V3(0,1,0),z:V3(0,0,1)};
 function procPose(fr){const m=MO[S.motion],ph=fr/30*S.speed*m.f*Math.PI*2,sn=Math.sin(ph),cs=Math.cos(ph),s=m.s*S.stride*S.h/1.8*.5;
  S.fk.forEach((q,i)=>q.copy(S.restQ[i]));const jump=S.motion==='jump',jy=jump?Math.max(0,sn)*.45*S.h/1.8:0,k=S.h/1.8;
+ if(S.rigType==='quadruped'){
+  for(const side of ['L','R']){const d=side==='L'?1:-1;rotW('foreLeg_'+side,AX.x,d*sn*m.a*.7);rotW('foreShin_'+side,AX.x,Math.max(0,-d*sn)*.45*m.a);rotW('rearLeg_'+side,AX.x,-d*sn*m.a*.75);rotW('rearShin_'+side,AX.x,Math.max(0,d*sn)*.5*m.a)}
+  rotW('spine_02',AX.x,.04*cs);rotW('head',AX.x,-.04*cs);S.hipsOff.set(0,m.b*k*Math.cos(2*ph)-m.c*k,0);return;
+ }
+ if(S.rigType==='scorpion'){
+  // Alternating tripod gait: pairs 1/3 move together, pair 2 in opposition; left/right alternate.
+  for(let pair=1;pair<=3;pair++)for(const side of ['L','R']){
+   const sidePhase=side==='L'?0:Math.PI, pairPhase=(pair===2?Math.PI:0)+sidePhase, a=ph+pairPhase, d=side==='L'?1:-1;
+   rotW(`leg${pair}_${side}_upper`,AX.z,d*(.10+Math.sin(a)*m.a*.32));
+   rotW(`leg${pair}_${side}_lower`,AX.z,-d*Math.max(0,Math.sin(a+.35))*.3*m.a);
+  }
+  // Tail wave travels from base to tip; the stinger counter-articulates at the end.
+  for(let i=1;i<=6;i++)rotW('tail_seg_'+String(i).padStart(2,'0'),AX.x,Math.sin(ph-i*.42)*(.07+i*.014));
+  rotW('tail_stinger',AX.z,.16*cs);rotW('mech_torso_plate',AX.y,.025*cs);S.hipsOff.set(0,m.b*k*Math.cos(2*ph)*.35,0);return;
+ }
  for(const side of ['L','R']){const d=side==='L'?1:-1,swing=(side==='L'?1:-1)*sn*m.a;
   rotW('arm_'+side,AX.z,-d*1.25);rotW('arm_'+side,AX.x,jump?-Math.max(0,sn)*1.4:swing);rotW('forearm_'+side,AX.x,-(.25+.25*Math.abs(sn)*m.a))}
  rotW('spine_02',AX.x,m.lean+(S.motion==='run'?.08:0));rotW('chest',AX.y,m.tw*cs);if(S.motion==='idle')rotW('chest',AX.x,.025*Math.sin(ph*4));
@@ -386,7 +543,7 @@ function makeClip(){if(!S.keys.size)return[];const ks=[...S.keys.keys()].sort((a
 function adjust(i,b,d){const B=S.B,o=i*B,W=S.W;const nw=Math.min(1,Math.max(0,W[o+b]+d));let other=0;for(let j=0;j<B;j++)if(j!==b)other+=W[o+j];
  if(other>1e-6){const k=(1-nw)/other;for(let j=0;j<B;j++)if(j!==b)W[o+j]*=k;W[o+b]=nw}
  else{const p=S.joints[b].parent;if(p>=0){W[o+p]=1-nw;W[o+b]=nw}else W[o+b]=1}}
-const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,pdirty=false;
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,pdirty=false,vertexJointMode=false;
 function setRay(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera)}
 function paintAt(e){if(!S.mesh||!S.W)return;setRay(e);const h=ray.intersectObject(S.mesh,false)[0];if(!h||!h.face)return;const pos=S.geo.attributes.position,c=V3().fromBufferAttribute(pos,h.face.a),v=V3(),b=Math.max(0,S.sel),{r,s,mode}=S.brush;
  for(let i=0;i<S.N;i++){const d=v.fromBufferAttribute(pos,i).distanceTo(c);if(d>r)continue;const f=Math.pow(1-d/r,2)*s*.35;adjust(i,b,mode==='sub'?-f:f)}pdirty=true}
@@ -401,11 +558,14 @@ function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();update
 function selectIK(ci,obj){S.selChain=ci;S.gizmoObj=obj;if(S.tool!=='ik'){setTool('ik')}else syncGizmo();refresh()}
 function setTool(t){S.tool=t;document.querySelectorAll('.tool').forEach(e=>e.classList.toggle('active',e.dataset.tool===t));if(t==='fk')tc.setMode($('gMove').classList.contains('on')?'translate':'rotate');syncGizmo()}
 let down=null;
+function addJointAtVertex(worldPoint){if(!S.mesh||!S.W||S.adopted){say('Build a generated rig first; vertex joints are not available for adopted skin rigs yet.',1);return}const local=S.mesh.worldToLocal(worldPoint.clone()),parent=S.sel>=0?S.sel:(S.idx.hips??0),nameBase='custom_joint_'+String(S.joints.filter(j=>j.name.startsWith('custom_joint_')).length+1).padStart(2,'0');let name=nameBase;while(S.idx[name]!==undefined)name+='_';const ji=S.joints.length;S.joints.push({name,parent,pos:local.clone()});const b=new THREE.Bone();b.name=name;b.position.copy(local).sub(S.joints[parent].pos);S.bones[parent].add(b);S.bones.push(b);S.idx[name]=ji;S.B=S.joints.length;S.mesh.updateMatrixWorld(true);S.mesh.bind(new THREE.Skeleton(S.bones));captureRest();solveWeights();buildMarkers();evaluate();selectBone(ji);say('Created '+name+' at picked mesh vertex. Re-solve and inspect weights.');return ji}
+function toggleVertexJoint(){vertexJointMode=!vertexJointMode;$('btnVertexJoint').classList.toggle('on',vertexJointMode);$('btnVertexJoint').textContent=vertexJointMode?'● CLICK MESH TO CREATE JOINT':'＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent=vertexJointMode?'Vertex mode active: click the mesh to place a joint under the selected bone.':'Select a parent bone first; then enable vertex mode and click the mesh.';setTool(vertexJointMode?'select':S.tool)}
+$('btnVertexJoint').addEventListener('click',toggleVertexJoint);
 canvas.addEventListener('pointerdown',e=>{if(tc.axis)return;down={x:e.clientX,y:e.clientY};if(S.tool==='paint'&&S.mesh&&e.button===0){setRay(e);if(ray.intersectObject(S.mesh,false)[0]){painting=true;e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);paintAt(e)}}},{capture:true});
 canvas.addEventListener('pointermove',e=>{if(painting){paintAt(e);e.stopImmediatePropagation()}},{capture:true});
 canvas.addEventListener('pointerup',e=>{if(painting){painting=false;if(pdirty){applyWeights(false);updateColors();pdirty=false}down=null;return}
  if(!down||tc.dragging)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y)>4;down=null;if(moved||tc.axis)return;if(S.tool==='paint')return;
- setRay(e);const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
+ setRay(e);if(vertexJointMode&&S.mesh){const vh=ray.intersectObject(S.mesh,false)[0];if(vh){let best=vh.face?.a??0,bd=Infinity;const lp=S.mesh.worldToLocal(vh.point.clone()),pa=S.geo.attributes.position;for(const vi of [vh.face?.a,vh.face?.b,vh.face?.c].filter(v=>v!==undefined)){const d=lp.distanceToSquared(V3().fromBufferAttribute(pa,vi));if(d<bd){bd=d;best=vi}}const vp=V3().fromBufferAttribute(pa,best);S.mesh.localToWorld(vp);vertexJointMode=false;$('btnVertexJoint').classList.remove('on');$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';addJointAtVertex(vp);return}}const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
  if(o.userData.bone!==undefined)selectBone(o.userData.bone);else if(o.userData.kind)selectIK(o.userData.chain,o)});
 function frameFromEvent(e){const r=$('tl').getBoundingClientRect();return Math.max(0,Math.min(S.max,Math.round((e.clientX-r.left)/r.width*S.max)))}
 
@@ -429,6 +589,7 @@ document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySele
 document.querySelectorAll('.tool').forEach(el=>el.onclick=()=>setTool(el.dataset.tool));
 const bind=(id,fn,ev='oninput')=>$(id)[ev]=fn;
 bind('rigWidth',e=>{S.width=+e.target.value;$('vWidth').textContent=S.width.toFixed(2)});
+S.spineCount=5;bind('spineCount',e=>{S.spineCount=+e.target.value;$('vSpine').textContent=String(S.spineCount)});
 ['rx','ry','rz'].forEach(id=>bind(id,()=>{if(S.sel<0)return;toPose();S.fk[S.sel].setFromEuler(new THREE.Euler($('rx').value*Math.PI/180,$('ry').value*Math.PI/180,$('rz').value*Math.PI/180));['rx','ry','rz'].forEach(k=>$('v'+k[0].toUpperCase()+k[1]).textContent=$(k).value)}));
 bind('gRot',()=>{$('gRot').classList.add('on');$('gMove').classList.remove('on');tc.setMode('rotate');setTool('fk')},'onclick');
 bind('gMove',()=>{$('gMove').classList.add('on');$('gRot').classList.remove('on');if(S.sel!==S.H)selectBone(S.H);tc.setMode('translate');setTool('fk')},'onclick');
@@ -459,7 +620,7 @@ bind('btnKey',()=>{if(!S.bones.length)return;recordKey(Math.round(S.frame));say(
 bind('btnDelKey',()=>{S.keys.delete(Math.round(S.frame))},'onclick');bind('btnClearKeys',()=>{S.keys.clear()},'onclick');
 bind('btnLoop',()=>{S.loop=!S.loop;$('btnLoop').textContent='Loop '+(S.loop?'ON':'OFF');$('btnLoop').classList.toggle('on',S.loop)},'onclick');
 bind('btnPlay',()=>{if(!S.bones.length)return;S.playing=!S.playing;if(S.playing&&S.src==='pose'){S.src=S.keys.size?'keys':'proc';$('hudSrc').textContent=S.src}$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY'},'onclick');
-bind('btnDemo',()=>loadDemo(),'onclick');
+bind('btnDemo',()=>{if($('rigType'))$('rigType').value='humanoid';loadDemo()},'onclick');
 bind('btnAutoRig',()=>rig(),'onclick');
 bind('btnNew',()=>{clearAll();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
 bind('btnImport',()=>$('fileInput').click(),'onclick');bind('btnImport2',()=>$('fileInput').click(),'onclick');
@@ -488,7 +649,7 @@ function download(blob,name){const a=document.createElement('a');a.href=URL.crea
 function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
  const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
- const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA)};
+ const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(S.src==='pose'||S.src==='proc')solveAll();S.root.updateMatrixWorld(true)};
  new GLTFExporter().parse(S.root,res=>{restore();download(new Blob([res],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');say('GLB exported'+(clips.length?' with '+S.keys.size+' keys':''))},err=>{restore();say('Export failed: '+(err.message||err),1)},{binary:true,animations:clips})}
 bind('btnExport',exportGLB,'onclick');bind('btnExport2',exportGLB,'onclick');
 const rd=(a,n=5)=>Array.from(a,x=>+x.toFixed(n));
@@ -527,13 +688,21 @@ function animate(){requestAnimationFrame(animate);const d=Math.min(clock.getDelt
 const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Load the built-in humanoid demonstration rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
 document.querySelectorAll('button, .tab, .tool').forEach(el=>{const id=el.id;const txt=(el.innerText||'').replace(/\s+/g,' ').trim();const tip=tooltipHints[id]||el.getAttribute('title')||txt;if(tip&&!el.hasAttribute('title'))el.setAttribute('title',tip);if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',tip||txt);});
 document.querySelectorAll('input[type=range]').forEach(el=>{const label=el.previousElementSibling?.innerText?.replace(/\s+/g,' ').trim();if(label&&!el.title)el.title=label;});
+// About / feature tutorials modal
+const aboutModal=$('aboutModal');
+function openAbout(){aboutModal.classList.add('open');document.body.style.overflow='hidden';$('aboutClose').focus()}
+function closeAbout(){aboutModal.classList.remove('open');document.body.style.overflow='';$('btnAbout').focus()}
+$('btnAbout').addEventListener('click',openAbout);$('aboutClose').addEventListener('click',closeAbout);
+aboutModal.addEventListener('click',e=>{if(e.target===aboutModal)closeAbout()});
+document.querySelectorAll('[data-about-tab]').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.aboutTab;document.querySelectorAll('[data-about-tab]').forEach(b=>{const active=b===btn;b.classList.toggle('on',active);b.setAttribute('aria-selected',String(active))});document.querySelectorAll('[data-about-pane]').forEach(p=>p.classList.toggle('active',p.dataset.aboutPane===key));}));
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&aboutModal.classList.contains('open'))closeAbout()});
 resize();setTool('select');animate();loadDemo();
-// Intro sequence: keep the workspace demo rig on a continuous walk cycle.
-const splash=$('splash'),introFigure=$('introFigure');
+// Launch identity: animated V-vector wings on splash; workspace demo retains its own motion preview.
+const splash=$('splash');
 function closeSplash(){splash.classList.add('hidden');S.playing=false;$('btnPlay').textContent='▶ PLAY';}
 $('enterStudio').onclick=closeSplash;$('skipIntro').onclick=closeSplash;
 S.motion='walk';S.speed=1.15;S.stride=1;S.src='proc';S.frame=0;S.playing=true;$('hudSrc').textContent='proc';$('btnPlay').textContent='⏸ PAUSE';
-const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='MOTION PREVIEW • CONTINUOUS WALK CYCLE';},2800);
+const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='VECTOR WINGS • SYMMETRIC MOTION';},2800);
 const introEndTimer=setTimeout(()=>{if(!splash.classList.contains('hidden'))closeSplash();},7200);
 console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');
 </script>
