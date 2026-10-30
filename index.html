@@ -79,6 +79,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 .hud{top:76px;background:#0b0e0bc9;padding:6px 9px;border-radius:6px}.right{width:clamp(280px,25vw,365px);flex-shrink:0}.tabs{overflow-x:auto;flex-shrink:0}.tab{min-width:58px;white-space:nowrap}.panel{overscroll-behavior:contain}.timeline{height:220px;flex-basis:220px}.th{height:auto;min-height:43px;flex-wrap:wrap;padding:5px 10px}.tltools{overflow-x:auto;max-width:100%;padding-bottom:2px}.tltools .btn{flex-shrink:0}.leftbar{flex-shrink:0}
 @media(max-width:850px){.right{width:270px}.viewbar{gap:4px}.viewbar .btn{font-size:9px;padding:6px}.hud{top:110px}.topbar{overflow-x:auto;overflow-y:visible}.logo{font-size:11px}}
 @media(max-width:620px){.main{flex-wrap:wrap;overflow:auto}.leftbar{width:100%;flex:0 0 100%;height:64px;flex-direction:row;overflow-x:auto;padding:4px}.leftbar .tool{min-width:78px;min-height:52px}.viewport{flex:1 0 100%;min-height:46vh}.right{width:100%;flex:1 0 100%;min-height:280px;border-left:0;border-top:1px solid var(--bd)}.timeline{flex-basis:175px}.viewbar{position:absolute}.hud{top:115px}.topbar{height:52px}.logo{min-width:max-content}}
+button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border-color:#8dc96d;color:#c7ff9d}.topbar{gap:6px}.topbar>.btn{white-space:nowrap}@media(max-width:1150px){.topbar{overflow-x:auto}.topbar .btn{flex-shrink:0}}
 </style>
 </head>
 <body>
@@ -126,12 +127,12 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
-  <div class="filemenu" id="fileMenuWrap"><button class="btn" id="btnFileMenu" aria-expanded="false" aria-haspopup="true">FILE ▾</button><div class="file-dropdown" id="fileDropdown" hidden><button id="menuNew">New project <kbd>Ctrl+N</kbd></button><button id="menuOpen">Open / Import <kbd>Ctrl+O</kbd></button><button id="menuSave">Save project <kbd>Ctrl+S</kbd></button><button id="menuExport">Export GLB</button></div></div>
+  <div class="filemenu" id="fileMenuWrap"><button class="btn" id="btnFileMenu" aria-expanded="false" aria-haspopup="true">FILE ▾</button><div class="file-dropdown" id="fileDropdown" hidden><button id="menuNew">New project <kbd>Ctrl+N</kbd></button><button id="menuOpen">Open / Import <kbd>Ctrl+O</kbd></button><button id="menuSave">Save project <kbd>Ctrl+S</kbd></button><button id="menuUndo">Undo <kbd>Ctrl+Z</kbd></button><button id="menuRedo">Redo <kbd>Ctrl+Y</kbd></button><button id="menuExport">Export GLB</button></div></div>
   <div style="flex:1"></div>
   <button class="btn about-btn" id="btnAbout">ABOUT / TUTORIALS</button>
   <button class="btn" id="btnImport">IMPORT</button>
   <button class="btn accent" id="btnDemo">DEMO RIG</button>
-  <button class="btn" id="btnNew">NEW</button>
+  <button class="btn" id="btnNew">NEW</button><button class="btn" id="btnSaveTop" title="Save editable project (Ctrl+S)">SAVE</button><button class="btn" id="btnUndo" title="Undo last pose/key edit (Ctrl+Z)" disabled>↶ UNDO</button><button class="btn" id="btnRedo" title="Redo pose/key edit (Ctrl+Y)" disabled>↷ REDO</button>
   <button class="btn accent" id="btnExport">EXPORT GLB</button>
   <button class="btn" id="btnLookDev">◈ LOOK DEV / CRITIQUE</button>
   <button class="btn" id="btnPlay">▶ PLAY</button>
@@ -678,7 +679,7 @@ function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj
  S.W=out;applyWeights(true);updateColors()}
 
 /* ---------- selection / gizmo ---------- */
-function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace($('gizmoSpace')?.value||'local');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace('world');tc.attach(S.gizmoObj)}}
+function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace($('gizmoSpace')?.value||'local');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace($('gizmoSpace')?.value||'world');tc.attach(S.gizmoObj)}}
 tc.addEventListener('mouseDown',toPose);
 tc.addEventListener('objectChange',()=>{if(S.tool==='fk'&&S.sel>=0){const b=S.bones[S.sel];if(tc.mode==='rotate')S.fk[S.sel].copy(b.quaternion);else if(S.sel===S.H)S.hipsOff.copy(b.position).sub(S.hips0);syncSliders()}});
 function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();updateColors();refresh()}
@@ -875,9 +876,25 @@ $('viewFit').addEventListener('click',frameViewport);
 $('viewGrid').addEventListener('click',()=>{grid.visible=!grid.visible;ground.visible=grid.visible;$('viewGrid').classList.toggle('on',grid.visible)});
 $('viewAxes').addEventListener('click',()=>{worldAxes.visible=!worldAxes.visible;$('axisCorner').hidden=!worldAxes.visible;$('viewAxes').classList.toggle('on',worldAxes.visible)});
 $('viewSelectTool').addEventListener('click',()=>setTool('select'));
-$('viewMove').addEventListener('click',()=>{if(S.selChain>=0&&S.gizmoObj){setTool('ik')}else{$('gMove').click()}tc.setMode('translate')});
-$('viewRotate').addEventListener('click',()=>{$('gRot').click();tc.setMode('rotate')});
+$('viewMove').addEventListener('click',()=>{if(S.selChain>=0&&S.gizmoObj){setTool('ik')}else{$('gMove').click()}tc.setMode('translate');syncGizmo()});
+$('viewRotate').addEventListener('click',()=>{$('gRot').click();tc.setMode('rotate');syncGizmo()});
 $('gizmoSpace').addEventListener('change',e=>tc.setSpace(e.target.value));
+// Transactional pose and timeline history. Structural changes start a new history session.
+const editHistory={undo:[],redo:[],limit:70,drag:null,locked:false};
+function captureEdit(){return {q:S.fk.map(q=>q.toArray()),h:S.hipsOff.toArray(),targets:S.chains.map(c=>({t:c.target.position.toArray(),p:c.pole.position.toArray(),b:c.blend,on:c.on})),keys:[...S.keys].map(([f,k])=>[f,{q:k.q.map(q=>q.toArray()),h:k.h.toArray()}]),src:S.src,frame:S.frame}}
+function historyButtons(){$('btnUndo').disabled=!editHistory.undo.length;$('btnRedo').disabled=!editHistory.redo.length;$('menuUndo').disabled=!editHistory.undo.length;$('menuRedo').disabled=!editHistory.redo.length}
+function resetHistory(){editHistory.undo.length=editHistory.redo.length=0;editHistory.drag=null;historyButtons()}
+function pushEdit(before){if(!S.bones.length||editHistory.locked)return;const after=captureEdit();if(JSON.stringify(before)===JSON.stringify(after))return;editHistory.undo.push(before);if(editHistory.undo.length>editHistory.limit)editHistory.undo.shift();editHistory.redo.length=0;historyButtons()}
+function applyEdit(x){editHistory.locked=true;S.playing=false;S.src='pose';$('btnPlay').textContent='▶ PLAY';S.fk.forEach((q,i)=>{if(x.q[i])q.fromArray(x.q[i])});S.hipsOff.fromArray(x.h);S.chains.forEach((c,i)=>{if(!x.targets[i])return;c.target.position.fromArray(x.targets[i].t);c.pole.position.fromArray(x.targets[i].p);c.blend=x.targets[i].b;c.on=x.targets[i].on});S.keys=new Map(x.keys.map(([f,k])=>[f,{q:k.q.map(a=>new THREE.Quaternion().fromArray(a)),h:new THREE.Vector3().fromArray(k.h)}]));S.frame=x.frame;S.src=x.src;toPose();evaluate();syncSliders();refresh();historyButtons();editHistory.locked=false}
+function undoEdit(){if(!editHistory.undo.length)return;const now=captureEdit();const prev=editHistory.undo.pop();editHistory.redo.push(now);applyEdit(prev);say('Undo edit')}
+function redoEdit(){if(!editHistory.redo.length)return;const now=captureEdit();const next=editHistory.redo.pop();editHistory.undo.push(now);applyEdit(next);say('Redo edit')}
+$('btnUndo').addEventListener('click',undoEdit);$('btnRedo').addEventListener('click',redoEdit);$('menuUndo').addEventListener('click',()=>{closeFileMenu();undoEdit()});$('menuRedo').addEventListener('click',()=>{closeFileMenu();redoEdit()});$('btnSaveTop').addEventListener('click',()=>$('btnSaveJSON').click());
+tc.addEventListener('mouseDown',()=>{if(S.bones.length)editHistory.drag=captureEdit()});tc.addEventListener('mouseUp',()=>{if(editHistory.drag){pushEdit(editHistory.drag);editHistory.drag=null}});
+for(const id of ['rx','ry','rz','ikfk']){const el=$(id);if(el){el.addEventListener('pointerdown',()=>{editHistory.drag=captureEdit()});el.addEventListener('change',()=>{if(editHistory.drag){pushEdit(editHistory.drag);editHistory.drag=null}})}}
+for(const id of ['btnResetBone','btnResetPose','btnMirLR','btnMirRL','btnKey','btnDelKey','btnClearKeys','btnIKSnap']){const el=$(id);if(el)el.addEventListener('click',()=>{if(!editHistory.drag)return;pushEdit(editHistory.drag);editHistory.drag=null})}
+// Capture pre-click state in capture phase, before the application's existing handler.
+for(const id of ['btnResetBone','btnResetPose','btnMirLR','btnMirRL','btnKey','btnDelKey','btnClearKeys','btnIKSnap'])$(id).addEventListener('click',()=>{editHistory.drag=captureEdit()},true);
+for(const id of ['btnNew','btnDemo','btnAutoRig','btnImport'])$(id).addEventListener('click',resetHistory);
 const oldSyncGizmo=syncGizmo; // Keep native FK / IK gizmo routing.
 function syncViewTools(){for(const [id,ok] of [['viewSelectTool',S.tool==='select'],['viewMove',S.tool==='ik'||(S.tool==='fk'&&tc.mode==='translate')],['viewRotate',S.tool==='fk'&&tc.mode==='rotate']])$(id).classList.toggle('on',ok)}
 document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',syncViewTools));
@@ -886,7 +903,7 @@ $('btnFileMenu').addEventListener('click',()=>{const opening=$('fileDropdown').h
 document.addEventListener('click',e=>{if(!e.target.closest('#fileMenuWrap'))closeFileMenu()});
 for(const [id,target] of [['menuNew','btnNew'],['menuOpen','btnImport'],['menuSave','btnSaveJSON'],['menuExport','btnExport']])$(id).addEventListener('click',()=>{closeFileMenu();$(target).click()});
 window.addEventListener('keydown',e=>{
- if(e.ctrlKey||e.metaKey){const k=e.key.toLowerCase();if(['s','o','n'].includes(k)){e.preventDefault();$({s:'menuSave',o:'menuOpen',n:'menuNew'}[k]).click()}return}
+ if(e.ctrlKey||e.metaKey){const k=e.key.toLowerCase();if(['s','o','n','z','y'].includes(k)){e.preventDefault();$( {s:'menuSave',o:'menuOpen',n:'menuNew',z:e.shiftKey?'menuRedo':'menuUndo',y:'menuRedo'}[k]).click()}return}
  if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||aboutModal.classList.contains('open'))return;
  const k=e.key.toLowerCase();if(k==='f')frameViewport();else if(k==='q')$('viewSelectTool').click();else if(k==='g')$('viewMove').click();else if(k==='r')$('viewRotate').click();else if(k==='escape')closeFileMenu();
 });
