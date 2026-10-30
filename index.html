@@ -54,7 +54,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 
 /* ---------- Vertascan launch / vector-wing identity ---------- */
 #splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:auto;padding:clamp(12px,3vh,32px);background:radial-gradient(ellipse at 76% 48%,rgba(73,111,57,.2),transparent 39%),radial-gradient(ellipse at 12% 90%,rgba(166,255,122,.055),transparent 38%),linear-gradient(115deg,#050607 0%,#0a0d0b 56%,#08090a 100%);backdrop-filter:blur(2px);transition:opacity .75s ease,visibility .75s ease}
-#splash.hidden{opacity:0;visibility:hidden;pointer-events:none}
+#splash.hidden{opacity:0;visibility:hidden;pointer-events:none;display:none}
 #splash:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(166,255,122,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(166,255,122,.035) 1px,transparent 1px);background-size:clamp(24px,3vw,42px) clamp(24px,3vw,42px);mask-image:linear-gradient(90deg,black,transparent 96%);pointer-events:none}
 .splash-wrap{position:relative;width:min(1240px,94vw);min-height:min(620px,88vh);display:grid;grid-template-columns:minmax(0,1.04fr) minmax(300px,.96fr);align-items:stretch;gap:clamp(22px,4vw,64px);padding:clamp(28px,5.2vw,76px);border:1px solid rgba(166,255,122,.23);background:linear-gradient(135deg,rgba(15,18,16,.94),rgba(8,10,11,.8));box-shadow:0 24px 100px #000b;overflow:hidden}
 .splash-wrap:after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,transparent,var(--ac),transparent);opacity:.8}
@@ -162,8 +162,8 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
     </div>
     <div class="panel" id="panel-rig">
       <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
-        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button>
-        <label class="label" for="rigType">Rig preset</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
+        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Select a preset to replace the current rig, not stack it.</div>
+        <label class="label" for="rigType">Rig preset · switches rebuild the active skeleton</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
         <div class="label">Scorpion tail fitting</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
@@ -361,7 +361,7 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){tc.detach();if(S.root)scene.remove(S.root);S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function clearAll(){tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat)m.dispose()}}})}S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
 function makeBones(){
  // Normalize the joint table before creating a hierarchy. A malformed parent index,
  // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
@@ -508,12 +508,20 @@ function buildCreatureJoints(type,bb,h,w){
  S.tailFitStatus=useFit?'Geometry-scanned tail: '+count+' links, stinger snapped to vertex':'Fallback arc: '+count+' links (tail scan inconclusive)';
  add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
 }
-function rig(){if(!S.geo){say('Load or create a model first',1);return}
- if(S.adopted){S.geo=mergeGeos([S.geo]);S.adopted=false}const g=S.geo;['skinIndex','skinWeight','color'].forEach(n=>g.deleteAttribute(n));const keepGeo=g;clearAll();S.geo=keepGeo;
- groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
+let rigSourceGeometry=null,rigSwitchBusy=false;
+function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight','color'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
+function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load or create a model first',1);return}
+ rigSwitchBusy=true;
+ try{
+ if(!rigSourceGeometry){if(S.adopted)S.geo=mergeGeos([S.geo]);rememberRigSource(S.geo)}
+ const keepGeo=rigSourceGeometry.clone(),savedWidth=S.width,savedFrame=S.frame;
+ ['skinIndex','skinWeight','color'].forEach(n=>keepGeo.deleteAttribute(n));
+ clearAll();S.geo=keepGeo;S.adopted=false;S.width=savedWidth;S.frame=0;
+ 
+ const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
  autoChains();
- buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel()}
-function adopt(sc){let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
+ buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.')}finally{rigSwitchBusy=false}}
+function adopt(sc){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
  if(!S.geo.attributes.color)S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.geo.attributes.position.count*3).fill(1),3));
  const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
  S.alias=mixamoAlias();S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));S.B=S.bones.length;S.N=S.geo.attributes.position.count;S.W=new Float32Array(S.N*S.B);const si=S.geo.attributes.skinIndex,sw=S.geo.attributes.skinWeight;for(let i=0;i<S.N;i++)for(let k=0;k<4;k++){const bi=si.array[i*4+k];if(bi<S.B)S.W[i*S.B+bi]+=sw.array[i*4+k]}
@@ -770,7 +778,11 @@ bind('btnLoop',()=>{S.loop=!S.loop;$('btnLoop').textContent='Loop '+(S.loop?'ON'
 bind('btnPlay',()=>{if(!S.bones.length)return;S.playing=!S.playing;if(S.playing&&S.src==='pose'){S.src=S.keys.size?'keys':'proc';$('hudSrc').textContent=S.src}$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY'},'onclick');
 bind('btnDemo',()=>{if($('rigType'))$('rigType').value='humanoid';loadDemo()},'onclick');
 bind('btnAutoRig',()=>rig(),'onclick');
-bind('btnNew',()=>{clearAll();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
+function auditRig(){const problems=[],B=S.bones.length;if(!B){$('rigAuditOutput').textContent='No rig loaded';return}const seen=new Set();S.joints.forEach((j,i)=>{if(seen.has(j.name))problems.push('Duplicate joint '+j.name);seen.add(j.name);if(j.parent>=i||j.parent< -1)problems.push('Invalid hierarchy '+j.name);if(![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite))problems.push('Non-finite joint '+j.name)});const sw=S.geo?.attributes.skinWeight,si=S.geo?.attributes.skinIndex;if(!sw||!si)problems.push('Missing skin attributes');else for(let i=0;i<sw.count;i++){let total=0;for(let k=0;k<4;k++){const v=sw.getComponent(i,k),j=si.getComponent(i,k);if(!Number.isFinite(v)||v<0||j<0||j>=B){problems.push('Invalid skin data at vertex '+i);break}total+=v}if(Math.abs(total-1)>.03){problems.push('Weight normalization at vertex '+i);break}if(problems.length>12)break}for(const c of S.chains){if(!c.idx?.length||c.idx.some(i=>i<0||i>=B))problems.push('Invalid IK chain '+c.name);if(!c.target?.position?.toArray().every(Number.isFinite))problems.push('Invalid IK target '+c.name)}const skeletons=[];scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.push(o)});if(skeletons.length>1)problems.push('Multiple skinned meshes in scene: '+skeletons.length+' (may be valid imported parts)');const message=problems.length?'AUDIT: '+problems.slice(0,4).join(' • '):'AUDIT OK: '+B+' joints, '+S.N+' vertices, '+S.chains.length+' IK chains; hierarchy and weights checked';$('rigAuditOutput').textContent=message;say(message,problems.length?1:0)}
+$('btnRigAudit').addEventListener('click',auditRig);
+
+$('rigType').addEventListener('change',()=>{if(!S.geo&&!rigSourceGeometry){say('Preset selected — import a mesh or load the demo to build.');return}if(S.adopted&&!rigSourceGeometry){const g=mergeGeos([S.geo]);rememberRigSource(g);g.dispose()}rig();resetHistory();say('Rig preset switched: '+$('rigType').selectedOptions[0].text+' — previous skeleton, handles, IK and animation removed.')});
+bind('btnNew',()=>{if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
 bind('btnImport',()=>$('fileInput').click(),'onclick');bind('btnImport2',()=>$('fileInput').click(),'onclick');
 window.addEventListener('keydown',e=>{if(/INPUT|SELECT/.test(e.target.tagName)&&e.target.type!=='range')return;if(e.code==='Space'){e.preventDefault();$('btnPlay').click()}else if(e.key==='k'||e.key==='K')$('btnKey').click()});
 
@@ -816,8 +828,8 @@ function loadProject(d){
  if(d.joints.some(j=>!Array.isArray(j.x)||j.x.length!==3||!j.x.every(Number.isFinite)))throw new Error('Project contains a joint with invalid coordinates.');
  if(d.skin.i.some(i=>!Number.isInteger(i)||i<0||i>=boneCount)||d.skin.w.some(w=>!Number.isFinite(w)||w<0))throw new Error('Project contains invalid skin indices or weights.');
  if(d.geo.i!=null&&(!Array.isArray(d.geo.i)||d.geo.i.length%3||d.geo.i.some(i=>!Number.isInteger(i)||i<0||i>=vertexCount)))throw new Error('Project contains invalid mesh indices.');
- clearAll();
- const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(d.geo.p,3));if(d.geo.i)g.setIndex(d.geo.i);g.computeVertexNormals();S.geo=g;S.adopted=false;S.width=Number(d.width)||1;S.motion=d.motion||'walk';S.rigType=d.rigType||'humanoid';if($('rigType'))$('rigType').value=S.rigType;S.max=Math.max(1,Number(d.max)||120);
+ if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(d.geo.p,3));if(d.geo.i)g.setIndex(d.geo.i);g.computeVertexNormals();S.geo=g;S.adopted=false;rememberRigSource(g);S.width=Number(d.width)||1;S.motion=d.motion||'walk';S.rigType=d.rigType||'humanoid';if($('rigType'))$('rigType').value=S.rigType;S.max=Math.max(1,Number(d.max)||120);
  S.joints=d.joints.map(j=>({name:j.n,parent:Number.isInteger(j.p)?j.p:-1,pos:V3(...j.x)}));S.B=S.joints.length;S.N=g.attributes.position.count;S.h=bbox(g).getSize(V3()).y;makeBones();buildSkinned();
  const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;si.array.set(d.skin.i);sw.array.set(d.skin.w);si.needsUpdate=sw.needsUpdate=true;S.W=new Float32Array(S.N*S.B);for(let i=0;i<S.N;i++){let sum=0;for(let k=0;k<4;k++){const bi=d.skin.i[i*4+k],w=d.skin.w[i*4+k];S.W[i*S.B+bi]+=w;sum+=w}if(sum>1e-8)for(let j=0;j<S.B;j++)S.W[i*S.B+j]/=sum;else S.W[i*S.B+(S.joints.findIndex(j=>!/^root$/i.test(j.name))||0)]=1}applyWeights(true);updateColors();
  (Array.isArray(d.chains)?d.chains:[]).forEach(c=>{if(!Array.isArray(c.idx)||c.idx.length<2||c.idx.some(i=>!Number.isInteger(i)||i<0||i>=S.joints.length)||!Array.isArray(c.t)||c.t.length!==3||!c.t.every(Number.isFinite)||!Array.isArray(c.po)||c.po.length!==3||!c.po.every(Number.isFinite)||!Array.isArray(c.r)||c.r.length!==3||!c.r.every(Number.isFinite))return;const ch=mkChain(c.idx.map(i=>S.joints[i].name),V3(),Number(c.b)||0);if(!ch)return;ch.target.position.fromArray(c.t);ch.pole.position.fromArray(c.po);ch.rest.fromArray(c.r);ch.on=c.on!==false;ch.name=c.name||ch.name;ch.foot=!!c.foot;ch.side=Number(c.side)||0});
@@ -848,11 +860,11 @@ async function loadFile(file,allFiles=[]){const ext=file.name.split('.').pop().t
   if(!adopt(gl.scene)){staticFrom(gl.scene);say('Model geometry imported. Build a rig to animate this static mesh.')}else{S.addons=gl.animations.map((c,i)=>({name:c.name||'Clip '+(i+1),clip:c}));evaluate();refresh();say('Imported skinned model — existing skeleton and weights kept');$('hudInfo').textContent=S.B+' bones • '+S.N+' verts (imported rig)'}
  }finally{urls.forEach(URL.revokeObjectURL)}
 }
-function staticFrom(o){o.updateMatrixWorld(true);const gs=[];o.traverse(m=>{if((m.isMesh||m.isSkinnedMesh)&&m.geometry){const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);['uv','uv1','color','tangent','skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));if(g.attributes.position?.count)gs.push(g)}});
+function staticFrom(o){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}o.updateMatrixWorld(true);const gs=[];o.traverse(m=>{if((m.isMesh||m.isSkinnedMesh)&&m.geometry){const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);['uv','uv1','color','tangent','skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));if(g.attributes.position?.count)gs.push(g)}});
  if(!gs.length)throw new Error('No usable mesh geometry found. The file may contain only cameras, lights or unsupported objects.');S.geo=mergeGeos(gs);S.adopted=false;rig()}
 $('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;const main=files.find(f=>/\.(glb|gltf|obj|fbx|json)$/i.test(f.name))||files[0];try{await loadFile(main,files)}catch(err){console.error('PROFILE import error:',err);say('Import failed: '+(err?.message||String(err)),1)}};
 
-function loadDemo(){clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
+function loadDemo(){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
 
 /* ---------- loop ---------- */
 // Camera presets, orthographic placement and edit controls
@@ -946,13 +958,14 @@ $('btnAbout').addEventListener('click',openAbout);$('aboutClose').addEventListen
 aboutModal.addEventListener('click',e=>{if(e.target===aboutModal)closeAbout()});
 document.querySelectorAll('[data-about-tab]').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.aboutTab;document.querySelectorAll('[data-about-tab]').forEach(b=>{const active=b===btn;b.classList.toggle('on',active);b.setAttribute('aria-selected',String(active))});document.querySelectorAll('[data-about-pane]').forEach(p=>p.classList.toggle('active',p.dataset.aboutPane===key));}));
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&aboutModal.classList.contains('open'))closeAbout()});
-resize();setTool('select');animate();loadDemo();
+resize();setTool('select');animate();try{loadDemo()}catch(e){console.error('PROFILE demo initialization failed',e);say('Demo load failed: '+e.message,1)}
 // Launch identity: animated V-vector wings on splash; workspace demo retains its own motion preview.
-const splash=$('splash');
-function closeSplash(){splash.classList.add('hidden');S.playing=false;$('btnPlay').textContent='▶ PLAY';}
+const splash=$('splash');splash.classList.remove('hidden');splash.setAttribute('aria-hidden','false');
+function closeSplash(){splash.classList.add('hidden');splash.setAttribute('aria-hidden','true');S.playing=false;$('btnPlay').textContent='▶ PLAY';}
 $('enterStudio').onclick=closeSplash;$('skipIntro').onclick=closeSplash;
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!splash.classList.contains('hidden'))closeSplash()});
 S.motion='walk';S.speed=1;S.stride=1;S.src='pose';S.frame=0;S.playing=false;$('hudSrc').textContent='pose';$('btnPlay').textContent='▶ PLAY';
-const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='6 RIG TYPES • CUSTOM JOINTS • MOTION GRAPH';},2800);
+const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='READY • ENTER STUDIO TO BEGIN';},2800);
 
 console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');
 </script>
