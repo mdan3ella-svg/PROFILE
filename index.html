@@ -165,7 +165,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
         <label class="label" for="rigType">Rig preset</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
-        <div class="label">Scorpion tail fitting</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
+        <div class="label">Scorpion tail fitting</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
@@ -238,7 +238,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
     <article class="guide-card"><span class="guide-tag">WINGS + TAIL</span><h3>Dragon / Winged Creature</h3><p>Creates a long-bodied creature skeleton with articulated forelimbs, hind limbs, paired multi-joint wings and a segmented tail.</p><h4>How to use</h4><ol><li>Set the mesh facing the expected +Z direction, with its body centered and feet near ground level.</li><li>Choose <code>Dragon / Winged Creature + Tail</code>, set the desired spine segment count, then build.</li><li>Inspect the left/right wing chains from shoulder through wrist and finger-like wing struts.</li><li>Create or use IK controls for limb chains; pose wing joints with FK for folding and spread poses.</li><li>Check membrane deformation manually in Skin and paint weights around wing roots and tail transitions.</li></ol><div class="guide-note">This generates a control skeleton, not wing membranes or automatic aerodynamic animation. Mesh topology and weights determine deformation quality.</div></article>
     <article class="guide-card"><span class="guide-tag">CHASSIS + RUNNING GEAR</span><h3>Vehicle / Chassis + Wheels</h3><p>Builds a mechanical hierarchy for a vehicle body, four suspension corners, wheel rotation, steering pivots and optional turret/door anchor points.</p><h4>How to use</h4><ol><li>Load a vehicle mesh with its length aligned to the expected forward axis and wheels near the ground.</li><li>Choose <code>Vehicle / Chassis + Wheels + Steering</code> and build.</li><li>Inspect chassis, axle, suspension and wheel joints; select a wheel joint to rotate it for a roll test.</li><li>Use FK for wheel rotation and steering pivots. Add vertex joints to connect custom parts such as doors, mirrors or articulated equipment.</li><li>Re-solve weights, then test wheels and chassis independently before keyframing.</li></ol><div class="guide-note">A single merged vehicle mesh may deform poorly under skeletal skinning. For rigid parts, separate object parenting or rigid per-part weights are preferable; this preset is a starter hierarchy.</div></article>
     <article class="guide-card"><span class="guide-tag">4 LEGS</span><h3>Quadruped / Four Legs</h3><p>For animal-like bodies with forelegs, hind legs, a spine and a tail/body line where supported by the preset.</p><h4>How to use</h4><ol><li>Align the animal body with its feet near the ground and facing +Z as described by the rig selector hint.</li><li>Choose <code>Quadruped / Four Legs</code> and build the rig.</li><li>Check front and rear hip/shoulder positions, knee/hock bends and foot endpoints.</li><li>Use the leg IK targets to place each foot; adjust pole controls to guide bend direction.</li><li>Test stance and walk poses, then fix weight transitions around shoulders, hips and belly.</li></ol><div class="guide-note">Quadruped proportions vary widely. Long-backed, hoofed, digitigrade or unusual animals may need manual joint adjustment and custom weights.</div></article>
-    <article class="guide-card"><span class="guide-tag">6 LEGS + TAIL</span><h3>Scorpion Mecha / Six Legs + Tail</h3><p>For a mechanical scorpion with three pairs of legs, a segmented articulated tail and a stinger endpoint.</p><h4>How to use</h4><ol><li>Align the chassis centrally, keep the six feet close to the ground and point the model along +Z.</li><li>Choose <code>Scorpion Mecha / Six Legs + Tail</code> and build the rig.</li><li>Inspect left/right leg pairs and tail segments <code>tail_seg_01–06</code> plus <code>tail_stinger</code>.</li><li>Select a leg IK chain and move its target to test reach; use the pole control to influence knee bend.</li><li>Select the tail IK chain and move its target to articulate the distal tail and stinger; pose individual tail bones with FK for fine adjustments.</li><li>Preview motion and check all six feet, tail clearance and body balance before baking keys.</li></ol><div class="guide-note">The tail and leg chains are controllable, but realistic contact, balance and collision avoidance still require manual review.</div></article>
+    <article class="guide-card"><span class="guide-tag">6 LEGS + TAIL</span><h3>Scorpion Mecha / Six Legs + Tail</h3><p>For a mechanical scorpion with three pairs of legs, a segmented articulated tail and a stinger endpoint.</p><h4>How to use</h4><ol><li>Align the chassis centrally, keep the six feet close to the ground and point the model along +Z.</li><li>Choose <code>Scorpion Mecha / Six Legs + Tail</code> and build the rig.</li><li>Inspect left/right leg pairs and tail segments <code>tail_seg_01–10</code> plus <code>tail_stinger</code>.</li><li>Select a leg IK chain and move its target to test reach; use the pole control to influence knee bend.</li><li>Select the tail IK chain and move its target to articulate the distal tail and stinger; pose individual tail bones with FK for fine adjustments.</li><li>Preview motion and check all six feet, tail clearance and body balance before baking keys.</li></ol><div class="guide-note">The tail and leg chains are controllable, but realistic contact, balance and collision avoidance still require manual review.</div></article>
    </div></section>
    <section class="about-pane" data-about-pane="rigtools"><div class="guide-grid">
     <article class="guide-card"><h3>Select</h3><p>Choose a bone, IK target or pole control. Use the Scene bone tree when overlapping joints are hard to click. The selected bone name appears in the HUD and RIG panel.</p></article>
@@ -466,24 +466,45 @@ function buildCreatureJoints(type,bb,h,w){
  for(let pair=1;pair<=3;pair++)for(const [side,x] of [['L',.18],['R',.82]]){
   const z=.34+pair*.105,tag='leg'+pair+'_'+side,hip=add(tag+'_hip',pelvis,x,.52,z),upper=add(tag+'_upper',hip,x<.5?.08:.92,.38,z-.015),lower=add(tag+'_lower',upper,x<.5?.035:.965,.2,z-.04);add(tag+'_foot',lower,x<.5?.015:.985,.035,z-.07);
  }
- // Curved-tail fit: estimate a centerline from rearward mesh vertex slices.
- // When no reliable mesh tail samples exist, use a tunable C-shaped procedural arc.
- const lift=Number($('tailCurve')?.value||.65),fitted=$('tailFit')?.checked!==false;
- const pts=S.geo?.attributes?.position, samples=[];const zRear=mn.z+sz.z*.48;
- if(fitted&&pts&&sz.z>1e-5){for(let k=0;k<7;k++){
-  const z=mn.z+sz.z*(.47-k*.065),radius=sz.z*.038;let xs=[],ys=[];
-  for(let j=0;j<pts.count;j++){const vz=pts.getZ(j);if(Math.abs(vz-z)>radius)continue;const vx=pts.getX(j),vy=pts.getY(j);if(Math.abs(vx-(mn.x+sz.x*.5))>sz.x*.33)continue;xs.push(vx);ys.push(vy)}
-  if(xs.length>=8){xs.sort((a,b)=>a-b);ys.sort((a,b)=>a-b);samples.push({x:xs[Math.floor(xs.length/2)],y:ys[Math.floor(ys.length*.68)],z})}else samples.push(null)
- }}
- const usable=samples.filter(Boolean);const useFit=usable.length>=5&&Math.max(...usable.map(v=>v.y))-Math.min(...usable.map(v=>v.y))>sz.y*.12;
- let par=pelvis;for(let i=1;i<=6;i++){
-  const t=i/6,arcY=.56+lift*(.05*t+.38*t*t),arcZ=.60-.50*t+.11*t*t;
-  const v=useFit?samples[i-1]:null;
-  const x=v?(v.x-mn.x)/Math.max(sz.x,1e-5):.5,y=v?(v.y-mn.y)/Math.max(sz.y,1e-5):arcY,z=v?(v.z-mn.z)/Math.max(sz.z,1e-5):arcZ;
-  par=add('tail_seg_'+String(i).padStart(2,'0'),par,x,y,z)
+ // Scan actual geometry in rearward slices. Preserve the original curved geometry
+ // rather than forcing a procedural arc. The last joint is snapped to a REAL vertex.
+ const lift=Number($('tailCurve')?.value||.65),fit=$('tailFit')?.checked!==false;
+ const attr=S.geo?.attributes?.position,verts=[];
+ if(attr)for(let i=0;i<attr.count;i++){const x=attr.getX(i),y=attr.getY(i),z=attr.getZ(i);if(Number.isFinite(x+y+z))verts.push(V3(x,y,z))}
+ const cx=(mn.x+mx.x)*.5,cz=mn.z+sz.z*.62;
+ // Rearward -Z by convention; the candidate must lie in the upper/central corridor.
+ const candidates=verts.filter(v=>v.z<cz&&Math.abs(v.x-cx)<sz.x*.27&&v.y>mn.y+sz.y*.29);
+ const minZ=candidates.length?Math.min(...candidates.map(v=>v.z)):mn.z;
+ const tailStart=V3(cx,mn.y+sz.y*.57,cz);
+ const span=Math.max(sz.z*.22,cz-minZ),bins=[];
+ for(let i=0;i<=11;i++){
+  const z=cz-span*i/11,r=Math.max(sz.z*.035,span/14);
+  const near=candidates.filter(v=>Math.abs(v.z-z)<=r);
+  if(!near.length){bins.push(null);continue}
+  // Uppermost body ridge is useful for a raised stinger; use a robust high quantile
+  // rather than the absolute maximum (which is often a spike or a leg).
+  near.sort((a,b)=>a.y-b.y);const top=near[Math.floor((near.length-1)*.82)];
+  const close=near.filter(v=>Math.abs(v.y-top.y)<sz.y*.075).sort((a,b)=>Math.abs(a.x-cx)-Math.abs(b.x-cx));
+  bins.push(close[0]||top);
  }
- const tip=useFit?samples[6]:null;add('tail_stinger',par,tip?(tip.x-mn.x)/sz.x:.5,tip?(tip.y-mn.y)/sz.y:.56+lift*.49,tip?(tip.z-mn.z)/sz.z:.12);
- S.tailFitStatus=useFit?'Mesh-sampled curved tail':'Procedural curved tail (editable lift)';
+ const valid=bins.filter(Boolean),verticalRange=valid.length?Math.max(...valid.map(v=>v.y))-Math.min(...valid.map(v=>v.y)):0;
+ const useFit=fit&&valid.length>=7&&verticalRange>sz.y*.08;
+ const count=10;let par=pelvis,curve=[tailStart];
+ for(let i=1;i<=count;i++){
+  const t=i/(count+1);let v=null;
+  if(useFit){const k=Math.min(11,Math.round(t*11));v=bins[k];if(!v){for(let off=1;off<=11&&!v;off++)v=bins[k-off]||bins[k+off]||null}}
+  if(!v)v=V3(cx,mn.y+sz.y*(.56+lift*(.05*t+.48*t*t)),mn.z+sz.z*(.60-.57*t+.08*t*t));
+  curve.push(v.clone());par=add('tail_seg_'+String(i).padStart(2,'0'),par,(v.x-mn.x)/Math.max(sz.x,1e-6),(v.y-mn.y)/Math.max(sz.y,1e-6),(v.z-mn.z)/Math.max(sz.z,1e-6));
+ }
+ let tip;
+ if(useFit){
+  // Snap to a vertex at the distal end of the sampled tail; never an arbitrary box fraction.
+  const last=valid[valid.length-1],far=candidates.filter(v=>v.z<=minZ+span*.16);
+  far.sort((a,b)=>a.distanceTo(last)-b.distanceTo(last));
+  tip=(far[0]||last).clone();
+ }else tip=V3(cx,mn.y+sz.y*(.56+lift*.62),mn.z+sz.z*.055);
+ add('tail_stinger',par,(tip.x-mn.x)/Math.max(sz.x,1e-6),(tip.y-mn.y)/Math.max(sz.y,1e-6),(tip.z-mn.z)/Math.max(sz.z,1e-6));
+ S.tailFitStatus=useFit?'Geometry-scanned tail: '+count+' links, stinger snapped to vertex':'Fallback arc: '+count+' links (tail scan inconclusive)';
  add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
 }
 function rig(){if(!S.geo){say('Load or create a model first',1);return}
@@ -538,7 +559,7 @@ function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg
  candidates.forEach(c=>mkChain(c.slice(0,3).map(ln),c[3],c[4]));
  for(const side of ['L','R']){const wn=['wing_'+side+'_shoulder','wing_'+side+'_elbow','wing_'+side+'_wrist','wing_'+side+'_tip'];if(wn.every(n=>S.idx[n]!==undefined))mkChain(wn,V3(side==='L'?-1:1,.35,.2),1)}
  // Dedicated tail chain includes the stinger so the actual tip is the IK endpoint.
- const tailNames=['tail_seg_01','tail_seg_02','tail_seg_03','tail_seg_04','tail_seg_05','tail_seg_06','tail_stinger'];
+ const tailNames=Array.from({length:10},(_,i)=>'tail_seg_'+String(i+1).padStart(2,'0')).concat('tail_stinger');
  if(tailNames.every(n=>S.idx[n]!==undefined))mkChain(tailNames,V3(0,1,-.7),1);
 }
 function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.some(i=>i===undefined))return null;
@@ -598,7 +619,7 @@ function procPose(fr){S.fkDriven=false;const m=MO[S.motion],ph=fr/30*S.speed*m.f
    rotW(`leg${pair}_${side}_lower`,AX.z,-d*Math.max(0,Math.sin(a+.35))*.3*m.a);
   }
   // Tail wave travels from base to tip; the stinger counter-articulates at the end.
-  for(let i=1;i<=6;i++)rotW('tail_seg_'+String(i).padStart(2,'0'),AX.x,Math.sin(ph-i*.42)*(.07+i*.014));
+  for(let i=1;i<=10;i++)rotW('tail_seg_'+String(i).padStart(2,'0'),AX.x,Math.sin(ph-i*.42)*(.07+i*.014));
   rotW('tail_stinger',AX.z,.16*cs);rotW('mech_torso_plate',AX.y,.025*cs);S.hipsOff.set(0,m.b*k*Math.cos(2*ph)*.35,0);return;
  }
  for(const side of ['L','R']){const d=side==='L'?1:-1,swing=(side==='L'?1:-1)*sn*m.a;
@@ -895,6 +916,7 @@ $('ldFrame').addEventListener('input',e=>{S.playing=false;S.frame=+e.target.valu
 $('lookDevModal').addEventListener('click',e=>{if(e.target===$('lookDevModal'))ldToggle(false)});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&ldOpen)ldToggle(false)});
 $('tailCurve').addEventListener('input',e=>$('vTailCurve').textContent=Number(e.target.value).toFixed(2));
+$('btnTailRefit').addEventListener('click',()=>{if(!S.geo){say('Import a mesh before scanning its tail',1);return}if($('rigType').value!=='scorpion')$('rigType').value='scorpion';rig();const c=S.chains.find(c=>c.name==='IK_tail_stinger');if(c){c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3()));say(S.tailFitStatus+' • IK snapped to tail tip')}else say('Tail IK chain unavailable',1)});
 // Consistent discoverability: visible tool labels, native hover tips and keyboard-accessible names.
 const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Load the built-in humanoid demonstration rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
 document.querySelectorAll('button, .tab, .tool').forEach(el=>{const id=el.id;const txt=(el.innerText||'').replace(/\s+/g,' ').trim();const tip=tooltipHints[id]||el.getAttribute('title')||txt;if(tip&&!el.hasAttribute('title'))el.setAttribute('title',tip);if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',tip||txt);});
