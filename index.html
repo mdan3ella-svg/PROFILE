@@ -67,6 +67,8 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 @media(max-width:420px){.splash-wrap{padding:20px}.splash-kicker{letter-spacing:.15em}.splash-title{font-size:34px}.splash-rigline{gap:5px}.splash-rigline span{font-size:8px;padding:5px 6px}.splash-spec{gap:12px}.splash-spec b{font-size:12px}.splash-actions button{flex:1;padding:12px 10px}.intro-figure{height:190px}}
 @media(prefers-reduced-motion:reduce){.v-wing-mark .wing-left,.v-wing-mark .wing-right,.v-wing-mark .pulse-ring,.splash-progress span{animation:none}.splash-enter,.splash-skip{transition:none}}
 
+/* Look development / pre-export animation review */
+.ld-modal[hidden]{display:none}.ld-modal{position:fixed;inset:0;z-index:1000;background:#020604e8;display:grid;place-items:center;padding:20px;backdrop-filter:blur(9px)}.ld-shell{width:min(1240px,96vw);max-height:94vh;display:flex;flex-direction:column;border:1px solid #4c6749;border-radius:14px;background:#111713;box-shadow:0 28px 90px #000c;overflow:hidden}.ld-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 19px;border-bottom:1px solid #354a37;letter-spacing:.12em;color:#b8f7a2;font:700 13px ui-monospace,monospace}.ld-head span{color:#b7c2b2}.ld-body{display:grid;grid-template-columns:minmax(0,1fr) 280px;min-height:0;overflow:auto}.ld-stage{min-width:0;padding:14px;background:#0b0e0c;display:flex;flex-direction:column;gap:10px}.ld-stage canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#101713;border:1px solid #384839;border-radius:8px}.ld-scrub{display:flex;align-items:center;gap:12px}.ld-scrub input{flex:1;min-width:30px}.ld-scrub span{font:11px ui-monospace,monospace;color:#c5d7c1;min-width:55px}.ld-side{padding:16px;display:flex;flex-direction:column;gap:9px;border-left:1px solid #354a37;overflow:auto}.ld-side h3{margin:9px 0 4px;font:700 11px ui-monospace,monospace;letter-spacing:.1em;color:#b5f69e}.ld-side label{font-size:11px;color:#d6e1d1}.ld-side label output{float:right;color:#b8ff9c}.ld-side select,.ld-side input{width:100%;min-height:28px}.ld-report{padding:12px;border:1px solid #3c4c3c;background:#19221b;border-radius:7px;font:11px/1.7 ui-monospace,monospace;color:#d5dfd1;white-space:pre-wrap}.ld-note{font:10px/1.5 ui-monospace,monospace;color:#a6b0a2}@media(max-width:760px){.ld-body{grid-template-columns:1fr}.ld-side{border-left:0;border-top:1px solid #354a37}.ld-modal{padding:6px}}
 /* Professional viewport and menu refinement */
 .topbar{min-height:54px;height:54px;overflow:visible;position:relative;z-index:15;flex-shrink:0}
 .filemenu{position:relative;flex-shrink:0}.file-dropdown{position:absolute;top:calc(100% + 6px);left:0;min-width:235px;background:#171c19;border:1px solid #43533e;box-shadow:0 14px 35px #000a;padding:6px;z-index:50;border-radius:8px}
@@ -120,6 +122,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
   </div>
 </div>
 
+<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported materials and textures may require separate handling. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
@@ -130,6 +133,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
   <button class="btn accent" id="btnDemo">DEMO RIG</button>
   <button class="btn" id="btnNew">NEW</button>
   <button class="btn accent" id="btnExport">EXPORT GLB</button>
+  <button class="btn" id="btnLookDev">◈ LOOK DEV / CRITIQUE</button>
   <button class="btn" id="btnPlay">▶ PLAY</button>
   <span class="badge on" id="fps">-- FPS</span>
 </div>
@@ -161,7 +165,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
         <label class="label" for="rigType">Rig preset</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
-        <div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
+        <div class="label">Scorpion tail fitting</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
@@ -304,7 +308,7 @@ tc.addEventListener('dragging-changed',e=>controls.enabled=!e.value);
 const MO={walk:{f:1,s:.55,l:.14,b:.03,a:.55,tw:.12,lean:.03,c:0},run:{f:1.6,s:.95,l:.28,b:.07,a:1,tw:.2,lean:.2,c:.03},idle:{f:.3,s:0,l:0,b:.004,a:.05,tw:.02,lean:0,c:0},jump:{f:.8,s:0,l:0,b:0,a:1,tw:0,lean:0,c:0},sneak:{f:.7,s:.38,l:.07,b:.02,a:.3,tw:.08,lean:.12,c:.12},strut:{f:.9,s:.6,l:.12,b:.03,a:.35,tw:.25,lean:-.02,c:0}};
 const S={H:0,geo:null,mesh:null,root:null,adopted:false,joints:[],bones:[],roots:[],idx:{},restQ:[],restP:[],fk:[],hips0:V3(),hipsOff:V3(),W:null,N:0,B:0,adj:null,chains:[],markers:[],h:1.8,
 alias:null,baseQ:Q(),baseQi:Q(),unit:1,addons:[],clip:null,clipRt:null,ghost:.45,meshes:[],sel:-1,selChain:-1,gizmoObj:null,tool:'select',src:'pose',motion:'walk',speed:1,stride:1,frame:0,max:120,playing:false,loop:true,keys:new Map(),wview:false,falloff:4,width:1,brush:{r:.12,s:.5,mode:'add'},interpolation:'bezier',graphMode:false,graphDrag:null};
-const mat=new THREE.MeshStandardMaterial({color:0xd9c4b0,roughness:.62,metalness:0,side:THREE.DoubleSide,shadowSide:THREE.FrontSide});
+const mat=new THREE.MeshPhysicalMaterial({color:0xd9c4b0,roughness:.38,metalness:.12,clearcoat:.16,clearcoatRoughness:.25,side:THREE.DoubleSide,shadowSide:THREE.FrontSide});
 
 /* ---------- geometry helpers ---------- */
 function mergeGeos(gs){const P=[],N=[],I=[];let off=0;for(const g0 of gs){const g=g0;if(!g.attributes.normal)g.computeVertexNormals();const p=g.attributes.position,n=g.attributes.normal;for(let i=0;i<p.count;i++){P.push(p.getX(i),p.getY(i),p.getZ(i));N.push(n.getX(i),n.getY(i),n.getZ(i))}if(g.index)for(let i=0;i<g.index.count;i++)I.push(g.index.getX(i)+off);else for(let i=0;i<p.count;i++)I.push(i+off);off+=p.count}
@@ -356,7 +360,7 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){tc.detach();if(S.root)scene.remove(S.root);S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function clearAll(){tc.detach();if(S.root)scene.remove(S.root);S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
 function makeBones(){
  // Normalize the joint table before creating a hierarchy. A malformed parent index,
  // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
@@ -462,7 +466,24 @@ function buildCreatureJoints(type,bb,h,w){
  for(let pair=1;pair<=3;pair++)for(const [side,x] of [['L',.18],['R',.82]]){
   const z=.34+pair*.105,tag='leg'+pair+'_'+side,hip=add(tag+'_hip',pelvis,x,.52,z),upper=add(tag+'_upper',hip,x<.5?.08:.92,.38,z-.015),lower=add(tag+'_lower',upper,x<.5?.035:.965,.2,z-.04);add(tag+'_foot',lower,x<.5?.015:.985,.035,z-.07);
  }
- let par=pelvis;for(let i=1;i<=6;i++){const z=.57-i*.075,y=.58+i*.045;par=add('tail_seg_'+String(i).padStart(2,'0'),par,.5,y,z)}add('tail_stinger',par,.5,.91,.08);
+ // Curved-tail fit: estimate a centerline from rearward mesh vertex slices.
+ // When no reliable mesh tail samples exist, use a tunable C-shaped procedural arc.
+ const lift=Number($('tailCurve')?.value||.65),fitted=$('tailFit')?.checked!==false;
+ const pts=S.geo?.attributes?.position, samples=[];const zRear=mn.z+sz.z*.48;
+ if(fitted&&pts&&sz.z>1e-5){for(let k=0;k<7;k++){
+  const z=mn.z+sz.z*(.47-k*.065),radius=sz.z*.038;let xs=[],ys=[];
+  for(let j=0;j<pts.count;j++){const vz=pts.getZ(j);if(Math.abs(vz-z)>radius)continue;const vx=pts.getX(j),vy=pts.getY(j);if(Math.abs(vx-(mn.x+sz.x*.5))>sz.x*.33)continue;xs.push(vx);ys.push(vy)}
+  if(xs.length>=8){xs.sort((a,b)=>a-b);ys.sort((a,b)=>a-b);samples.push({x:xs[Math.floor(xs.length/2)],y:ys[Math.floor(ys.length*.68)],z})}else samples.push(null)
+ }}
+ const usable=samples.filter(Boolean);const useFit=usable.length>=5&&Math.max(...usable.map(v=>v.y))-Math.min(...usable.map(v=>v.y))>sz.y*.12;
+ let par=pelvis;for(let i=1;i<=6;i++){
+  const t=i/6,arcY=.56+lift*(.05*t+.38*t*t),arcZ=.60-.50*t+.11*t*t;
+  const v=useFit?samples[i-1]:null;
+  const x=v?(v.x-mn.x)/Math.max(sz.x,1e-5):.5,y=v?(v.y-mn.y)/Math.max(sz.y,1e-5):arcY,z=v?(v.z-mn.z)/Math.max(sz.z,1e-5):arcZ;
+  par=add('tail_seg_'+String(i).padStart(2,'0'),par,x,y,z)
+ }
+ const tip=useFit?samples[6]:null;add('tail_stinger',par,tip?(tip.x-mn.x)/sz.x:.5,tip?(tip.y-mn.y)/sz.y:.56+lift*.49,tip?(tip.z-mn.z)/sz.z:.12);
+ S.tailFitStatus=useFit?'Mesh-sampled curved tail':'Procedural curved tail (editable lift)';
  add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
 }
 function rig(){if(!S.geo){say('Load or create a model first',1);return}
@@ -517,7 +538,7 @@ function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg
  candidates.forEach(c=>mkChain(c.slice(0,3).map(ln),c[3],c[4]));
  for(const side of ['L','R']){const wn=['wing_'+side+'_shoulder','wing_'+side+'_elbow','wing_'+side+'_wrist','wing_'+side+'_tip'];if(wn.every(n=>S.idx[n]!==undefined))mkChain(wn,V3(side==='L'?-1:1,.35,.2),1)}
  // Dedicated tail chain includes the stinger so the actual tip is the IK endpoint.
- const tailNames=['tail_seg_03','tail_seg_04','tail_seg_05','tail_seg_06','tail_stinger'];
+ const tailNames=['tail_seg_01','tail_seg_02','tail_seg_03','tail_seg_04','tail_seg_05','tail_seg_06','tail_stinger'];
  if(tailNames.every(n=>S.idx[n]!==undefined))mkChain(tailNames,V3(0,1,-.7),1);
 }
 function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.some(i=>i===undefined))return null;
@@ -545,7 +566,7 @@ function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.b
    const pv=ch.pole.position.clone().sub(P[i-1]);pv.addScaledVector(axis,-pv.dot(axis));
    if(perp.lengthSq()<1e-10||pv.lengthSq()<1e-10)continue;
    const pn=perp.clone().normalize(),vn=pv.normalize(),ang=Math.atan2(axis.dot(pn.clone().cross(vn)),Math.max(-1,Math.min(1,pn.dot(vn))));
-   perp.applyAxisAngle(axis,ang);P[i].copy(P[i-1]).add(axial).add(perp);
+   perp.applyAxisAngle(axis,ang*.22);P[i].copy(P[i-1]).add(axial).add(perp);
   }}
   if(P[n-1].distanceTo(T)<1e-4)break}
  const fk=bs.map(b=>b.quaternion.clone()),A=V3(),Bp=V3(),qa=Q(),qw=Q(),pq=Q();
@@ -853,7 +874,27 @@ function animate(){requestAnimationFrame(animate);const d=Math.min(clock.getDelt
  if(S.playing){S.frame+=d*30;if(S.frame>S.max){if(S.loop)S.frame=0;else{S.frame=S.max;S.playing=false;$('btnPlay').textContent='▶ PLAY'}}}
  evaluate();updateViz();
  $('frameLabel').textContent=Math.floor(S.frame);$('timeLabel').textContent=(S.frame/30).toFixed(2)+'s';
- renderer.render(scene,activeCamera);drawTL();drawGraph();fpsT+=d;fpsN++;if(fpsT>.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsT=fpsN=0}}
+ renderer.render(scene,activeCamera);if(ldOpen){try{ldCtx.drawImage(renderer.domElement,0,0,$('ldCanvas').width,$('ldCanvas').height)}catch(e){}$('ldTime').textContent=(S.frame/30).toFixed(2)+' s';if(S.playing)$('ldFrame').value=Math.round(S.frame)}drawTL();drawGraph();fpsT+=d;fpsN++;if(fpsT>.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsT=fpsN=0}}
+// Look development: live renderer capture and repeatable pre-export checks.
+let ldOpen=false;const ldCtx=$('ldCanvas').getContext('2d');
+function ldAudit(){const issues=[],ok=[];if(!S.mesh)issues.push('No mesh loaded');else ok.push('Mesh present');
+ if(!S.bones.length)issues.push('No skeleton bound');else ok.push(S.bones.length+' joints in hierarchy');
+ if(S.mesh?.isSkinnedMesh){const a=S.geo?.getAttribute('skinWeight');if(!a)issues.push('Skin weights missing');else{let invalid=0;for(let i=0;i<a.count;i++){const sum=a.getX(i)+a.getY(i)+a.getZ(i)+a.getW(i);if(!Number.isFinite(sum)||Math.abs(sum-1)>.05)invalid++}if(invalid)issues.push(invalid+' vertices have unnormalized skin weights');else ok.push('Skin weight normalization checked')}}
+ else if(S.mesh)issues.push('Mesh is not skinned');
+ if(S.rigType==='scorpion'){const legs=S.chains.filter(c=>/leg[123]_[LR]_foot/.test(c.name));if(legs.length!==6)issues.push('Expected 6 leg IK chains; found '+legs.length);else ok.push('6 leg IK chains');const tail=S.chains.find(c=>/tail_stinger/.test(c.name));if(!tail)issues.push('Tail-tip IK missing');else ok.push('Full tail-to-stinger IK ('+tail.idx.length+' joints)');if(S.tailFitStatus)ok.push(S.tailFitStatus)}
+ if(!S.keys.size&&S.src!=='clip'&&S.src!=='proc')issues.push('No baked animation keys (pose-only export)');else ok.push('Animation source: '+S.src);
+ const out=['CHECKED',...ok.map(x=>'✓ '+x),...issues.map(x=>'! '+x),'','Inspect joint placement, intersections, ground contact and export playback manually.'];$('ldReport').textContent=out.join('\n');return issues}
+function ldApply(){mat.roughness=Number($('ldRough').value);mat.metalness=Number($('ldMetal').value);mat.needsUpdate=true;renderer.toneMappingExposure=Number($('ldExposure').value);$('ldRoughV').textContent=mat.roughness.toFixed(2);$('ldMetalV').textContent=mat.metalness.toFixed(2);$('ldExposureV').textContent=renderer.toneMappingExposure.toFixed(2)}
+$('ldPreset').addEventListener('change',()=>{const presets={ceramic:[.38,.12,0xd9c4b0],steel:[.26,.9,0xb9c4c5],rubber:[.9,0,0x3b4142],bronze:[.3,.8,0xb87842]};const [r,m,c]=presets[$('ldPreset').value];$('ldRough').value=r;$('ldMetal').value=m;mat.color.setHex(c);ldApply()});
+for(const id of ['ldRough','ldMetal','ldExposure'])$(id).addEventListener('input',ldApply);
+$('ldLighting').addEventListener('change',()=>{const v=$('ldLighting').value;dir.intensity=v==='contrast'?3.5:v==='flat'?1.4:2.4;fill.intensity=v==='contrast'?.25:v==='flat'?1.2:.7;rim.intensity=v==='contrast'?1.6:v==='flat'?.15:.9});
+function ldToggle(on){ldOpen=on;$('lookDevModal').hidden=!on;if(on){ldAudit();$('ldFrame').max=S.max;$('ldFrame').value=Math.round(S.frame);$('ldPlay').textContent=S.playing?'❚❚ PAUSE':'▶ PLAY'}}
+$('btnLookDev').addEventListener('click',()=>ldToggle(true));$('ldClose').addEventListener('click',()=>ldToggle(false));$('ldRefresh').addEventListener('click',ldAudit);$('ldExport').addEventListener('click',()=>{ldAudit();$('btnExport').click()});
+$('ldPlay').addEventListener('click',()=>{S.playing=!S.playing;$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY';$('ldPlay').textContent=S.playing?'❚❚ PAUSE':'▶ PLAY'});
+$('ldFrame').addEventListener('input',e=>{S.playing=false;S.frame=+e.target.value;$('btnPlay').textContent='▶ PLAY';$('ldPlay').textContent='▶ PLAY'});
+$('lookDevModal').addEventListener('click',e=>{if(e.target===$('lookDevModal'))ldToggle(false)});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&ldOpen)ldToggle(false)});
+$('tailCurve').addEventListener('input',e=>$('vTailCurve').textContent=Number(e.target.value).toFixed(2));
 // Consistent discoverability: visible tool labels, native hover tips and keyboard-accessible names.
 const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Load the built-in humanoid demonstration rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
 document.querySelectorAll('button, .tab, .tool').forEach(el=>{const id=el.id;const txt=(el.innerText||'').replace(/\s+/g,' ').trim();const tip=tooltipHints[id]||el.getAttribute('title')||txt;if(tip&&!el.hasAttribute('title'))el.setAttribute('title',tip);if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',tip||txt);});
