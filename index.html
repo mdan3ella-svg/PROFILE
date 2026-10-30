@@ -67,6 +67,16 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 @media(max-width:420px){.splash-wrap{padding:20px}.splash-kicker{letter-spacing:.15em}.splash-title{font-size:34px}.splash-rigline{gap:5px}.splash-rigline span{font-size:8px;padding:5px 6px}.splash-spec{gap:12px}.splash-spec b{font-size:12px}.splash-actions button{flex:1;padding:12px 10px}.intro-figure{height:190px}}
 @media(prefers-reduced-motion:reduce){.v-wing-mark .wing-left,.v-wing-mark .wing-right,.v-wing-mark .pulse-ring,.splash-progress span{animation:none}.splash-enter,.splash-skip{transition:none}}
 
+/* Professional viewport and menu refinement */
+.topbar{min-height:54px;height:54px;overflow:visible;position:relative;z-index:15;flex-shrink:0}
+.filemenu{position:relative;flex-shrink:0}.file-dropdown{position:absolute;top:calc(100% + 6px);left:0;min-width:235px;background:#171c19;border:1px solid #43533e;box-shadow:0 14px 35px #000a;padding:6px;z-index:50;border-radius:8px}
+.file-dropdown[hidden]{display:none}.file-dropdown button{display:flex;width:100%;justify-content:space-between;gap:20px;align-items:center;text-align:left;background:transparent;color:#e5ece2;border:0;border-radius:5px;padding:10px;cursor:pointer;font:11px ui-monospace,monospace}.file-dropdown button:hover{background:#2b3829}.file-dropdown kbd{font-size:9px;color:#9ba996}
+.viewbar{position:absolute;z-index:8;top:10px;left:10px;right:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px;background:rgba(13,17,16,.94);border:1px solid #384438;border-radius:9px;box-shadow:0 8px 22px #0006;max-width:calc(100% - 20px)}
+.viewbar select{max-width:140px}.viewbar .btn{padding:7px 8px;font-size:10px}.view-label{font:10px ui-monospace,monospace;color:#a6ff7a;letter-spacing:.12em}.view-sep{height:20px;border-left:1px solid #3c473b;margin:0 3px}
+.axis-corner{position:absolute;bottom:46px;right:14px;z-index:4;border:1px solid #39473a;background:#111914db;border-radius:8px;padding:9px;color:#e58a8a;font:700 11px ui-monospace,monospace;letter-spacing:.35em;pointer-events:none}.axis-corner b{color:#a6ff7a}
+.hud{top:76px;background:#0b0e0bc9;padding:6px 9px;border-radius:6px}.right{width:clamp(280px,25vw,365px);flex-shrink:0}.tabs{overflow-x:auto;flex-shrink:0}.tab{min-width:58px;white-space:nowrap}.panel{overscroll-behavior:contain}.timeline{height:220px;flex-basis:220px}.th{height:auto;min-height:43px;flex-wrap:wrap;padding:5px 10px}.tltools{overflow-x:auto;max-width:100%;padding-bottom:2px}.tltools .btn{flex-shrink:0}.leftbar{flex-shrink:0}
+@media(max-width:850px){.right{width:270px}.viewbar{gap:4px}.viewbar .btn{font-size:9px;padding:6px}.hud{top:110px}.topbar{overflow-x:auto;overflow-y:visible}.logo{font-size:11px}}
+@media(max-width:620px){.main{flex-wrap:wrap;overflow:auto}.leftbar{width:100%;flex:0 0 100%;height:64px;flex-direction:row;overflow-x:auto;padding:4px}.leftbar .tool{min-width:78px;min-height:52px}.viewport{flex:1 0 100%;min-height:46vh}.right{width:100%;flex:1 0 100%;min-height:280px;border-left:0;border-top:1px solid var(--bd)}.timeline{flex-basis:175px}.viewbar{position:absolute}.hud{top:115px}.topbar{height:52px}.logo{min-width:max-content}}
 </style>
 </head>
 <body>
@@ -113,6 +123,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
+  <div class="filemenu" id="fileMenuWrap"><button class="btn" id="btnFileMenu" aria-expanded="false" aria-haspopup="true">FILE ▾</button><div class="file-dropdown" id="fileDropdown" hidden><button id="menuNew">New project <kbd>Ctrl+N</kbd></button><button id="menuOpen">Open / Import <kbd>Ctrl+O</kbd></button><button id="menuSave">Save project <kbd>Ctrl+S</kbd></button><button id="menuExport">Export GLB</button></div></div>
   <div style="flex:1"></div>
   <button class="btn about-btn" id="btnAbout">ABOUT / TUTORIALS</button>
   <button class="btn" id="btnImport">IMPORT</button>
@@ -130,6 +141,11 @@ input[type=range]{width:100%;accent-color:var(--ac)}select{background:#0e0e11;co
     <button type="button" class="tool" data-tool="paint" title="Paint and edit skin weights on the mesh" aria-label="Weight paint"><span class="tool-icon">◍</span><span class="tool-label">Weight Paint</span></button>
   </div>
   <div class="viewport" id="viewport"><canvas id="canvas"></canvas>
+    <div class="viewbar" role="toolbar" aria-label="Viewport and camera controls">
+      <span class="view-label">VIEW</span><select id="viewSelect" aria-label="Projection"><option value="perspective">Perspective</option><option value="front">Front · XY</option><option value="back">Back · XY</option><option value="right">Right · ZY</option><option value="left">Left · ZY</option><option value="top">Top · XZ</option><option value="bottom">Bottom · XZ</option></select>
+      <button class="btn" id="viewFit" title="Frame model (F)">⌗ FIT</button><button class="btn on" id="viewGrid" title="Toggle ground grid">GRID</button><button class="btn on" id="viewAxes" title="Toggle world axes">AXES</button>
+      <span class="view-sep"></span><button class="btn" id="viewSelectTool" title="Select joints (Q)">SELECT</button><button class="btn" id="viewMove" title="Move root / IK target (G)">MOVE</button><button class="btn" id="viewRotate" title="Rotate selected joint (R)">ROTATE</button><select id="gizmoSpace" title="Transform coordinate space" aria-label="Transform coordinate space"><option value="local">Local</option><option value="world">World</option></select>
+    </div><div class="axis-corner" id="axisCorner" aria-label="World axes">X <b>Y</b> Z</div>
     <div class="hud"><b>VERTASCAN</b> • <span id="hudInfo">Ready</span><br>Bone: <span id="hudBone">none</span> • IK: <span id="hudIK">0</span> • Source: <span id="hudSrc">pose</span></div>
     <div id="status"></div>
     <div class="foot">PROFILE | MOTION ENGINE | VERTASCAN</div>
@@ -268,8 +284,9 @@ window.addEventListener('error',e=>say('Error: '+e.message,1));window.addEventLi
 const canvas=$('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0d10);scene.fog=new THREE.Fog(0x0d0d10,14,32);
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
 const camera=new THREE.PerspectiveCamera(42,1,0.05,100);camera.position.set(2.6,1.7,3.2);
+const orthoCamera=new THREE.OrthographicCamera(-2,2,2,-2,.01,1000);let activeCamera=camera;let orthoScale=2.5;
 const controls=new OrbitControls(camera,canvas);controls.target.set(0,0.95,0);controls.enableDamping=true;controls.dampingFactor=0.08;
-function resize(){const vp=$('viewport');if(!vp.clientWidth||!vp.clientHeight)return;renderer.setSize(vp.clientWidth,vp.clientHeight,false);camera.aspect=vp.clientWidth/vp.clientHeight;camera.updateProjectionMatrix();resizeT()}
+function resize(){const vp=$('viewport');if(!vp.clientWidth||!vp.clientHeight)return;renderer.setSize(vp.clientWidth,vp.clientHeight,false);camera.aspect=vp.clientWidth/vp.clientHeight;camera.updateProjectionMatrix();const a=vp.clientWidth/vp.clientHeight;orthoCamera.left=-orthoScale*a;orthoCamera.right=orthoScale*a;orthoCamera.top=orthoScale;orthoCamera.bottom=-orthoScale;orthoCamera.updateProjectionMatrix();resizeT()}
 new ResizeObserver(resize).observe($('viewport'));
 /* lighting: neutral sky/ground fill + warm shadow-casting key + cool fill + rim */
 scene.add(new THREE.HemisphereLight(0xdde6ff,0x2c2c34,0.85));
@@ -619,7 +636,7 @@ function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj
  S.W=out;applyWeights(true);updateColors()}
 
 /* ---------- selection / gizmo ---------- */
-function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace(tc.mode==='rotate'?'local':'world');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace('world');tc.attach(S.gizmoObj)}}
+function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace($('gizmoSpace')?.value||'local');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace('world');tc.attach(S.gizmoObj)}}
 tc.addEventListener('mouseDown',toPose);
 tc.addEventListener('objectChange',()=>{if(S.tool==='fk'&&S.sel>=0){const b=S.bones[S.sel];if(tc.mode==='rotate')S.fk[S.sel].copy(b.quaternion);else if(S.sel===S.H)S.hipsOff.copy(b.position).sub(S.hips0);syncSliders()}});
 function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();updateColors();refresh()}
@@ -795,12 +812,48 @@ $('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.t
 function loadDemo(){clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
 
 /* ---------- loop ---------- */
+// Camera presets, orthographic placement and edit controls
+const worldAxes=new THREE.AxesHelper(1.2);worldAxes.position.set(0,.006,0);scene.add(worldAxes);
+const viewDirections={front:[0,0,1],back:[0,0,-1],right:[1,0,0],left:[-1,0,0],top:[0,1,0],bottom:[0,-1,0]};
+function switchView(mode){
+ const target=controls.target.clone(),distance=Math.max(2,camera.position.distanceTo(target));
+ if(mode==='perspective'){activeCamera=camera;camera.position.copy(target).add(V3(distance*.52,distance*.26,distance*.81));camera.up.set(0,1,0)}
+ else{activeCamera=orthoCamera;const v=viewDirections[mode]||viewDirections.front;orthoCamera.position.copy(target).add(V3(...v).multiplyScalar(distance));orthoCamera.up.set(0,Math.abs(v[1])>.5?0:1,Math.abs(v[1])>.5?(v[1]>0?-1:1):0);orthoCamera.lookAt(target)}
+ controls.object=activeCamera;tc.camera=activeCamera;controls.enableRotate=mode==='perspective';controls.update();resize();syncGizmo();$('viewSelect').value=mode;
+}
+function frameViewport(){
+ const obj=S.root||S.mesh;if(!obj){controls.target.set(0,.9,0);orthoScale=2.5;switchView($('viewSelect').value);return}
+ obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj);if(b.isEmpty())return;
+ const c=b.getCenter(V3()),size=b.getSize(V3()),radius=Math.max(.5,size.length()*.65);controls.target.copy(c);orthoScale=radius*1.35;
+ const mode=$('viewSelect').value;if(mode==='perspective'){camera.position.copy(c).add(V3(radius*1.3,radius*.8,radius*1.8));controls.update();resize()}else switchView(mode);
+ say('Framed '+mode+' view');
+}
+$('viewSelect').addEventListener('change',e=>switchView(e.target.value));
+$('viewFit').addEventListener('click',frameViewport);
+$('viewGrid').addEventListener('click',()=>{grid.visible=!grid.visible;ground.visible=grid.visible;$('viewGrid').classList.toggle('on',grid.visible)});
+$('viewAxes').addEventListener('click',()=>{worldAxes.visible=!worldAxes.visible;$('axisCorner').hidden=!worldAxes.visible;$('viewAxes').classList.toggle('on',worldAxes.visible)});
+$('viewSelectTool').addEventListener('click',()=>setTool('select'));
+$('viewMove').addEventListener('click',()=>{if(S.selChain>=0&&S.gizmoObj){setTool('ik')}else{$('gMove').click()}tc.setMode('translate')});
+$('viewRotate').addEventListener('click',()=>{$('gRot').click();tc.setMode('rotate')});
+$('gizmoSpace').addEventListener('change',e=>tc.setSpace(e.target.value));
+const oldSyncGizmo=syncGizmo; // Keep native FK / IK gizmo routing.
+function syncViewTools(){for(const [id,ok] of [['viewSelectTool',S.tool==='select'],['viewMove',S.tool==='ik'||(S.tool==='fk'&&tc.mode==='translate')],['viewRotate',S.tool==='fk'&&tc.mode==='rotate']])$(id).classList.toggle('on',ok)}
+document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',syncViewTools));
+function closeFileMenu(){$('fileDropdown').hidden=true;$('btnFileMenu').setAttribute('aria-expanded','false')}
+$('btnFileMenu').addEventListener('click',()=>{const opening=$('fileDropdown').hidden;$('fileDropdown').hidden=!opening;$('btnFileMenu').setAttribute('aria-expanded',String(opening))});
+document.addEventListener('click',e=>{if(!e.target.closest('#fileMenuWrap'))closeFileMenu()});
+for(const [id,target] of [['menuNew','btnNew'],['menuOpen','btnImport'],['menuSave','btnSaveJSON'],['menuExport','btnExport']])$(id).addEventListener('click',()=>{closeFileMenu();$(target).click()});
+window.addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey){const k=e.key.toLowerCase();if(['s','o','n'].includes(k)){e.preventDefault();$({s:'menuSave',o:'menuOpen',n:'menuNew'}[k]).click()}return}
+ if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||aboutModal.classList.contains('open'))return;
+ const k=e.key.toLowerCase();if(k==='f')frameViewport();else if(k==='q')$('viewSelectTool').click();else if(k==='g')$('viewMove').click();else if(k==='r')$('viewRotate').click();else if(k==='escape')closeFileMenu();
+});
 const clock=new THREE.Clock();let fpsT=0,fpsN=0;
 function animate(){requestAnimationFrame(animate);const d=Math.min(clock.getDelta(),.1);controls.update();
  if(S.playing){S.frame+=d*30;if(S.frame>S.max){if(S.loop)S.frame=0;else{S.frame=S.max;S.playing=false;$('btnPlay').textContent='▶ PLAY'}}}
  evaluate();updateViz();
  $('frameLabel').textContent=Math.floor(S.frame);$('timeLabel').textContent=(S.frame/30).toFixed(2)+'s';
- renderer.render(scene,camera);drawTL();drawGraph();fpsT+=d;fpsN++;if(fpsT>.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsT=fpsN=0}}
+ renderer.render(scene,activeCamera);drawTL();drawGraph();fpsT+=d;fpsN++;if(fpsT>.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsT=fpsN=0}}
 // Consistent discoverability: visible tool labels, native hover tips and keyboard-accessible names.
 const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Load the built-in humanoid demonstration rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
 document.querySelectorAll('button, .tab, .tool').forEach(el=>{const id=el.id;const txt=(el.innerText||'').replace(/\s+/g,' ').trim();const tip=tooltipHints[id]||el.getAttribute('title')||txt;if(tip&&!el.hasAttribute('title'))el.setAttribute('title',tip);if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',tip||txt);});
@@ -818,9 +871,9 @@ resize();setTool('select');animate();loadDemo();
 const splash=$('splash');
 function closeSplash(){splash.classList.add('hidden');S.playing=false;$('btnPlay').textContent='▶ PLAY';}
 $('enterStudio').onclick=closeSplash;$('skipIntro').onclick=closeSplash;
-S.motion='walk';S.speed=1.15;S.stride=1;S.src='proc';S.frame=0;S.playing=true;$('hudSrc').textContent='proc';$('btnPlay').textContent='⏸ PAUSE';
+S.motion='walk';S.speed=1;S.stride=1;S.src='pose';S.frame=0;S.playing=false;$('hudSrc').textContent='pose';$('btnPlay').textContent='▶ PLAY';
 const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='6 RIG TYPES • CUSTOM JOINTS • MOTION GRAPH';},2800);
-const introEndTimer=setTimeout(()=>{if(!splash.classList.contains('hidden'))closeSplash();},7200);
+
 console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');
 </script>
 </body>
