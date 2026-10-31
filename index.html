@@ -281,6 +281,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
 import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 const $=id=>document.getElementById(id), V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z), Q=()=>new THREE.Quaternion();
 const say=(m,bad)=>{const s=$('status');s.style.color=bad?'#ff8a8a':'#a6ff7a';s.textContent=m||'';if(m)clearTimeout(say.t),say.t=setTimeout(()=>s.textContent='',4000)};
 window.addEventListener('error',e=>say('Error: '+e.message,1));window.addEventListener('unhandledrejection',e=>say('Error: '+(e.reason&&e.reason.message||e.reason),1));
@@ -288,6 +289,13 @@ window.addEventListener('error',e=>say('Error: '+e.message,1));window.addEventLi
 /* ---------- scene ---------- */
 const canvas=$('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0d10);scene.fog=new THREE.Fog(0x0d0d10,14,32);
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
+// Real image-based studio lighting: essential for reflective imported PBR metals.
+const environmentGenerator=new THREE.PMREMGenerator(renderer);
+let studioEnvironment=null;
+try{const room=new RoomEnvironment();studioEnvironment=environmentGenerator.fromScene(room,0.045).texture;room.dispose();}catch(error){console.warn('Studio IBL unavailable; using direct lighting',error)}
+environmentGenerator.dispose();
+if(studioEnvironment){scene.environment=studioEnvironment;scene.environmentIntensity=1.25;}
+scene.add(new THREE.AmbientLight(0xffffff,0.45));
 const camera=new THREE.PerspectiveCamera(42,1,0.05,100);camera.position.set(2.6,1.7,3.2);
 const orthoCamera=new THREE.OrthographicCamera(-2,2,2,-2,.01,1000);let activeCamera=camera;let orthoScale=2.5;
 const controls=new OrbitControls(camera,canvas);controls.target.set(0,0.95,0);controls.enableDamping=true;controls.dampingFactor=0.08;
@@ -511,7 +519,11 @@ function buildCreatureJoints(type,bb,h,w){
 let rigSourceGeometry=null,rigSwitchBusy=false;
 let importedSurfaceMaterials=null;
 function releaseImportedMaterials(){if(importedSurfaceMaterials){for(const m of importedSurfaceMaterials){if(m?.userData?.profileOwned)m.dispose()}importedSurfaceMaterials=null}}
-function preserveMaterial(m){const c=m.clone();c.userData={...c.userData,profileOwned:true};c.vertexColors=false;c.needsUpdate=true;return c}
+function preserveMaterial(m){const c=m.clone();c.userData={...c.userData,profileOwned:true};c.vertexColors=false;
+ // glTF base-color/emissive maps are sRGB; data maps must remain linear.
+ for(const name of ['map','emissiveMap','sheenColorMap','specularColorMap']){const t=c[name];if(t){t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true}}
+ if(c.isMeshStandardMaterial||c.isMeshPhysicalMaterial){c.envMapIntensity=Math.max(1.15,c.envMapIntensity||1)}
+ c.needsUpdate=true;return c}
 function rigMaterial(){return importedSurfaceMaterials?.length?(importedSurfaceMaterials.length===1?importedSurfaceMaterials[0]:importedSurfaceMaterials):mat}
 
 function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight','color'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
@@ -870,6 +882,8 @@ function staticFrom(o){
  o.updateMatrixWorld(true);const gs=[],surfaces=[];
  o.traverse(m=>{if(!(m.isMesh||m.isSkinnedMesh)||!m.geometry?.attributes?.position)return;
   const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);
+  // Recalculate normals after world-space baking for consistent PBR shading.
+  if(!g.attributes.normal)g.computeVertexNormals();
   ['skinIndex','skinWeight','color'].forEach(n=>g.deleteAttribute(n));
   const materials=Array.isArray(m.material)?m.material:[m.material];
   const sourceGroups=g.groups.length?g.groups:[{start:0,count:g.index?g.index.count:g.attributes.position.count,materialIndex:0}];
