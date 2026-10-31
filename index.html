@@ -894,7 +894,9 @@ function staticFrom(o){
   gs.push({g,groups:gr});
  });
  if(!gs.length)throw new Error('No usable mesh geometry found.');
- const attrs=['position','normal','uv','uv1','uv2']; // Do not fabricate zero tangents: invalid TBN matrices turn normal-mapped PBR meshes black.const values={};for(const a of attrs)values[a]=[];
+ // Do not fabricate zero tangents: invalid tangent frames can break normal-map lighting.
+ const attrs=['position','normal','uv','uv1','uv2'];
+ const values={};for(const a of attrs)values[a]=[];
  const indices=[],groups=[];let vertexOffset=0,indexOffset=0;
  for(const {g,groups:gr} of gs){if(!g.attributes.normal)g.computeVertexNormals();const count=g.attributes.position.count;
   for(const a of attrs){const at=g.attributes[a],components=a==='position'||a==='normal'?3:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):0)}
