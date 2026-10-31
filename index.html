@@ -528,6 +528,44 @@ function preserveMaterial(m){const c=m.clone();if(c.isMeshStandardMaterial||c.is
 function rigMaterial(){return importedSurfaceMaterials?.length?(importedSurfaceMaterials.length===1?importedSurfaceMaterials[0]:importedSurfaceMaterials):mat}
 
 function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight','color'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
+/* Geometry-aware landmark calibration for imported upright bipeds. Sampling local mesh
+   sections is safer than imposing demo joint dimensions on arbitrary model proportions.
+   This remains an estimate; inspect before exporting. */
+function fitBipedToGeometry(joints,g,type){
+ if(!['humanoid','mecha'].includes(type))return {fitted:0,confidence:0};
+ const a=g.attributes.position;if(!a||a.count<50)return {fitted:0,confidence:0};
+ const box=bbox(g),h=Math.max(1e-6,box.max.y-box.min.y),cx=(box.min.x+box.max.x)/2,cz=(box.min.z+box.max.z)/2;
+ const sections=[];for(let k=0;k<32;k++)sections.push([]);
+ for(let i=0;i<a.count;i++){const x=a.getX(i),y=a.getY(i),z=a.getZ(i),t=(y-box.min.y)/h;if(t<0||t>1)continue;sections[Math.min(31,Math.floor(t*32))].push([x,z])}
+ const quant=(arr,q)=>{if(!arr.length)return null;arr.sort((a,b)=>a-b);return arr[Math.min(arr.length-1,Math.max(0,Math.floor((arr.length-1)*q)))]};
+ const sample=(t,side,region)=>{let pts=[];const mid=Math.min(31,Math.max(0,Math.floor(t*32)));for(let k=Math.max(0,mid-1);k<=Math.min(31,mid+1);k++)pts.push(...sections[k]);
+  if(region==='limb')pts=pts.filter(v=>side*(v[0]-cx)>h*.055);
+  if(region==='core')pts=pts.filter(v=>Math.abs(v[0]-cx)<h*.18);
+  if(pts.length<5)return null;
+  const xs=pts.map(v=>v[0]),zs=pts.map(v=>v[1]);return {x:region==='limb'?quant(xs,side>0?.66:.34):quant(xs,.5),z:quant(zs,.5),n:pts.length};};
+ let fitted=0,attempted=0;
+ for(const j of joints){const n=j.name;let t=null,side=0,region='core';
+  if(/_L$|Left/.test(n))side=1;else if(/_R$|Right/.test(n))side=-1;
+  if(/^root$/.test(n))continue;
+  if(/^hips$/.test(n))t=.53;else if(/^spine_/.test(n))t=(j.pos.y-box.min.y)/h;else if(/chest|upper_chest/.test(n))t=(j.pos.y-box.min.y)/h;
+  else if(/^neck$/.test(n))t=.84;else if(/^head$/.test(n))t=.91;
+  else if(/clavicle/.test(n)){t=.79;region='limb'}
+  else if(/^arm_/.test(n)){t=.77;region='limb'}
+  else if(/^forearm_/.test(n)){t=.72;region='limb'}
+  else if(/^hand_/.test(n)){t=.65;region='limb'}
+  else if(/^upLeg_/.test(n)){t=.48;region='limb'}
+  else if(/^leg_/.test(n)){t=.27;region='limb'}
+  else if(/^foot_/.test(n)){t=.075;region='limb'}
+  if(t===null)continue;attempted++;const hit=sample(t,side,region);if(!hit)continue;
+  if(region==='core'){j.pos.x=hit.x;j.pos.z=hit.z}else{
+   // Preserve the anatomical left/right designation and avoid snapping to opposite limb.
+   if(side*(hit.x-cx)<=0)continue;
+   j.pos.x=hit.x;j.pos.z=hit.z;
+  }
+  j.pos.y=box.min.y+h*t;fitted++;
+ }
+ return {fitted,confidence:attempted?fitted/attempted:0};
+}
 function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load or create a model first',1);return}
  rigSwitchBusy=true;
  try{
@@ -536,9 +574,9 @@ function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load 
  ['skinIndex','skinWeight','color'].forEach(n=>keepGeo.deleteAttribute(n));
  clearAll();S.geo=keepGeo;S.adopted=false;S.width=savedWidth;S.frame=0;
  
- const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
+ const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);const fitResult=fitBipedToGeometry(S.joints,g,type);S.geometryFit=fitResult;S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
  autoChains();
- buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.')}finally{rigSwitchBusy=false}}
+ buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry landmark fit: '+fitResult.fitted+' joints ('+Math.round(fitResult.confidence*100)+'% sampled). Inspect front and side views before export.');say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.')}finally{rigSwitchBusy=false}}
 function adopt(sc){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
  if(!S.geo.attributes.color)S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.geo.attributes.position.count*3).fill(1),3));
  const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
@@ -837,7 +875,7 @@ gc.addEventListener('pointermove',e=>{if(S.graphDrag===null||!S.graphMode)return
 $('btnGraph').addEventListener('click',()=>{S.graphMode=!S.graphMode;tl.style.display=S.graphMode?'none':'block';gc.style.display=S.graphMode?'block':'none';$('btnGraph').classList.toggle('on',S.graphMode);$('btnGraph').textContent=S.graphMode?'TIMELINE':'GRAPH EDITOR';resizeT();drawTL();drawGraph()});$('interpMode').addEventListener('change',()=>{S.interpolation=$('interpMode').value;drawGraph()});$('graphChannel').addEventListener('change',drawGraph);
 /* ---------- export / import ---------- */
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
-function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
+function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}if(S.geometryFit&&S.geometryFit.confidence<.65&&['humanoid','mecha'].includes(S.rigType)){if(!confirm('Rig geometry fit is low confidence. Inspect and correct joint placement before exporting. Export anyway?'))return;}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
  const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
  const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(ikActive())solveAll();S.root.updateMatrixWorld(true)};
