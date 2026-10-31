@@ -163,7 +163,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
     </div>
     <div class="panel" id="panel-rig">
       <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
-        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Select a preset to replace the current rig, not stack it.</div>
+        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit checks bind matrices, weights, hierarchy and IK. Geometry fitting is approximate; inspect deformations before export.</div>
         <label class="label" for="rigType">Rig preset · switches rebuild the active skeleton</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
@@ -416,14 +416,14 @@ function computeAutoWeights(){
  const tiny=Math.max(S.h,1e-6)*1e-4,list=[];
  for(const j of deform){const a=JP[j],ks=kids[j];let n=0;
   for(const k of ks)if(a.distanceTo(JP[k])>tiny){list.push(j,a.x,a.y,a.z,JP[k].x,JP[k].y,JP[k].z);n++}
-  if(!ks.length)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
- const SG=Float64Array.from(list),nS=SG.length/7,dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
+  if(!n)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
+ const SG=Float64Array.from(list),nS=SG.length/7;if(!nS)return null;const dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
  for(let i=0;i<N;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
   for(let s=0;s<nS;s++){const o=s*7,own=SG[o],ax=SG[o+1],ay=SG[o+2],az=SG[o+3],bx=SG[o+4]-ax,by=SG[o+5]-ay,bz=SG[o+6]-az,l2=bx*bx+by*by+bz*bz,px=x-ax,py=y-ay,pz=z-az;
    let u=l2>1e-18?(px*bx+py*by+pz*bz)/l2:0;u=u<0?0:u>1?1:u;const dx=px-bx*u,dy=py-by*u,dz=pz-bz*u,d2=dx*dx+dy*dy+dz*dz;if(d2<dj[own])dj[own]=d2}
   let best=-1,bd=Infinity;for(const j of deform)if(dj[j]<bd){bd=dj[j];best=j}
   if(best<0){W[i*B+deform[0]]=1;continue}
-  let sum=0;for(const j of deform){if(dj[j]===Infinity)continue;const w=Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
+  let sum=0;for(const j of deform){if(dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*16,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
   if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
   for(const j of deform)W[i*B+j]/=sum}
  return W}
@@ -559,7 +559,7 @@ function fitBipedToGeometry(joints,g,type){
   if(t===null)continue;attempted++;const hit=sample(t,side,region);if(!hit)continue;
   if(region==='core'){j.pos.x=hit.x;j.pos.z=hit.z}else{
    // Preserve the anatomical left/right designation and avoid snapping to opposite limb.
-   if(side*(hit.x-cx)<=0)continue;
+   if(side*(hit.x-cx)<=h*.035)continue;
    j.pos.x=hit.x;j.pos.z=hit.z;
   }
   j.pos.y=box.min.y+h*t;fitted++;
@@ -576,7 +576,7 @@ function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load 
  
  const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);const fitResult=fitBipedToGeometry(S.joints,g,type);S.geometryFit=fitResult;S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
  autoChains();
- buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry landmark fit: '+fitResult.fitted+' joints ('+Math.round(fitResult.confidence*100)+'% sampled). Inspect front and side views before export.');say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.')}finally{rigSwitchBusy=false}}
+ buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry landmark fit: '+fitResult.fitted+' joints ('+Math.round(fitResult.confidence*100)+'% sampled). Inspect front and side views before export.');say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.')}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));}finally{rigSwitchBusy=false}}
 function adopt(sc){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
  if(!S.geo.attributes.color)S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.geo.attributes.position.count*3).fill(1),3));
  const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
@@ -834,7 +834,7 @@ bind('btnLoop',()=>{S.loop=!S.loop;$('btnLoop').textContent='Loop '+(S.loop?'ON'
 bind('btnPlay',()=>{if(!S.bones.length)return;S.playing=!S.playing;if(S.playing&&S.src==='pose'){S.src=S.keys.size?'keys':'proc';$('hudSrc').textContent=S.src}$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY'},'onclick');
 bind('btnDemo',()=>{if($('rigType'))$('rigType').value='humanoid';loadDemo()},'onclick');
 bind('btnAutoRig',()=>rig(),'onclick');
-function auditRig(){const problems=[],B=S.bones.length;if(!B){$('rigAuditOutput').textContent='No rig loaded';return}const seen=new Set();S.joints.forEach((j,i)=>{if(seen.has(j.name))problems.push('Duplicate joint '+j.name);seen.add(j.name);if(j.parent>=i||j.parent< -1)problems.push('Invalid hierarchy '+j.name);if(![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite))problems.push('Non-finite joint '+j.name)});const sw=S.geo?.attributes.skinWeight,si=S.geo?.attributes.skinIndex;if(!sw||!si)problems.push('Missing skin attributes');else for(let i=0;i<sw.count;i++){let total=0;for(let k=0;k<4;k++){const v=sw.getComponent(i,k),j=si.getComponent(i,k);if(!Number.isFinite(v)||v<0||j<0||j>=B){problems.push('Invalid skin data at vertex '+i);break}total+=v}if(Math.abs(total-1)>.03){problems.push('Weight normalization at vertex '+i);break}if(problems.length>12)break}for(const c of S.chains){if(!c.idx?.length||c.idx.some(i=>i<0||i>=B))problems.push('Invalid IK chain '+c.name);if(!c.target?.position?.toArray().every(Number.isFinite))problems.push('Invalid IK target '+c.name)}const skeletons=[];scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.push(o)});if(skeletons.length>1)problems.push('Multiple skinned meshes in scene: '+skeletons.length+' (may be valid imported parts)');const message=problems.length?'AUDIT: '+problems.slice(0,4).join(' • '):'AUDIT OK: '+B+' joints, '+S.N+' vertices, '+S.chains.length+' IK chains; hierarchy and weights checked';$('rigAuditOutput').textContent=message;say(message,problems.length?1:0)}
+function auditRig(){const problems=[],B=S.bones.length;if(!B){$('rigAuditOutput').textContent='No rig loaded';return}const seen=new Set();S.joints.forEach((j,i)=>{if(seen.has(j.name))problems.push('Duplicate joint '+j.name);seen.add(j.name);if(j.parent>=i||j.parent< -1)problems.push('Invalid hierarchy '+j.name);if(![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite))problems.push('Non-finite joint '+j.name)});const sw=S.geo?.attributes.skinWeight,si=S.geo?.attributes.skinIndex;if(!sw||!si)problems.push('Missing skin attributes');else for(let i=0;i<sw.count;i++){let total=0;for(let k=0;k<4;k++){const v=sw.getComponent(i,k),j=si.getComponent(i,k);if(!Number.isFinite(v)||v<0||j<0||j>=B){problems.push('Invalid skin data at vertex '+i);break}total+=v}if(Math.abs(total-1)>.03){problems.push('Weight normalization at vertex '+i);break}if(problems.length>12)break}for(const c of S.chains){if(!c.idx?.length||c.idx.some(i=>i<0||i>=B))problems.push('Invalid IK chain '+c.name);if(!c.target?.position?.toArray().every(Number.isFinite))problems.push('Invalid IK target '+c.name)}const skeletons=[];scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.push(o)});if(skeletons.length>1&&new Set(skeletons.map(m=>m.skeleton)).size>1)problems.push('Multiple independent skeletons; check export hierarchy');const pf=rigPreflight();problems.push(...pf.errors);const message=problems.length?'AUDIT: '+problems.slice(0,4).join(' • '):'AUDIT OK: '+B+' joints, '+S.N+' vertices, '+S.chains.length+' IK chains; hierarchy and weights checked';$('rigAuditOutput').textContent=message;say(message,problems.length?1:0)}
 $('btnRigAudit').addEventListener('click',auditRig);
 
 $('rigType').addEventListener('change',()=>{if(!S.geo&&!rigSourceGeometry){say('Preset selected — import a mesh or load the demo to build.');return}if(S.adopted&&!rigSourceGeometry){const g=S.geo.clone();rememberRigSource(g);g.dispose();if(!importedSurfaceMaterials){const mats=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];importedSurfaceMaterials=mats.map(preserveMaterial)}}rig();resetHistory();say('Rig preset switched: '+$('rigType').selectedOptions[0].text+' — previous skeleton, handles, IK and animation removed.')});
@@ -875,7 +875,21 @@ gc.addEventListener('pointermove',e=>{if(S.graphDrag===null||!S.graphMode)return
 $('btnGraph').addEventListener('click',()=>{S.graphMode=!S.graphMode;tl.style.display=S.graphMode?'none':'block';gc.style.display=S.graphMode?'block':'none';$('btnGraph').classList.toggle('on',S.graphMode);$('btnGraph').textContent=S.graphMode?'TIMELINE':'GRAPH EDITOR';resizeT();drawTL();drawGraph()});$('interpMode').addEventListener('change',()=>{S.interpolation=$('interpMode').value;drawGraph()});$('graphChannel').addEventListener('change',drawGraph);
 /* ---------- export / import ---------- */
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
-function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}if(S.geometryFit&&S.geometryFit.confidence<.65&&['humanoid','mecha'].includes(S.rigType)){if(!confirm('Rig geometry fit is low confidence. Inspect and correct joint placement before exporting. Export anyway?'))return;}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
+function rigPreflight(){
+ const errors=[],warnings=[];const g=S.geo,mesh=S.mesh,B=S.bones.length;
+ if(!mesh?.isSkinnedMesh)errors.push('No bound skinned mesh');
+ if(!g?.attributes?.position?.count)errors.push('No mesh vertices');
+ if(!B||!mesh?.skeleton||mesh.skeleton.bones.length!==B)errors.push('Skeleton mismatch');
+ const idx=g?.attributes?.skinIndex,w=g?.attributes?.skinWeight;
+ if(!idx||!w||idx.count!==g.attributes.position.count||w.count!==g.attributes.position.count)errors.push('Skin attributes missing or wrong size');
+ else {let bad=0,zero=0;for(let i=0;i<w.count;i++){let total=0;for(let k=0;k<4;k++){const v=w.getComponent(i,k),j=idx.getComponent(i,k);if(!Number.isFinite(v)||v<0||!Number.isInteger(j)||j<0||j>=B)bad++;total+=v}if(Math.abs(total-1)>.02)zero++}if(bad)errors.push(bad+' invalid bone influences');if(zero)errors.push(zero+' vertices with unnormalized weights')}
+ if(mesh?.skeleton?.boneInverses?.length!==B)errors.push('Bind inverse count mismatch');
+ if(S.joints.some(j=>![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite)))errors.push('Nonfinite joint coordinates');
+ for(const ch of S.chains){if(ch.idx.some(i=>i<0||i>=B))errors.push('Invalid IK '+ch.name);if(ch.idx.length<2)errors.push('Short IK '+ch.name)}
+ if(S.geometryFit&&S.geometryFit.confidence<.7)warnings.push('Low confidence geometry fit: '+Math.round(S.geometryFit.confidence*100)+'%');
+ return {errors:[...new Set(errors)],warnings};
+}
+function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const check=rigPreflight();if(check.errors.length){say('Export blocked: '+check.errors.slice(0,2).join('; '),1);$('rigAuditOutput').textContent='EXPORT BLOCKED: '+check.errors.join(' • ');return}if(check.warnings.length&&!confirm(check.warnings.join('\n')+'\nExport anyway?'))return;if(S.geometryFit&&S.geometryFit.confidence<.65&&['humanoid','mecha'].includes(S.rigType)){if(!confirm('Rig geometry fit is low confidence. Inspect and correct joint placement before exporting. Export anyway?'))return;}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
  const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
  const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(ikActive())solveAll();S.root.updateMatrixWorld(true)};
