@@ -149,7 +149,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
   <div class="viewport" id="viewport"><canvas id="canvas"></canvas>
     <div class="viewbar" role="toolbar" aria-label="Viewport and camera controls">
       <span class="view-label">VIEW</span><select id="viewSelect" aria-label="Projection"><option value="perspective">Perspective</option><option value="front">Front · XY</option><option value="back">Back · XY</option><option value="right">Right · ZY</option><option value="left">Left · ZY</option><option value="top">Top · XZ</option><option value="bottom">Bottom · XZ</option></select>
-      <button class="btn" id="viewLighting" title="Cycle Studio / Neutral / Contrast lighting">☀ STUDIO LIGHT</button><button class="btn" id="viewMaterials" title="Open PBR materials and lighting controls">◈ PBR</button><button class="btn" id="viewFit" title="Frame model (F)">⌗ FIT</button><button class="btn on" id="viewGrid" title="Toggle ground grid">GRID</button><button class="btn on" id="viewAxes" title="Toggle world axes">AXES</button>
+      <button class="btn" id="viewLighting" title="Cycle Studio / Neutral / Contrast lighting">☀ STUDIO LIGHT</button><button class="btn" id="viewMaterials" title="Open PBR materials and lighting controls">◈ PBR</button><button class="btn" id="viewRigOverlay" title="Show or hide skeleton diagnostics">RIG GUIDES</button><button class="btn" id="viewIKOverlay" title="Show or hide IK targets">IK GUIDES</button><button class="btn" id="viewFit" title="Frame model (F)">⌗ FIT</button><button class="btn on" id="viewGrid" title="Toggle ground grid">GRID</button><button class="btn on" id="viewAxes" title="Toggle world axes">AXES</button>
       <span class="view-sep"></span><button class="btn" id="viewSelectTool" title="Select joints (Q)">SELECT</button><button class="btn" id="viewMove" title="Move root / IK target (G)">MOVE</button><button class="btn" id="viewRotate" title="Rotate selected joint (R)">ROTATE</button><select id="gizmoSpace" title="Transform coordinate space" aria-label="Transform coordinate space"><option value="local">Local</option><option value="world">World</option></select>
     </div><div class="axis-corner" id="axisCorner" aria-label="World axes">X <b>Y</b> Z</div>
     <div class="hud"><b>VERTASCAN</b> • <span id="hudInfo">Ready</span><br>Bone: <span id="hudBone">none</span> • IK: <span id="hudIK">0</span> • Source: <span id="hudSrc">pose</span></div>
@@ -370,7 +370,7 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function clearAll(){tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();boneLines=null;datum=null;gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
 function makeBones(){
  // Normalize the joint table before creating a hierarchy. A malformed parent index,
  // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
@@ -423,6 +423,7 @@ function computeAutoWeights(){
    let u=l2>1e-18?(px*bx+py*by+pz*bz)/l2:0;u=u<0?0:u>1?1:u;const dx=px-bx*u,dy=py-by*u,dz=pz-bz*u,d2=dx*dx+dy*dy+dz*dz;if(d2<dj[own])dj[own]=d2}
   let best=-1,bd=Infinity;for(const j of deform)if(dj[j]<bd){bd=dj[j];best=j}
   if(best<0){W[i*B+deform[0]]=1;continue}
+  if(S.rigType==='mecha'){W[i*B+best]=1;continue}
   let sum=0;for(const j of deform){if(dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*16,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
   if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
   for(const j of deform)W[i*B+j]/=sum}
@@ -533,36 +534,33 @@ function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();r
    This remains an estimate; inspect before exporting. */
 function fitBipedToGeometry(joints,g,type){
  if(!['humanoid','mecha'].includes(type))return {fitted:0,confidence:0};
- const a=g.attributes.position;if(!a||a.count<50)return {fitted:0,confidence:0};
- const box=bbox(g),h=Math.max(1e-6,box.max.y-box.min.y),cx=(box.min.x+box.max.x)/2,cz=(box.min.z+box.max.z)/2;
- const sections=[];for(let k=0;k<32;k++)sections.push([]);
- for(let i=0;i<a.count;i++){const x=a.getX(i),y=a.getY(i),z=a.getZ(i),t=(y-box.min.y)/h;if(t<0||t>1)continue;sections[Math.min(31,Math.floor(t*32))].push([x,z])}
- const quant=(arr,q)=>{if(!arr.length)return null;arr.sort((a,b)=>a-b);return arr[Math.min(arr.length-1,Math.max(0,Math.floor((arr.length-1)*q)))]};
- const sample=(t,side,region)=>{let pts=[];const mid=Math.min(31,Math.max(0,Math.floor(t*32)));for(let k=Math.max(0,mid-1);k<=Math.min(31,mid+1);k++)pts.push(...sections[k]);
-  if(region==='limb')pts=pts.filter(v=>side*(v[0]-cx)>h*.055);
-  if(region==='core')pts=pts.filter(v=>Math.abs(v[0]-cx)<h*.18);
-  if(pts.length<5)return null;
-  const xs=pts.map(v=>v[0]),zs=pts.map(v=>v[1]);return {x:region==='limb'?quant(xs,side>0?.66:.34):quant(xs,.5),z:quant(zs,.5),n:pts.length};};
+ const pos=g.attributes.position;if(!pos||pos.count<50)return {fitted:0,confidence:0};
+ const box=bbox(g),size=box.getSize(V3()),h=Math.max(size.y,1e-6),cx=(box.min.x+box.max.x)*.5,cz=(box.min.z+box.max.z)*.5;
+ // Spatial sampling uses an anatomical joint's predicted X and Y together. Sampling
+ // the entire height slice collapses elbows and wrists onto the same arm centroid.
+ const pts=[];for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);if(Number.isFinite(x+y+z))pts.push([x,y,z])}
+ const limb=/^(clavicle|arm|forearm|hand|upLeg|leg|foot)_/;
+ const core=/^(hips|spine_|chest|upper_chest|neck|head$)/;
  let fitted=0,attempted=0;
- for(const j of joints){const n=j.name;let t=null,side=0,region='core';
-  if(/_L$|Left/.test(n))side=1;else if(/_R$|Right/.test(n))side=-1;
-  if(/^root$/.test(n))continue;
-  if(/^hips$/.test(n))t=.53;else if(/^spine_/.test(n))t=(j.pos.y-box.min.y)/h;else if(/chest|upper_chest/.test(n))t=(j.pos.y-box.min.y)/h;
-  else if(/^neck$/.test(n))t=.84;else if(/^head$/.test(n))t=.91;
-  else if(/clavicle/.test(n)){t=.79;region='limb'}
-  else if(/^arm_/.test(n)){t=.77;region='limb'}
-  else if(/^forearm_/.test(n)){t=.72;region='limb'}
-  else if(/^hand_/.test(n)){t=.65;region='limb'}
-  else if(/^upLeg_/.test(n)){t=.48;region='limb'}
-  else if(/^leg_/.test(n)){t=.27;region='limb'}
-  else if(/^foot_/.test(n)){t=.075;region='limb'}
-  if(t===null)continue;attempted++;const hit=sample(t,side,region);if(!hit)continue;
-  if(region==='core'){j.pos.x=hit.x;j.pos.z=hit.z}else{
-   // Preserve the anatomical left/right designation and avoid snapping to opposite limb.
-   if(side*(hit.x-cx)<=h*.035)continue;
-   j.pos.x=hit.x;j.pos.z=hit.z;
-  }
-  j.pos.y=box.min.y+h*t;fitted++;
+ for(const j of joints){const n=j.name;if(!limb.test(n)&&!core.test(n))continue;attempted++;
+  const isLimb=limb.test(n),side=/_L$/.test(n)?1:/_R$/.test(n)?-1:0;
+  const predicted=j.pos.clone();predicted.x+=cx;predicted.y+=box.min.y;predicted.z+=cz;
+  const radiusX=isLimb?Math.max(h*.065,size.x*.09):Math.max(h*.09,size.x*.14);
+  const radiusY=h*(isLimb?.065:.045),candidates=[];
+  for(const v of pts){if(Math.abs(v[1]-predicted.y)>radiusY)continue;
+   if(isLimb&&side*(v[0]-cx)<h*.015)continue;
+   if(Math.abs(v[0]-predicted.x)>radiusX)continue;
+   candidates.push(v)}
+  if(candidates.length<8)continue;
+  // Robust center from the nearest local patch, with limited movement to avoid
+  // snapping to a neighboring limb, armor projection or disconnected accessory.
+  candidates.sort((u,v)=>((u[0]-predicted.x)**2+(u[1]-predicted.y)**2+(u[2]-predicted.z)**2)-((v[0]-predicted.x)**2+(v[1]-predicted.y)**2+(v[2]-predicted.z)**2));
+  const chosen=candidates.slice(0,Math.min(48,candidates.length));
+  const avg=k=>chosen.reduce((sum,v)=>sum+v[k],0)/chosen.length;
+  const tx=avg(0),tz=avg(2),limit=isLimb?h*.055:h*.035;
+  j.pos.x+=THREE.MathUtils.clamp(tx-predicted.x,-limit,limit);
+  j.pos.z+=THREE.MathUtils.clamp(tz-predicted.z,-limit,limit);
+  fitted++;
  }
  return {fitted,confidence:attempted?fitted/attempted:0};
 }
@@ -586,7 +584,7 @@ function adopt(sc){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGe
 /* ---------- viz ---------- */
 const COL={c:new THREE.Color(0xa6ff7a),l:new THREE.Color(0x6ec8ff),r:new THREE.Color(0xff9a6e),sel:new THREE.Color(0xffff55)};
 const sideCol=n=>/_L$|Left/.test(n)?COL.l:/_R$|Right/.test(n)?COL.r:COL.c;
-let boneLines=null,datum=null;
+let boneLines=null,datum=null;let showRigGuides=false,showIKGuides=false;
 /* every joint = node sphere; every bone = octahedral bone shape (parent -> child); ring + heading tick = ground datum under the root */
 function buildMarkers(){ovl.clear();S.markers=[];const h=S.h,B=S.joints.length,kidMin=S.joints.map(()=>Infinity);
  S.joints.forEach(j=>{if(j.parent>=0)kidMin[j.parent]=Math.min(kidMin[j.parent],j.pos.distanceTo(S.joints[j.parent].pos))});
@@ -597,10 +595,20 @@ function buildMarkers(){ovl.clear();S.markers=[];const h=S.h,B=S.joints.length,k
  const rr=h*.13,pts=[];for(let a=0;a<=48;a++)pts.push(V3(Math.cos(a/48*Math.PI*2)*rr,0,Math.sin(a/48*Math.PI*2)*rr));
  const dm=new THREE.LineBasicMaterial({color:0xa6ff7a,depthTest:false,transparent:true,opacity:.7});datum=new THREE.Group();
  datum.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),dm),new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([V3(-rr,0,0),V3(rr,0,0),V3(0,0,-rr),V3(0,0,rr),V3(0,0,rr),V3(rr*.2,0,rr*.7),V3(0,0,rr),V3(-rr*.2,0,rr*.7)]),dm));datum.renderOrder=18;ovl.add(datum);
- S.chains.forEach(c=>{ovl.add(c.target,c.pole)})}
+ S.chains.forEach(c=>{ovl.add(c.target,c.pole)});syncRigGuides()}
+function syncRigGuides(){
+ if(boneLines)boneLines.visible=showRigGuides;
+ if(datum)datum.visible=showRigGuides;
+ S.markers.forEach((m,i)=>m.visible=showRigGuides||i===S.sel);
+ S.chains.forEach(c=>{if(c.target)c.target.visible=showIKGuides;if(c.pole)c.pole.visible=showIKGuides});
+ $('viewRigOverlay')?.classList.toggle('on',showRigGuides);
+ $('viewIKOverlay')?.classList.toggle('on',showIKGuides);
+}
+$('viewRigOverlay').addEventListener('click',()=>{showRigGuides=!showRigGuides;syncRigGuides()});
+$('viewIKOverlay').addEventListener('click',()=>{showIKGuides=!showIKGuides;syncRigGuides()});
 const _w=V3(),_a=V3(),_b=V3(),_u=V3(),_n1=V3(),_n2=V3(),_ref=V3(),_mid=V3(),_cs=[V3(),V3(),V3(),V3()],_dq=Q(),_de=new THREE.Euler();
 function updateViz(){if(!S.bones.length||!boneLines)return;S.root.updateMatrixWorld(true);
- S.bones.forEach((b,i)=>{b.getWorldPosition(_w);S.markers[i].position.copy(_w);S.markers[i].material.color.copy(i===S.sel?COL.sel:sideCol(S.joints[i].name))});
+ S.bones.forEach((b,i)=>{b.getWorldPosition(_w);S.markers[i].position.copy(_w);S.markers[i].visible=showRigGuides||i===S.sel;S.markers[i].material.color.copy(i===S.sel?COL.sel:sideCol(S.joints[i].name))});
  const pa=boneLines.geometry.attributes.position,ca=boneLines.geometry.attributes.color,h=S.h;
  S.joints.forEach((j,i)=>{const o=i*24,c=i===S.sel?COL.sel:sideCol(j.name);for(let v=0;v<24;v++)ca.setXYZ(o+v,c.r,c.g,c.b);
   if(j.parent<0){for(let v=0;v<24;v++)pa.setXYZ(o+v,0,0,0);return}
