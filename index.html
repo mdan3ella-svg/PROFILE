@@ -123,7 +123,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
   </div>
 </div>
 
-<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported materials and textures may require separate handling. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
+<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported UVs, texture maps and material slots are retained during automatic rig generation; LookDev presets may override their appearance. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
@@ -361,7 +361,7 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat)m.dispose()}}})}S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function clearAll(){tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
 function makeBones(){
  // Normalize the joint table before creating a hierarchy. A malformed parent index,
  // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
@@ -424,7 +424,7 @@ function solveWeights(){
  S.W=W;applyWeights(true);updateColors()
 }
 function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
- const m=new THREE.SkinnedMesh(g,mat);m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
+ const m=new THREE.SkinnedMesh(g,rigMaterial());m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
 function buildCreatureJoints(type,bb,h,w){
  if(type==='humanoid')return buildJoints(h,w);
  const out=[],sz=bb.getSize(V3()),mn=bb.min,mx=bb.max;
@@ -509,6 +509,11 @@ function buildCreatureJoints(type,bb,h,w){
  add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
 }
 let rigSourceGeometry=null,rigSwitchBusy=false;
+let importedSurfaceMaterials=null;
+function releaseImportedMaterials(){if(importedSurfaceMaterials){for(const m of importedSurfaceMaterials){if(m?.userData?.profileOwned)m.dispose()}importedSurfaceMaterials=null}}
+function preserveMaterial(m){const c=m.clone();c.userData={...c.userData,profileOwned:true};c.vertexColors=false;c.needsUpdate=true;return c}
+function rigMaterial(){return importedSurfaceMaterials?.length?(importedSurfaceMaterials.length===1?importedSurfaceMaterials[0]:importedSurfaceMaterials):mat}
+
 function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight','color'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
 function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load or create a model first',1);return}
  rigSwitchBusy=true;
@@ -559,7 +564,7 @@ function updateViz(){if(!S.bones.length||!boneLines)return;S.root.updateMatrixWo
 function frameModel(){if(!S.root)return;const bb=new THREE.Box3().setFromObject(S.mesh||S.root);if(bb.isEmpty())return;const c=bb.getCenter(V3()),sz=bb.getSize(V3()),d=Math.max(sz.y*1.2,sz.x*.7,.5)*2.1;
  controls.target.copy(c);const dv=camera.position.clone().sub(c);if(dv.lengthSq()<1e-6)dv.set(.55,.2,.8);dv.normalize();camera.position.copy(c).addScaledVector(dv,d);camera.near=Math.max(.01,d/200);camera.far=d*40;camera.updateProjectionMatrix();scene.fog.near=d*2.5;scene.fog.far=d*7;controls.update()}
 function updateColors(list){if(!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B,n=list?list.length:S.N;for(let q=0;q<n;q++){const i=list?list[q]:q;const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
-function setWView(on){S.wview=on;const mm=S.mesh?S.mesh.material:mat;mm.vertexColors=on;mm.needsUpdate=true;$('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);updateColors()}
+function setWView(on){S.wview=on;const mm=S.mesh?S.mesh.material:mat;for(const m of (Array.isArray(mm)?mm:[mm])){m.vertexColors=on;m.needsUpdate=true;}$('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);updateColors()}
 
 /* ---------- IK ---------- */
 function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg_L','leg_L','foot_L',V3(0,0,.5),1],['upLeg_R','leg_R','foot_R',V3(0,0,.5),1],['arm_L','forearm_L','hand_L',V3(0,0,-.5),0],['arm_R','forearm_R','hand_R',V3(0,0,-.5),0],['foreLeg_L','foreShin_L','foreFoot_L',V3(0,0,.5),1],['foreLeg_R','foreShin_R','foreFoot_R',V3(0,0,.5),1],['rearLeg_L','rearShin_L','rearFoot_L',V3(0,0,-.5),1],['rearLeg_R','rearShin_R','rearFoot_R',V3(0,0,-.5),1]];
@@ -781,8 +786,8 @@ bind('btnAutoRig',()=>rig(),'onclick');
 function auditRig(){const problems=[],B=S.bones.length;if(!B){$('rigAuditOutput').textContent='No rig loaded';return}const seen=new Set();S.joints.forEach((j,i)=>{if(seen.has(j.name))problems.push('Duplicate joint '+j.name);seen.add(j.name);if(j.parent>=i||j.parent< -1)problems.push('Invalid hierarchy '+j.name);if(![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite))problems.push('Non-finite joint '+j.name)});const sw=S.geo?.attributes.skinWeight,si=S.geo?.attributes.skinIndex;if(!sw||!si)problems.push('Missing skin attributes');else for(let i=0;i<sw.count;i++){let total=0;for(let k=0;k<4;k++){const v=sw.getComponent(i,k),j=si.getComponent(i,k);if(!Number.isFinite(v)||v<0||j<0||j>=B){problems.push('Invalid skin data at vertex '+i);break}total+=v}if(Math.abs(total-1)>.03){problems.push('Weight normalization at vertex '+i);break}if(problems.length>12)break}for(const c of S.chains){if(!c.idx?.length||c.idx.some(i=>i<0||i>=B))problems.push('Invalid IK chain '+c.name);if(!c.target?.position?.toArray().every(Number.isFinite))problems.push('Invalid IK target '+c.name)}const skeletons=[];scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.push(o)});if(skeletons.length>1)problems.push('Multiple skinned meshes in scene: '+skeletons.length+' (may be valid imported parts)');const message=problems.length?'AUDIT: '+problems.slice(0,4).join(' • '):'AUDIT OK: '+B+' joints, '+S.N+' vertices, '+S.chains.length+' IK chains; hierarchy and weights checked';$('rigAuditOutput').textContent=message;say(message,problems.length?1:0)}
 $('btnRigAudit').addEventListener('click',auditRig);
 
-$('rigType').addEventListener('change',()=>{if(!S.geo&&!rigSourceGeometry){say('Preset selected — import a mesh or load the demo to build.');return}if(S.adopted&&!rigSourceGeometry){const g=mergeGeos([S.geo]);rememberRigSource(g);g.dispose()}rig();resetHistory();say('Rig preset switched: '+$('rigType').selectedOptions[0].text+' — previous skeleton, handles, IK and animation removed.')});
-bind('btnNew',()=>{if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
+$('rigType').addEventListener('change',()=>{if(!S.geo&&!rigSourceGeometry){say('Preset selected — import a mesh or load the demo to build.');return}if(S.adopted&&!rigSourceGeometry){const g=S.geo.clone();rememberRigSource(g);g.dispose();if(!importedSurfaceMaterials){const mats=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];importedSurfaceMaterials=mats.map(preserveMaterial)}}rig();resetHistory();say('Rig preset switched: '+$('rigType').selectedOptions[0].text+' — previous skeleton, handles, IK and animation removed.')});
+bind('btnNew',()=>{if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();releaseImportedMaterials();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
 bind('btnImport',()=>$('fileInput').click(),'onclick');bind('btnImport2',()=>$('fileInput').click(),'onclick');
 window.addEventListener('keydown',e=>{if(/INPUT|SELECT/.test(e.target.tagName)&&e.target.type!=='range')return;if(e.code==='Space'){e.preventDefault();$('btnPlay').click()}else if(e.key==='k'||e.key==='K')$('btnKey').click()});
 
@@ -860,8 +865,30 @@ async function loadFile(file,allFiles=[]){const ext=file.name.split('.').pop().t
   if(!adopt(gl.scene)){staticFrom(gl.scene);say('Model geometry imported. Build a rig to animate this static mesh.')}else{S.addons=gl.animations.map((c,i)=>({name:c.name||'Clip '+(i+1),clip:c}));evaluate();refresh();say('Imported skinned model — existing skeleton and weights kept');$('hudInfo').textContent=S.B+' bones • '+S.N+' verts (imported rig)'}
  }finally{urls.forEach(URL.revokeObjectURL)}
 }
-function staticFrom(o){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}o.updateMatrixWorld(true);const gs=[];o.traverse(m=>{if((m.isMesh||m.isSkinnedMesh)&&m.geometry){const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);['uv','uv1','color','tangent','skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));if(g.attributes.position?.count)gs.push(g)}});
- if(!gs.length)throw new Error('No usable mesh geometry found. The file may contain only cameras, lights or unsupported objects.');S.geo=mergeGeos(gs);S.adopted=false;rig()}
+function staticFrom(o){
+ releaseImportedMaterials();if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}
+ o.updateMatrixWorld(true);const gs=[],surfaces=[];
+ o.traverse(m=>{if(!(m.isMesh||m.isSkinnedMesh)||!m.geometry?.attributes?.position)return;
+  const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);
+  ['skinIndex','skinWeight','color'].forEach(n=>g.deleteAttribute(n));
+  const materials=Array.isArray(m.material)?m.material:[m.material];
+  const sourceGroups=g.groups.length?g.groups:[{start:0,count:g.index?g.index.count:g.attributes.position.count,materialIndex:0}];
+  const localMap=materials.map(mm=>{surfaces.push(preserveMaterial(mm||mat));return surfaces.length-1});
+  const gr=sourceGroups.map(q=>({start:q.start,count:q.count,materialIndex:localMap[q.materialIndex]??localMap[0]}));
+  gs.push({g,groups:gr});
+ });
+ if(!gs.length)throw new Error('No usable mesh geometry found.');
+ const attrs=['position','normal','uv','uv1','uv2','tangent'];const values={};for(const a of attrs)values[a]=[];
+ const indices=[],groups=[];let vertexOffset=0,indexOffset=0;
+ for(const {g,groups:gr} of gs){if(!g.attributes.normal)g.computeVertexNormals();const count=g.attributes.position.count;
+  for(const a of attrs){const at=g.attributes[a],components=a==='position'||a==='normal'?3:a==='tangent'?4:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):(a==='tangent'&&j===3?1:0))}
+  if(g.index){for(let i=0;i<g.index.count;i++)indices.push(g.index.getX(i)+vertexOffset)}else{for(let i=0;i<count;i++)indices.push(i+vertexOffset)}
+  for(const gr0 of gr)groups.push({start:indexOffset+gr0.start,count:gr0.count,materialIndex:gr0.materialIndex});
+  indexOffset+=g.index?.count??count;vertexOffset+=count;g.dispose();
+ }
+ const out=new THREE.BufferGeometry();for(const a of attrs)out.setAttribute(a,new THREE.Float32BufferAttribute(values[a],a==='position'||a==='normal'?3:a==='tangent'?4:2));out.setIndex(indices);for(const gr of groups)out.addGroup(gr.start,gr.count,gr.materialIndex);
+ importedSurfaceMaterials=surfaces;S.geo=out;S.adopted=false;rig();say('Imported '+surfaces.length+' material slots with UVs and textures retained');
+}
 $('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;const main=files.find(f=>/\.(glb|gltf|obj|fbx|json)$/i.test(f.name))||files[0];try{await loadFile(main,files)}catch(err){console.error('PROFILE import error:',err);say('Import failed: '+(err?.message||String(err)),1)}};
 
 function loadDemo(){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
