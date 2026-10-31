@@ -408,6 +408,38 @@ function bindPositions(){const m=S.mesh,sk=m&&m.skeleton;
 /* Automatic weights. A joint is the PIVOT of its bone, so each bone owns the segments from its joint OUT to its children (upper arm = arm->forearm belongs to `arm`; bending the elbow
    rotates `forearm` and must not touch the upper arm). End joints with no children own just their own point. A parent whose only child sits on top of it (wheel hub -> wheel) owns nothing,
    so the child bone gets that region alone. Weights = inverse distance to the owned segments, normalised against the nearest bone so the result does not depend on model scale. */
+/* Topology-aware rigid binding: connected triangles share a single bone when
+   their component is compact enough. This prevents hard-surface panels from
+   tearing at a joint. Unindexed geometry has no reliable shared-vertex graph. */
+function meshComponents(g){
+ const n=g.attributes.position.count,idx=g.index;if(!idx||n>1200000)return null;
+ const parent=new Int32Array(n);for(let i=0;i<n;i++)parent[i]=i;
+ const find=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i]}return i};
+ const join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[b]=a};
+ for(let i=0;i+2<idx.count;i+=3){const a=idx.getX(i),b=idx.getX(i+1),c=idx.getX(i+2);if(a<n&&b<n&&c<n){join(a,b);join(a,c)}}
+ const groups=new Map();for(let i=0;i<n;i++){const k=find(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i)}
+ return [...groups.values()];
+}
+function rigidifyComponents(W,JP,SG){
+ const groups=meshComponents(S.geo);if(!groups)return {groups:0,rigid:0,skipped:0};
+ const pos=S.geo.attributes.position,B=S.B,scale=Math.max(S.h,1e-5);
+ let rigid=0,skipped=0;
+ for(const group of groups){if(group.length<3){skipped++;continue}
+  let minx=Infinity,miny=Infinity,minz=Infinity,maxx=-Infinity,maxy=-Infinity,maxz=-Infinity,cx=0,cy=0,cz=0;
+  for(const i of group){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);cx+=x;cy+=y;cz+=z;minx=Math.min(minx,x);miny=Math.min(miny,y);minz=Math.min(minz,z);maxx=Math.max(maxx,x);maxy=Math.max(maxy,y);maxz=Math.max(maxz,z)}
+  // Do not force an entire connected character/large assembly onto one bone.
+  if(Math.hypot(maxx-minx,maxy-miny,maxz-minz)>scale*.28){skipped++;continue}
+  cx/=group.length;cy/=group.length;cz/=group.length;
+  let best=-1,dist=Infinity;
+  for(let s=0;s<SG.length;s+=7){const j=SG[s],ax=SG[s+1],ay=SG[s+2],az=SG[s+3],dx=SG[s+4]-ax,dy=SG[s+5]-ay,dz=SG[s+6]-az;
+   const l=dx*dx+dy*dy+dz*dz,u=l>1e-15?THREE.MathUtils.clamp(((cx-ax)*dx+(cy-ay)*dy+(cz-az)*dz)/l,0,1):0;
+   const d=(cx-ax-u*dx)**2+(cy-ay-u*dy)**2+(cz-az-u*dz)**2;
+   if(d<dist){dist=d;best=j}}
+  if(best<0){skipped++;continue}
+  for(const i of group){W.fill(0,i*B,i*B+B);W[i*B+best]=1}rigid++;
+ }
+ return {groups:groups.length,rigid,skipped};
+}
 function computeAutoWeights(){
  const {N,B}=S,pos=S.geo.attributes.position,JP=bindPositions(),p=Math.max(1,Math.min(8,Number(S.falloff)||4)),half=p*.5;
  const deform=[];for(let j=0;j<B;j++)if(!/^root$/i.test(S.joints[j].name))deform.push(j);
@@ -427,11 +459,12 @@ function computeAutoWeights(){
   let sum=0;for(const j of deform){if(dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*16,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
   if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
   for(const j of deform)W[i*B+j]/=sum}
+ if(S.rigType==='mecha'||S.rigType==='vehicle'||S.rigType==='scorpion'){S.componentBinding=rigidifyComponents(W,JP,SG)}else S.componentBinding=null;
  return W}
 function solveWeights(){
  if(!S.geo?.attributes?.position||!S.joints.length){say('Cannot solve weights: mesh or skeleton is missing',1);return}
  const W=computeAutoWeights();if(!W){say('Cannot solve weights: skeleton has no deforming joints',1);return}
- S.W=W;applyWeights(true);updateColors()
+ S.W=W;applyWeights(true);updateColors();if(S.componentBinding)say('Topology binding: '+S.componentBinding.rigid+' rigid components; '+S.componentBinding.skipped+' retained per-vertex')
 }
 function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
  const m=new THREE.SkinnedMesh(g,rigMaterial());m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);m.bind(new THREE.Skeleton(S.bones));S.mesh=S.root=m}
