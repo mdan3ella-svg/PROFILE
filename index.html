@@ -163,7 +163,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
     </div>
     <div class="panel" id="panel-rig">
       <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
-        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRoundTrip" title="Export to memory and reimport to check geometry, skin weights and inverse binds">↻ VERIFY GLB ROUND-TRIP</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit verifies neutral-pose inverse bind matrices, weights, hierarchy and IK. Auto IK is OFF until enabled. Geometry fitting is approximate; inspect deformations before export.</div>
+        <div class="group" style="margin-bottom:9px;border:1px solid #42677a;border-radius:8px;padding:8px"><div class="gh">FRONT POSE STUDIO · EDITABLE</div><div class="gb"><div class="row" style="flex-wrap:wrap;gap:5px"><button class="btn" id="poseT">T-POSE</button><button class="btn" id="poseA">A-POSE</button><button class="btn" id="poseAccessory">ACCESSORY</button></div><label class="label" for="poseAngle">A-pose arm drop <span id="poseAngleValue">45°</span></label><input type="range" id="poseAngle" min="15" max="75" value="45" step="5"><div class="row"><button class="btn" id="poseReweight" title="Recompute skin weights using original neutral bind geometry, not a deformed pose">RECALIBRATE WEIGHTS</button><button class="btn" id="poseFront">FRONT VIEW</button></div><div class="label">Pose presets rotate the existing rig without changing its bind pose. Accessories attach to hand bones and export with the rig. Adjust FK and keyframe after applying.</div><div id="poseStatus" role="status" style="font-size:10px;color:#9bc5d8">Build or import a humanoid rig to enable presets.</div></div></div><button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRoundTrip" title="Export to memory and reimport to check geometry, skin weights and inverse binds">↻ VERIFY GLB ROUND-TRIP</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit verifies neutral-pose inverse bind matrices, weights, hierarchy and IK. Auto IK is OFF until enabled. Geometry fitting is approximate; inspect deformations before export.</div>
         <label class="label" for="rigType">Rig preset · switches rebuild the active skeleton</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
@@ -456,6 +456,19 @@ function computeAutoWeights(){
   for(const k of ks)if(a.distanceTo(JP[k])>tiny){list.push(j,a.x,a.y,a.z,JP[k].x,JP[k].y,JP[k].z);n++}
   if(!n)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
  const modelSpecific=detectBaseBasic(S.geo);
+ // Strictly identify outer-arm vertices by their distance from the fitted arm
+ // segments, not by a fixed world-space X threshold alone. Torso/hip vertices
+ // must never be captured just because the model is unusually broad.
+ const armRegions=[];
+ if(modelSpecific){
+  for(const side of ['L','R']){
+   const ids=['arm_','forearm_','hand_'].map(n=>S.idx[n+side]);
+   if(ids.every(j=>j!==undefined)){
+    const shoulder=JP[ids[0]],elbow=JP[ids[1]],wrist=JP[ids[2]];
+    armRegions.push({side,ids,shoulder,elbow,wrist});
+   }
+  }
+ }
  const weightBounds=bbox(S.geo),weightMinY=weightBounds.min.y;
  const SG=Float64Array.from(list),nS=SG.length/7;if(!nS)return null;const dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
  for(let i=0;i<N;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
@@ -471,13 +484,27 @@ function computeAutoWeights(){
    const armZone=yy>=.45&&yy<=.865&&ax>armBoundary;
    const legZone=yy<.49&&ax>.045&&ax<.32;
    if(armZone){
-    const chain=['clavicle_'+side,'arm_'+side,'forearm_'+side,'hand_'+side]
-      .map(n=>S.idx[n]).filter(j=>j!==undefined);
-    if(chain.length){
-     let best=chain[0],bestDist=Infinity;
-     for(const j of chain){const q=JP[j],d=(x-q.x)**2+(y-q.y)**2+(z-q.z)**2;
-      if(d<bestDist){bestDist=d;best=j}}
-     W[i*B+best]=1;continue;
+    const region=armRegions.find(r=>r.side===side);
+    if(region){
+     // Use the actual fitted upper-arm and forearm segments. Each vertex
+     // belongs to the closest anatomical limb section, never the center root.
+     const segDist=(a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
+      const len=dx*dx+dy*dy+dz*dz;
+      const t=len>1e-12?THREE.MathUtils.clamp(((x-a.x)*dx+(y-a.y)*dy+(z-a.z)*dz)/len,0,1):0;
+      return (x-a.x-t*dx)**2+(y-a.y-t*dy)**2+(z-a.z-t*dz)**2};
+     const dUpper=segDist(region.shoulder,region.elbow);
+     const dLower=segDist(region.elbow,region.wrist);
+     const dHand=(x-region.wrist.x)**2+(y-region.wrist.y)**2+(z-region.wrist.z)**2;
+     const radius=(S.h*.17)**2;
+     if(Math.min(dUpper,dLower,dHand)<radius){
+      const upper=region.ids[0],lower=region.ids[1],hand=region.ids[2];
+      const best=dUpper<dLower?(dUpper<dHand?upper:hand):(dLower<dHand?lower:hand);
+      // Soft transition only between anatomically adjacent arm bones.
+      const vals=[[upper,1/(dUpper+eps2)],[lower,1/(dLower+eps2)],[hand,.45/(dHand+eps2)]];
+      const total=vals.reduce((sum,v)=>sum+v[1],0);
+      for(const [j,v] of vals)W[i*B+j]=v/total;
+      continue;
+     }
     }
    }
    if(legZone){const name=yy>.30?'upLeg_':yy>.095?'leg_':'foot_',target=S.idx[name+side];
@@ -511,7 +538,7 @@ function solveWeights(){
    }
   }
   S.armBindDiagnostics={vertices:arms,wrongSideInfluences:wrong,rootInfluences:root};
-  $('rigAuditOutput').textContent='BASE BASIC ARM BIND: '+arms+' lateral arm vertices; '+root+' root/hips influences; '+wrong+' opposite-side influences. Inspect shoulder deformation before export.';
+  $('rigAuditOutput').textContent='ARM SEGMENT BIND: '+arms+' lateral arm vertices; '+root+' root/hips influences; '+wrong+' opposite-side influences. Inspect shoulder deformation before export.';
   if(!arms||wrong||root)say('Arm binding diagnostic requires review: '+arms+' arm vertices, '+root+' root, '+wrong+' opposite-side',1);
  }
  if(S.componentBinding)say('Topology binding: '+S.componentBinding.rigid+' rigid components; '+S.componentBinding.skipped+' retained per-vertex')
@@ -1091,6 +1118,38 @@ async function verifyGLBRoundTrip(){
  }catch(err){$('rigAuditOutput').textContent='ROUND-TRIP FAILED: '+(err?.message||String(err));say('Round-trip failed',1)}
  finally{S.fk.forEach((q,i)=>q.copy(oldQ[i]));S.hipsOff.copy(oldH);S.src=src;applyPose();S.root.updateMatrixWorld(true)}
 }
+
+/* Front pose studio: pose-only controls; never recalculate inverse binds on a deformed mesh. */
+const profileAccessories=[];
+function profileClearAccessories(){for(const o of profileAccessories.splice(0)){o.parent?.remove(o);o.geometry?.dispose();o.material?.dispose()}}
+function profileArmIndex(side){for(const n of ['arm_'+side,'upperArm_'+side,'upper_arm_'+side]){const i=J(n);if(i!==undefined)return i}return -1}
+function profileChildIndex(i){const bone=S.bones[i];const candidates=['forearm','elbow','lowerArm'];const child=bone?.children.find(o=>o.isBone&&candidates.some(n=>o.name.toLowerCase().includes(n.toLowerCase())));return child?S.bones.indexOf(child):S.joints.findIndex(j=>j.parent===i)}
+function profileAlignArm(side,dropDegrees){const i=profileArmIndex(side);if(i<0)return false;const ci=profileChildIndex(i);if(ci<0)return false;
+ S.root.updateMatrixWorld(true);const b=S.bones[i],c=S.bones[ci];const from=c.getWorldPosition(V3()).sub(b.getWorldPosition(V3())).normalize();
+ const sign=side==='L'?-1:1;const target=V3(sign*Math.cos(dropDegrees*Math.PI/180),-Math.sin(dropDegrees*Math.PI/180),0).normalize();
+ if(from.lengthSq()<.1)return false;
+ const delta=Q().setFromUnitVectors(from,target);const world=b.getWorldQuaternion(Q());const parentWorld=b.parent.getWorldQuaternion(Q());const wanted=parentWorld.invert().multiply(delta.multiply(world)).normalize();S.fk[i].copy(wanted);applyPose();S.root.updateMatrixWorld(true);return true;
+}
+function profileSetPose(kind){if(!S.bones.length||!S.mesh){say('Build or import a rig before selecting a pose',1);return}
+ S.playing=false;S.src='pose';S.chains.forEach(c=>c.on=false);S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+ const drop=kind==='T'?0:Number($('poseAngle').value||45);let count=0;for(const side of ['L','R'])if(profileAlignArm(side,drop))count++;
+ profileClearAccessories();if(kind==='Accessory')profileAddAccessories();evaluate();syncSliders();
+ const msg=count===2?`${kind} front pose applied to both arms; edit with FK, then keyframe or export.`:`${kind} pose: ${count}/2 arms aligned. Check bone names and anatomical joint fit.`;
+ $('poseStatus').textContent=msg;say(msg,count===2?0:1);
+}
+function profileAddAccessories(){const material=new THREE.MeshStandardMaterial({color:0x547b8e,metalness:.65,roughness:.35});let added=0;
+ for(const side of ['L','R']){const name=['hand_'+side,'wrist_'+side];const i=name.map(J).find(x=>x!==undefined);if(i===undefined)continue;
+ const bone=S.bones[i];const size=Math.max(.018,(S.h||1.8)*.025);const geom=new THREE.BoxGeometry(size*1.8,size*.8,size*2.5);const mesh=new THREE.Mesh(geom,material.clone());mesh.name='PROFILE_Accessory_Gauntlet_'+side;mesh.position.set(0,size*.3,0);mesh.castShadow=true;bone.add(mesh);profileAccessories.push(mesh);added++;
+ }if(!added)say('Accessory pose requires hand bones; no accessory was attached',1);
+}
+for(const [id,kind] of [['poseT','T'],['poseA','A'],['poseAccessory','Accessory']])$(id).addEventListener('click',()=>profileSetPose(kind));
+$('poseAngle').addEventListener('input',()=>{$('poseAngleValue').textContent=$('poseAngle').value+'°'});
+$('poseReweight').addEventListener('click',()=>{if(!S.mesh||!S.bones.length){say('Build a rig first',1);return}if(S.adopted){say('Imported rig weights are preserved; use the skin editor for imported skeletons',1);return}
+ const old=S.fk.map(q=>q.clone()),off=S.hipsOff.clone();S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+ try{solveWeights();$('poseStatus').textContent='Skin weights recalculated in the original neutral bind pose; pose restored. Inspect shoulders and elbows.';say('Neutral bind weights recalculated')}catch(e){say('Weight recalibration failed: '+e.message,1)}finally{S.fk.forEach((q,i)=>q.copy(old[i]));S.hipsOff.copy(off);applyPose();evaluate()}
+});
+$('poseFront').addEventListener('click',()=>{const h=S.h||1.8;const center=S.mesh?S.mesh.getWorldPosition(V3()).add(V3(0,h*.5,0)):V3(0,h*.5,0);controls.target.copy(center);camera.position.copy(center).add(V3(0,0,h*2.2));camera.lookAt(center);controls.update();say('Front orthographic-aligned camera')});
+
 $('btnRoundTrip').addEventListener('click',verifyGLBRoundTrip);
 function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const check=rigPreflight();const bindCheck=checkNeutralBind();if(bindCheck.issues.length){say('Export blocked: neutral bind matrices inconsistent',1);$('rigAuditOutput').textContent='BIND MATRIX ERRORS: '+bindCheck.issues.join(' • ');return}if(check.errors.length){say('Export blocked: '+check.errors.slice(0,2).join('; '),1);$('rigAuditOutput').textContent='EXPORT BLOCKED: '+check.errors.join(' • ');return}if(check.warnings.length&&!confirm(check.warnings.join('\n')+'\nExport anyway?'))return;if(S.geometryFit&&S.geometryFit.confidence<.65&&['humanoid','mecha'].includes(S.rigType)){if(!confirm('Rig geometry fit is low confidence. Inspect and correct joint placement before exporting. Export anyway?'))return;}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
