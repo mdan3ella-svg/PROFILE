@@ -172,7 +172,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
-        <label class="label" title="For arm and clavicle joints, interpret the X slider as a mirrored anatomical arm raise/lower rather than twisting around the bone length."><span>ANATOMICAL ARM LIFT</span><input id="anatomicalArmX" type="checkbox" checked aria-label="Anatomical arm lifting for X slider" style="width:auto"/></label><div class="label" id="rotXLabel"><span>Rot X / Arm lift</span><span id="vRx">0</span></div><input type="range" id="rx" min="-180" max="180" step="1" value="0"/>
+        <label class="label" title="Convert FK X to a stable world-space anatomical rotation, not axial bone twist."><span>ANATOMICAL ARM AXIS</span><input id="anatomicalArmX" type="checkbox" checked aria-label="Anatomical arm axis" style="width:auto"/></label><label class="label">ARM X MOTION <select id="armMotionMode" aria-label="Arm X motion"><option value="lift">Raise / lower (side)</option><option value="swing">Swing forward / back</option></select></label><div class="label" id="rotXLabel"><span>Rot X / Arm lift</span><span id="vRx">0</span></div><input type="range" id="rx" min="-180" max="180" step="1" value="0"/>
         <div class="label"><span>Rot Y</span><span id="vRy">0</span></div><input type="range" id="ry" min="-180" max="180" step="1" value="0"/>
         <div class="label"><span>Rot Z</span><span id="vRz">0</span></div><input type="range" id="rz" min="-180" max="180" step="1" value="0"/>
         <div class="row"><button class="btn" id="btnResetBone">Reset bone</button><button class="btn" id="btnResetPose">Reset pose</button></div>
@@ -373,7 +373,7 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){S.travelElapsed=0;if(typeof profileClearAccessories==='function')profileClearAccessories();tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();boneLines=null;datum=null;gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.armLift.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if($('poseStatus'))$('poseStatus').textContent='Import a model and build a rig to enable presets.';if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function clearAll(){S.travelElapsed=0;if(typeof profileClearAccessories==='function')profileClearAccessories();tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();boneLines=null;datum=null;gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.armLift.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.wview=false;S.originalWeightMaterial=null;S.originalWeightColors=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if($('poseStatus'))$('poseStatus').textContent='Import a model and build a rig to enable presets.';if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
 function makeBones(){
  // Normalize the joint table before creating a hierarchy. A malformed parent index,
  // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
@@ -612,7 +612,7 @@ async function computeAutoWeights(){
  return W}
 async function solveWeights(){
  if(!S.geo?.attributes?.position||!S.joints.length){say('Cannot solve weights: mesh or skeleton is missing',1);return}
- const W=await computeAutoWeights();if(!W){say('Cannot solve weights: skeleton has no deforming joints',1);return}
+ const W=await computeAutoWeights();if(!W)throw new Error('Auto-bind could not produce deforming joint weights')
  S.W=W;const report=$('materialRegionReport');if(report&&S.materialSegmentation)report.textContent='Material regions: '+Object.entries(S.materialSegmentation.distribution).map(([k,v])=>k+' '+v.toLocaleString()+' vertices').join(' · ')+' ('+S.materialSegmentation.groups+' primitive groups)';setRigStage('uploading skin attributes');await new Promise(r=>setTimeout(r,0));applyWeights(true);updateColors();
  // Hard invariant: weights must be finite, normalized, and indices valid before any pose or export.
  if(rigCancelRequested)throw new Error('Auto-bind cancelled by user');const audit=rigPreflight();if(audit.errors.length)throw new Error('Skin binding invalid: '+audit.errors.join('; '));
@@ -635,7 +635,7 @@ async function solveWeights(){
  }
  if(S.componentBinding)say('Topology binding: '+S.componentBinding.rigid+' rigid components; '+S.componentBinding.skipped+' retained per-vertex')
 }
-function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));if(!g.getAttribute('color'))g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
+function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));/* No artificial vertex color channel: preserve the imported GLB's PBR color semantics. */
  const m=new THREE.SkinnedMesh(g,rigMaterial());m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();m.bind(skeleton,m.matrixWorld.clone());m.updateMatrixWorld(true);S.mesh=S.root=m}
 function buildCreatureJoints(type,bb,h,w){
  if(type==='humanoid')return buildJoints(h,w);
@@ -894,7 +894,7 @@ async function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say(
  S.geo.computeBoundingSphere();S.geo.computeBoundingBox();
  autoChains();
  S.contactDatum=null;S.root.updateMatrixWorld(true);{const feet=profileFootEndpoints();if(feet.length)S.contactDatum={mesh:S.mesh,y:Math.min(...feet.map(b=>b.getWorldPosition(V3()).y))};}
- buildMarkers();evaluate();const neutralCheck=checkNeutralBind();if(neutralCheck.issues.length){$('rigAuditOutput').textContent='BIND TRANSFORM ERROR: '+neutralCheck.issues.join(' • ');say('Neutral bind matrix verification failed; inspect Rig Audit',1)}refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry fit: '+fitResult.fitted+' joints; '+Math.round(fitResult.confidence*100)+'% '+(fitResult.metric||'sampling coverage')+' (heuristic, not anatomical confidence). Inspect front and side views.');say(type==='scorpion'?'Scorpion leg landmarks from mesh: '+(S.scorpionFit?.fittedLegs||0)+'/6 stations; unresolved: '+(S.scorpionFit?.unresolved?.join(', ')||'none')+'. Tail fit: '+S.tailFitStatus+'. Verify actual components before animation.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.');bindSucceeded=true;}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));
+ buildMarkers();S.src='pose';S.playing=false;S.frame=0;S.fk.forEach((q,i)=>q.copy(S.restQ[i]));applyPose();evaluate();const neutralCheck=checkNeutralBind();if(neutralCheck.issues.length){$('rigAuditOutput').textContent='BIND TRANSFORM ERROR: '+neutralCheck.issues.join(' • ');say('Neutral bind matrix verification failed; inspect Rig Audit',1)}refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry fit: '+fitResult.fitted+' joints; '+Math.round(fitResult.confidence*100)+'% '+(fitResult.metric||'sampling coverage')+' (heuristic, not anatomical confidence). Inspect front and side views.');say(type==='scorpion'?'Scorpion leg landmarks from mesh: '+(S.scorpionFit?.fittedLegs||0)+'/6 stations; unresolved: '+(S.scorpionFit?.unresolved?.join(', ')||'none')+'. Tail fit: '+S.tailFitStatus+'. Verify actual components before animation.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.');bindSucceeded=true;}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));
  // Failure must never leave the scene blank: recover the original unskinned source.
  if(!bindSucceeded){
   if(bindPreview){scene.remove(bindPreview);bindPreview.geometry.dispose();bindPreview=null;}
@@ -952,8 +952,28 @@ function updateViz(){if(!S.bones.length||!boneLines)return;S.root.updateMatrixWo
  const r0=S.markers[0].position;S.bones[0].getWorldQuaternion(_dq);_de.setFromQuaternion(_dq,'YXZ');datum.position.set(r0.x,.004,r0.z);datum.rotation.set(0,_de.y,0)}
 function frameModel(){if(!S.root)return;const bb=new THREE.Box3().setFromObject(S.mesh||S.root);if(bb.isEmpty())return;const c=bb.getCenter(V3()),sz=bb.getSize(V3()),d=Math.max(sz.y*1.2,sz.x*.7,.5)*2.1;
  controls.target.copy(c);const dv=camera.position.clone().sub(c);if(dv.lengthSq()<1e-6)dv.set(.55,.2,.8);dv.normalize();camera.position.copy(c).addScaledVector(dv,d);camera.near=Math.max(.01,d/200);camera.far=d*40;camera.updateProjectionMatrix();scene.fog.near=d*2.5;scene.fog.far=d*7;controls.update()}
-function updateColors(list){if(!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B,n=list?list.length:S.N;for(let q=0;q<n;q++){const i=list?list[q]:q;const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
-function setWView(on){S.wview=on;const mm=S.mesh?S.mesh.material:mat;for(const m of (Array.isArray(mm)?mm:[mm])){m.vertexColors=on;m.needsUpdate=true;}$('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);updateColors()}
+function updateColors(list){if(!S.wview||!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B,n=list?list.length:S.N;for(let q=0;q<n;q++){const i=list?list[q]:q;const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
+function setWView(on){
+ if(!S.mesh)return;
+ if(on===S.wview)return;
+ if(on){
+  S.originalWeightMaterial=S.mesh.material;
+  S.originalWeightColors=S.geo.getAttribute('color')?.clone()||null;
+  const ms=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];
+  const preview=ms.map(m=>{const c=m.clone();c.vertexColors=true;c.needsUpdate=true;return c});
+  S.mesh.material=Array.isArray(S.mesh.material)?preview:preview[0];
+  if(!S.geo.getAttribute('color'))S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
+  S.wview=true;updateColors();
+ }else{
+  const ms=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];
+  S.mesh.material=S.originalWeightMaterial||S.mesh.material;
+  ms.forEach(m=>{if(m!==S.mesh.material&&m.dispose)m.dispose()});
+  if(S.originalWeightColors)S.geo.setAttribute('color',S.originalWeightColors);
+  else S.geo.deleteAttribute('color');
+  S.originalWeightMaterial=null;S.originalWeightColors=null;S.wview=false;
+ }
+ $('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);
+}
 
 /* ---------- IK ---------- */
 function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg_L','leg_L','foot_L',V3(0,0,.5),1],['upLeg_R','leg_R','foot_R',V3(0,0,.5),1],['arm_L','forearm_L','hand_L',V3(0,0,-.5),0],['arm_R','forearm_R','hand_R',V3(0,0,-.5),0],['foreLeg_L','foreShin_L','foreFoot_L',V3(0,0,.5),1],['foreLeg_R','foreShin_R','foreFoot_R',V3(0,0,.5),1],['rearLeg_L','rearShin_L','rearFoot_L',V3(0,0,-.5),1],['rearLeg_R','rearShin_R','rearFoot_R',V3(0,0,-.5),1]];
@@ -1227,18 +1247,31 @@ const deg=r=>Math.round(r*180/Math.PI);
 // needs shoulder elevation around its front/back axis, not a twist about its own length.
 function isArmLiftJoint(i){return i>=0&&/^(?:arm|clavicle|shoulder)_[LR]$/.test(S.joints[i]?.name||'')}
 function setAnatomicalArmLift(i,degrees){
- const bone=S.bones[i], side=/_L$/.test(bone.name)?1:-1;
- if(!bone||!S.fk[i])return;
- const previous=S.armLift.get(i)||0, delta=(degrees-previous)*Math.PI/180;
- if(Math.abs(delta)<1e-10)return;
- // World-space Z is the T-pose elevation axis (Y is up). Convert to the parent's
- // bone-local rotation coordinate; mirrored sign elevates either arm equally.
+ const bone=S.bones[i];if(!bone||!S.fk[i]||!S.joints[i])return;
+ // Recalculate from REST each time. Delta rotation on a live hierarchy drifts as
+ // parents move and incorrectly interprets shoulder motion as axial roll.
+ const tag=S.joints[i].name, side=/_L$/.test(tag)?1:-1;
+ const anchor=S.joints[i].pos;
+ const nextName=tag.startsWith('clavicle_')?'arm_':tag.startsWith('arm_')?'forearm_':'forearm_';
+ const childIndex=S.idx[nextName+(side===1?'L':'R')];
+ let direction=childIndex!==undefined?S.joints[childIndex].pos.clone().sub(anchor):V3(side,0,0);
+ if(direction.lengthSq()<1e-9)direction.set(side,0,0);
+ direction.normalize();
+ const mode=$('armMotionMode')?.value||'lift';
+ // The target displacement, not a guessed Euler channel, defines the axis.
+ const desired=mode==='lift'?V3(0,1,0):profileFacingVector();
+ let axis=direction.clone().cross(desired);
+ if(axis.lengthSq()<1e-8)axis=mode==='lift'?profileFacingVector():V3(0,1,0);
+ axis.normalize();
+ // Rotate in the coordinate system of the parent's neutral pose. Current parent
+ // transforms must not cause changes when the slider is revisited.
+ const parent=bone.parent, parentWorld=new THREE.Quaternion();
  S.root?.updateMatrixWorld(true);
- const parentQ=new THREE.Quaternion();if(bone.parent)bone.parent.getWorldQuaternion(parentQ);
- const front=profileFacing();const worldAxis=front.endsWith('X')?V3(1,0,0):V3(0,0,1);
- const localAxis=worldAxis.applyQuaternion(parentQ.invert()).normalize();
- const raise=new THREE.Quaternion().setFromAxisAngle(localAxis,delta*side);
- S.fk[i].premultiply(raise).normalize();S.armLift.set(i,degrees);
+ if(parent)parent.getWorldQuaternion(parentWorld);
+ const localAxis=axis.applyQuaternion(parentWorld.invert()).normalize();
+ const sign=1; // cross(direction, target) already mirrors left/right correctly
+ S.fk[i].copy(new THREE.Quaternion().setFromAxisAngle(localAxis,degrees*Math.PI/180*sign).multiply(S.restQ[i])).normalize();
+ S.armLift.set(i,degrees);
 }
 function syncSliders(){const i=S.sel;const nm=i>=0?dn(S.joints[i].name):'none';$('selName').textContent=$('activeBone').textContent=$('hudBone').textContent=nm;
  if(i>=0&&S.fk[i]){const e=new THREE.Euler().setFromQuaternion(S.fk[i]);[['rx',e.x],['ry',e.y],['rz',e.z]].forEach(([id,v])=>{const value=id==='rx'&&$('anatomicalArmX')?.checked&&isArmLiftJoint(i)?(S.armLift.get(i)||0):deg(v);$(id).value=value;$('v'+id.slice(0,1).toUpperCase()+id.slice(1)).textContent=Math.round(value)})}}
@@ -1265,7 +1298,8 @@ S.spineCount=5;bind('spineCount',e=>{S.spineCount=+e.target.value;$('vSpine').te
  ['rx','ry','rz'].forEach(k=>$('v'+k[0].toUpperCase()+k[1]).textContent=$(k).value);
  applyPose();S.root?.updateMatrixWorld(true);
 }));
-bind('anatomicalArmX',()=>{if(S.sel>=0)syncSliders();say($('anatomicalArmX').checked?'Anatomical arm lift enabled: X raises/lowers arms symmetrically.':'Local Euler rotation enabled.');},'onchange');
+bind('armMotionMode',()=>{S.armLift.clear();if(S.sel>=0)syncSliders();say('Arm X motion: '+$('armMotionMode').selectedOptions[0].textContent);},'onchange');
+bind('anatomicalArmX',()=>{if(S.sel>=0)syncSliders();say($('anatomicalArmX').checked?'Anatomical arm mode enabled: X uses measured shoulder direction and selected motion.':'Local Euler rotation enabled.');},'onchange');
 bind('gRot',()=>{$('gRot').classList.add('on');$('gMove').classList.remove('on');tc.setMode('rotate');setTool('fk')},'onclick');
 bind('gMove',()=>{$('gMove').classList.add('on');$('gRot').classList.remove('on');if(S.sel!==S.H)selectBone(S.H);tc.setMode('translate');setTool('fk')},'onclick');
 bind('btnResetBone',()=>{if(S.sel<0)return;toPose();S.fk[S.sel].copy(S.restQ[S.sel]);if(S.sel===S.H)S.hipsOff.set(0,0,0);syncSliders()},'onclick');
