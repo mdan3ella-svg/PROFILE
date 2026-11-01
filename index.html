@@ -222,7 +222,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
 </div>
 <div class="timeline"><div class="th"><span class="mono">FRAME <span id="frameLabel">0</span>/<span id="maxLabel">120</span> • <span id="timeLabel">0.00s</span></span><div style="flex:1"></div>
   <div class="tltools"><button class="btn" id="btnGraph" title="Switch between keyframe timeline and editable animation curves">GRAPH EDITOR</button><select id="interpMode" aria-label="Keyframe interpolation" title="Interpolation used between keyframes"><option value="linear">Linear</option><option value="bezier" selected>Smooth S-Curve</option><option value="easeIn">Ease In</option><option value="easeOut">Ease Out</option><option value="easeInOut">Ease In-Out</option><option value="step">Constant / Step</option></select><select id="graphChannel" aria-label="Graph channel" title="Curve channel to inspect and edit"><option value="hipsY">Hips • Y</option><option value="boneX">Selected Bone • Rot X</option></select><button class="btn" id="btnKey" title="Insert a keyframe at the current frame">◆ KEY</button><button class="btn" id="btnDelKey" title="Delete a keyframe at the current frame">DEL KEY</button><button class="btn" id="btnClearKeys" title="Remove all keyframes">CLEAR</button><button class="btn on" id="btnLoop" title="Toggle playback looping">LOOP ON</button></div></div>
-  <div class="timeline-extended" aria-label="Extended animation controls"><label>CLIP <input id="clipFrames" type="number" min="1" max="216000" step="30" value="120" title="Total frames, up to two hours at 30 fps"></label><button class="btn" id="setClipLength" title="Apply clip duration without deleting existing keys">SET LENGTH</button><label>FPS <select id="clipFPS"><option>24</option><option selected>30</option><option>60</option></select></label><label>RATE <select id="playRate"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><button class="btn" id="goStart" title="Go to first frame">|◀</button><button class="btn" id="prevKey" title="Previous keyframe">◀◆</button><button class="btn" id="nextKey" title="Next keyframe">◆▶</button><button class="btn" id="goEnd" title="Go to last frame">▶|</button><label>GO <input id="gotoFrame" type="number" min="0" value="0" title="Jump to frame"></label><button class="btn" id="jumpFrame">GO</button><button class="btn" id="copyKey" title="Copy keyframe at playhead">COPY KEY</button><button class="btn" id="pasteKey" title="Paste copied keyframe at playhead">PASTE KEY</button><button class="btn" id="shiftKeys" title="Shift all keys from playhead onward by the offset">SHIFT KEYS</button><input id="keyShift" type="number" value="30" step="1" title="Frames to offset keys"><label>ZOOM <input id="timelineZoom" type="range" min="1" max="100" value="20" title="Timeline horizontal zoom"></label><button class="btn" id="timelineFit" title="Fit entire clip in timeline">FIT ALL</button><label>SCROLL <input id="timelineScroll" type="range" min="0" max="0" value="0" title="Pan timeline through long animation"></label><span id="timelineWindow" class="mono">0–120</span></div><div class="tc"><canvas id="tl" aria-label="Animation keyframe timeline"></canvas><canvas id="graphCanvas" aria-label="Editable animation curve graph"></canvas></div></div>
+  <div class="timeline-extended" id="smartMotionControls" aria-label="Smart animation recorder and motion tools"><button class="btn" id="smartRecord" aria-pressed="false">● AUTO KEY OFF</button><label>KEY MODE <select id="smartKeyMode"><option value="changed">Changed joint + pose snapshot</option><option value="all">Full rig pose</option></select></label><label>SCRIPT <select id="smartScript"><option value="bounce">Bounce / squash anticipation</option><option value="cycle">Seamless motion cycle</option><option value="sway">Body sway</option><option value="pulse">Breathing / idle pulse</option></select></label><label>AMPLITUDE <input type="range" id="smartAmp" min="0.05" max="1" step="0.05" value="0.3"></label><label>CYCLES <input id="smartCycles" type="number" min="1" max="12" value="2"></label><button class="btn" id="smartGenerate">GENERATE KEYS</button><button class="btn" id="smartAudit">AUDIT ANIMATION</button><span id="smartStatus" class="mono" role="status" aria-live="polite">Auto key disabled</span></div><div class="timeline-extended" aria-label="Extended animation controls"><label>CLIP <input id="clipFrames" type="number" min="1" max="216000" step="30" value="120" title="Total frames, up to two hours at 30 fps"></label><button class="btn" id="setClipLength" title="Apply clip duration without deleting existing keys">SET LENGTH</button><label>FPS <select id="clipFPS"><option>24</option><option selected>30</option><option>60</option></select></label><label>RATE <select id="playRate"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><button class="btn" id="goStart" title="Go to first frame">|◀</button><button class="btn" id="prevKey" title="Previous keyframe">◀◆</button><button class="btn" id="nextKey" title="Next keyframe">◆▶</button><button class="btn" id="goEnd" title="Go to last frame">▶|</button><label>GO <input id="gotoFrame" type="number" min="0" value="0" title="Jump to frame"></label><button class="btn" id="jumpFrame">GO</button><button class="btn" id="copyKey" title="Copy keyframe at playhead">COPY KEY</button><button class="btn" id="pasteKey" title="Paste copied keyframe at playhead">PASTE KEY</button><button class="btn" id="shiftKeys" title="Shift all keys from playhead onward by the offset">SHIFT KEYS</button><input id="keyShift" type="number" value="30" step="1" title="Frames to offset keys"><label>ZOOM <input id="timelineZoom" type="range" min="1" max="100" value="20" title="Timeline horizontal zoom"></label><button class="btn" id="timelineFit" title="Fit entire clip in timeline">FIT ALL</button><label>SCROLL <input id="timelineScroll" type="range" min="0" max="0" value="0" title="Pan timeline through long animation"></label><span id="timelineWindow" class="mono">0–120</span></div><div class="tc"><canvas id="tl" aria-label="Animation keyframe timeline"></canvas><canvas id="graphCanvas" aria-label="Editable animation curve graph"></canvas></div></div>
 
 
 <div id="aboutModal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
@@ -1819,6 +1819,88 @@ $('enterStudio').onclick=closeSplash;$('skipIntro').onclick=closeSplash;
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!splash.classList.contains('hidden'))closeSplash()});
 S.motion='walk';S.speed=1;S.stride=1;S.src='pose';S.frame=0;S.playing=false;$('hudSrc').textContent='pose';$('btnPlay').textContent='▶ PLAY';
 const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='READY • ENTER STUDIO TO BEGIN';},2800);
+
+
+/* SMART MOTION: records committed FK / IK manipulations and builds editable key scripts. */
+const smart=$('smartRecord');let smartEnabled=false,smartBusy=false;
+function smartNotice(msg){$('smartStatus').textContent=msg;}
+smart.addEventListener('click',()=>{smartEnabled=!smartEnabled;smart.setAttribute('aria-pressed',String(smartEnabled));smart.classList.toggle('on',smartEnabled);smart.textContent=smartEnabled?'● AUTO KEY ON':'● AUTO KEY OFF';smartNotice(smartEnabled?'Recording edits at playhead':'Auto key disabled');});
+function smartCommit(reason){
+ if(!smartEnabled||smartBusy||!S.bones.length||rigSwitchBusy)return;
+ smartBusy=true;
+ try{
+  // Keep the actual manipulated skeleton pose, including IK-solved joint rotations.
+  S.root?.updateMatrixWorld(true);
+  const frame=Math.max(0,Math.min(S.max,Math.round(S.frame)));
+  const snapshot={q:S.bones.map(b=>b.quaternion.clone()),h:S.bones[S.H].position.clone(),root:S.root?.position.clone()||V3()};
+  S.keys.set(frame,snapshot);
+  S.fk.forEach((q,i)=>q.copy(snapshot.q[i]));
+  S.hipsOff.copy(snapshot.h).sub(S.hips0);
+  S.src='keys';$('hudSrc').textContent='keys';
+  smartNotice('Key '+frame+' recorded · '+reason+' · '+S.keys.size+' keys');
+  refresh();
+ }catch(err){smartNotice('Record error: '+err.message);console.error(err)}finally{smartBusy=false}
+}
+// Commit only at gesture end, not on every pointer movement (prevents key flooding).
+tc.addEventListener('mouseUp',()=>smartCommit('FK / IK gizmo'));
+for(const id of ['rx','ry','rz','ikfk'])$(id)?.addEventListener('change',()=>{evaluate();smartCommit('joint control')});
+for(const id of ['btnResetBone','btnResetPose','btnMirLR','btnMirRL','btnIKSnap','poseT','poseA'])$(id)?.addEventListener('click',()=>{queueMicrotask(()=>{evaluate();smartCommit('pose command')})});
+// IK targets are represented by the final evaluated bone quaternions, not target objects.
+function smartKeyClone(k){return {q:k.q.map(q=>q.clone()),h:k.h.clone(),root:k.root?.clone()||V3()}}
+$('smartGenerate').addEventListener('click',()=>{
+ if(!S.bones.length){smartNotice('Load and bind a rig first');return}
+ if(rigSwitchBusy){smartNotice('Wait for binding to complete');return}
+ const kind=$('smartScript').value,amp=Number($('smartAmp').value),cycles=Math.max(1,Math.min(12,Number($('smartCycles').value)||2));
+ const begin=Math.round(S.frame),end=S.max,span=end-begin;
+ if(span<4){smartNotice('Move playhead earlier or extend clip');return}
+ // Preserve the current pose as a stable baseline, including existing IK results.
+ evaluate();const base={q:S.bones.map(b=>b.quaternion.clone()),h:S.bones[S.H].position.clone(),root:S.root?.position.clone()||V3()};
+ const samples=Math.min(240,Math.max(16,cycles*24));const sourceKeys=[...S.keys].sort((a,b)=>a[0]-b[0]).map(([f,k])=>[f,smartKeyClone(k)]);let added=0;
+ for(let i=0;i<=samples;i++){
+  const f=Math.round(begin+i*span/samples),t=i/samples,phase=t*cycles*Math.PI*2;
+  const k=smartKeyClone(base);
+  if(kind==='bounce'){
+   const contact=Math.max(0,Math.sin(phase));
+   k.h.y+=amp*S.h*.22*contact*contact;
+   const hip=S.H;k.q[hip].multiply(new THREE.Quaternion().setFromAxisAngle(AX.x,amp*.12*Math.sin(phase)));
+  }else if(kind==='sway'){
+   const hip=S.H;k.q[hip].multiply(new THREE.Quaternion().setFromAxisAngle(AX.z,amp*.24*Math.sin(phase)));
+   k.h.x+=amp*S.h*.055*Math.sin(phase);
+  }else if(kind==='pulse'){
+   k.h.y+=amp*S.h*.018*(1-Math.cos(phase));
+   const chest=J('chest');if(chest!==undefined)k.q[chest].multiply(new THREE.Quaternion().setFromAxisAngle(AX.x,amp*.06*Math.sin(phase)));
+  }else{
+   // Cycle an existing animation: sample the original keyed range without overwriting it during sampling.
+   const existing=sourceKeys;
+   if(existing.length>=2){const sourceFrame=existing[0][0]+(existing[existing.length-1][0]-existing[0][0])*(t*cycles%1);
+    let a=existing[0],b=existing[existing.length-1];for(let j=0;j<existing.length-1;j++)if(sourceFrame>=existing[j][0]&&sourceFrame<=existing[j+1][0]){a=existing[j];b=existing[j+1];break}
+    const u=a[0]===b[0]?0:(sourceFrame-a[0])/(b[0]-a[0]);
+    k.q.forEach((q,j)=>{if(a[1].q[j]&&b[1].q[j])q.slerpQuaternions(a[1].q[j],b[1].q[j],u)});k.h.copy(a[1].h).lerp(b[1].h,u);
+   }else{k.h.y+=amp*S.h*.04*(1-Math.cos(phase));}
+  }
+  S.keys.set(f,k);added++;
+ }
+ // Force seamless start/end for generated cycles.
+ if(kind!=='bounce'&&kind!=='cycle')S.keys.set(end,smartKeyClone(S.keys.get(begin)));
+ S.src='keys';$('hudSrc').textContent='keys';S.playing=false;refresh();smartNotice(kind+' script: '+added+' samples / '+cycles+' cycles');
+});
+$('smartAudit').addEventListener('click',()=>{
+ const problems=[],warnings=[],frames=[...S.keys.keys()].sort((a,b)=>a-b);
+ if(!S.bones.length)problems.push('No rig');if(!frames.length)problems.push('No recorded keys');
+ if(frames.some(f=>!Number.isInteger(f)||f<0||f>S.max))problems.push('Keys outside clip range');
+ for(const f of frames){const k=S.keys.get(f);if(k.q.length!==S.bones.length){problems.push('Joint count mismatch at '+f);break}
+  if(k.q.some(q=>![q.x,q.y,q.z,q.w].every(Number.isFinite)||Math.abs(q.length()-1)>.02)){problems.push('Invalid quaternion at '+f);break}
+  if(![k.h.x,k.h.y,k.h.z].every(Number.isFinite)){problems.push('Invalid hips at '+f);break}
+ }
+ for(let i=1;i<frames.length;i++){
+  const a=S.keys.get(frames[i-1]),b=S.keys.get(frames[i]),dt=(frames[i]-frames[i-1])/clipFPS();
+  if(dt>0&&a.h.distanceTo(b.h)/dt>Math.max(2,S.h*5)){warnings.push('Large hip velocity near '+frames[i]);break}
+ }
+ if(frames.length>=2){const a=S.keys.get(frames[0]),b=S.keys.get(frames[frames.length-1]);if(a.h.distanceTo(b.h)>S.h*.025||a.q.some((q,i)=>b.q[i]&&q.angleTo(b.q[i])>.08))warnings.push('Cycle seam differs between first and last key')}
+ if(S.chains.some(c=>c.on))warnings.push('IK targets are not exported as independent animation tracks; baked joint rotations are used');
+ const report=(problems.length?'FAIL: '+problems.join(' • '):'PASS: '+frames.length+' keys, '+S.bones.length+' joints, '+(S.max/clipFPS()).toFixed(2)+'s')+(warnings.length?' | WARN: '+warnings.join(' • '):' | No basic continuity warnings');
+ smartNotice(report);$('rigAuditOutput').textContent=report;say(problems.length?'Animation audit failed':warnings.length?'Animation audit warnings':'Animation audit passed',problems.length?1:0);
+});
 
 console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');
 </script>
