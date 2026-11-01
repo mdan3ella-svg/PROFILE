@@ -150,7 +150,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
     <div class="viewbar" role="toolbar" aria-label="Viewport and camera controls">
       <span class="view-label">VIEW</span><select id="viewSelect" aria-label="Projection"><option value="perspective">Perspective</option><option value="front">Front · XY</option><option value="back">Back · XY</option><option value="right">Right · ZY</option><option value="left">Left · ZY</option><option value="top">Top · XZ</option><option value="bottom">Bottom · XZ</option></select>
       <button class="btn" id="viewLighting" title="Cycle Studio / Neutral / Contrast lighting">☀ STUDIO LIGHT</button><button class="btn" id="viewMaterials" title="Open PBR materials and lighting controls">◈ PBR</button><button class="btn" id="viewRigOverlay" title="Show or hide skeleton diagnostics">RIG GUIDES</button><button class="btn" id="viewIKOverlay" title="Show or hide IK targets">IK GUIDES</button><button class="btn" id="viewFit" title="Frame model (F)">⌗ FIT</button><button class="btn on" id="viewGrid" title="Toggle ground grid">GRID</button><button class="btn on" id="viewAxes" title="Toggle world axes">AXES</button>
-      <span class="view-sep"></span><button class="btn" id="viewSelectTool" title="Select joints (Q)">SELECT</button><button class="btn" id="viewMove" title="Move root / IK target (G)">MOVE</button><button class="btn" id="viewRotate" title="Rotate selected joint (R)">ROTATE</button><select id="gizmoSpace" title="Transform coordinate space" aria-label="Transform coordinate space"><option value="local">Local</option><option value="world">World</option></select>
+      <span class="view-sep"></span><button class="btn" id="viewSelectTool" title="Select joints (Q)">SELECT</button><button class="btn" id="viewMove" title="Move root / IK target (G)">MOVE</button><button class="btn" id="viewRotate" title="Rotate selected joint (R)">ROTATE</button><select id="gizmoSpace" title="World axis is recommended for imported character arm rotations" aria-label="Transform coordinate space"><option value="world" selected>World</option><option value="local">Local</option></select>
     </div><div class="axis-corner" id="axisCorner" aria-label="World axes">X <b>Y</b> Z</div>
     <div class="hud"><b>VERTASCAN</b> • <span id="hudInfo">Ready</span><br>Bone: <span id="hudBone">none</span> • IK: <span id="hudIK">0</span> • Source: <span id="hudSrc">pose</span></div>
     <div id="status"></div>
@@ -172,7 +172,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
-        <div class="label"><span>Rot X</span><span id="vRx">0</span></div><input type="range" id="rx" min="-180" max="180" step="1" value="0"/>
+        <label class="label" title="For arm and clavicle joints, interpret the X slider as a mirrored anatomical arm raise/lower rather than twisting around the bone length."><span>ANATOMICAL ARM LIFT</span><input id="anatomicalArmX" type="checkbox" checked aria-label="Anatomical arm lifting for X slider" style="width:auto"/></label><div class="label" id="rotXLabel"><span>Rot X / Arm lift</span><span id="vRx">0</span></div><input type="range" id="rx" min="-180" max="180" step="1" value="0"/>
         <div class="label"><span>Rot Y</span><span id="vRy">0</span></div><input type="range" id="ry" min="-180" max="180" step="1" value="0"/>
         <div class="label"><span>Rot Z</span><span id="vRz">0</span></div><input type="range" id="rz" min="-180" max="180" step="1" value="0"/>
         <div class="row"><button class="btn" id="btnResetBone">Reset bone</button><button class="btn" id="btnResetPose">Reset pose</button></div>
@@ -319,7 +319,7 @@ tc.addEventListener('dragging-changed',e=>controls.enabled=!e.value);
 
 /* ---------- state ---------- */
 const MO={walk:{f:1,s:.55,l:.14,b:.03,a:.55,tw:.12,lean:.03,c:0},run:{f:1.6,s:.95,l:.28,b:.07,a:1,tw:.2,lean:.2,c:.03},idle:{f:.3,s:0,l:0,b:.004,a:.05,tw:.02,lean:0,c:0},jump:{f:.8,s:0,l:0,b:0,a:1,tw:0,lean:0,c:0},sneak:{f:.7,s:.38,l:.07,b:.02,a:.3,tw:.08,lean:.12,c:.12},strut:{f:.9,s:.6,l:.12,b:.03,a:.35,tw:.25,lean:-.02,c:0}};
-const S={H:0,geo:null,mesh:null,root:null,adopted:false,joints:[],bones:[],roots:[],idx:{},restQ:[],restP:[],fk:[],hips0:V3(),hipsOff:V3(),W:null,N:0,B:0,adj:null,chains:[],markers:[],h:1.8,
+const S={armLift:new Map(),H:0,geo:null,mesh:null,root:null,adopted:false,joints:[],bones:[],roots:[],idx:{},restQ:[],restP:[],fk:[],hips0:V3(),hipsOff:V3(),W:null,N:0,B:0,adj:null,chains:[],markers:[],h:1.8,
 alias:null,baseQ:Q(),baseQi:Q(),unit:1,addons:[],clip:null,clipRt:null,ghost:.45,meshes:[],sel:-1,selChain:-1,gizmoObj:null,tool:'select',src:'pose',motion:'walk',speed:1,stride:1,frame:0,max:120,playing:false,loop:true,keys:new Map(),wview:false,falloff:4,width:1,brush:{r:.12,s:.5,mode:'add'},bindProfile:'auto',interpolation:'bezier',graphMode:false,graphDrag:null};
 const mat=new THREE.MeshPhysicalMaterial({color:0xd9c4b0,roughness:.38,metalness:.12,clearcoat:.16,clearcoatRoughness:.25,side:THREE.DoubleSide,shadowSide:THREE.FrontSide});
 
@@ -373,7 +373,7 @@ function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hip
 function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
 
 /* ---------- rig construction ---------- */
-function clearAll(){S.travelElapsed=0;if(typeof profileClearAccessories==='function')profileClearAccessories();tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();boneLines=null;datum=null;gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if($('poseStatus'))$('poseStatus').textContent='Import a model and build a rig to enable presets.';if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function clearAll(){S.travelElapsed=0;if(typeof profileClearAccessories==='function')profileClearAccessories();tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();boneLines=null;datum=null;gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.armLift.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if($('poseStatus'))$('poseStatus').textContent='Import a model and build a rig to enable presets.';if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
 function makeBones(){
  // Normalize the joint table before creating a hierarchy. A malformed parent index,
  // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
@@ -392,7 +392,7 @@ function makeBones(){
  S.joints.forEach((j,i)=>{S.idx[j.name]=i;if(j.parent>=0){S.bones[j.parent].add(S.bones[i]);S.bones[i].position.copy(j.pos).sub(S.joints[j.parent].pos)}else S.bones[i].position.copy(j.pos)});
  S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));captureRest()
 }
-function captureRest(){setHips();S.restQ=S.bones.map(b=>b.quaternion.clone());S.restP=S.bones.map(b=>b.position.clone());S.fk=S.restQ.map(q=>q.clone());S.hips0.copy(S.bones[S.H].position);S.hipsOff.set(0,0,0)}
+function captureRest(){S.armLift?.clear();setHips();S.restQ=S.bones.map(b=>b.quaternion.clone());S.restP=S.bones.map(b=>b.position.clone());S.fk=S.restQ.map(q=>q.clone());S.hips0.copy(S.bones[S.H].position);S.hipsOff.set(0,0,0)}
 function top4(i,bi,bv){bi.fill(0);bv.fill(0);const B=S.B,o=i*B;for(let j=0;j<B;j++){const w=S.W[o+j];if(w>bv[3]){let k=3;while(k>0&&w>bv[k-1]){bv[k]=bv[k-1];bi[k]=bi[k-1];k--}bv[k]=w;bi[k]=j}}let s=bv[0]+bv[1]+bv[2]+bv[3];if(s<1e-6){bi[0]=0;bv[0]=1;s=1}return s}
 function applyWeights(prune,list){const g=S.geo,si=g.attributes.skinIndex,sw=g.attributes.skinWeight,bi=[0,0,0,0],bv=[0,0,0,0],B=S.B;
  const one=i=>{const s=top4(i,bi,bv);for(let k=0;k<4;k++){si.array[i*4+k]=bi[k];sw.array[i*4+k]=bv[k]/s}
@@ -423,6 +423,8 @@ function meshComponents(g){
  const groups=new Map();for(let i=0;i<n;i++){const k=find(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i)}
  return [...groups.values()];
 }
+// Shared cooperative yield: used by both component and vertex solvers.
+const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
 async function rigidifyComponents(W,JP,SG,rigidity=0.75){
  const groups=meshComponents(S.geo);if(!groups)return {groups:0,rigid:0,skipped:0};
  const pos=S.geo.attributes.position,B=S.B,scale=Math.max(S.h,1e-5);
@@ -465,8 +467,7 @@ function materialRegionProfiles(g, materials, fallback){
  return {region,types,distribution,materials:names.length,groups:groups.length};
 }
 async function computeAutoWeights(){
- const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
- const ui=yieldUI; // Compatibility alias for older weight-solver code using ui().
+ const ui=yieldUI; // Legacy compatibility, shared globally with component solver.
  await yieldUI();
  const {N,B}=S,pos=S.geo.attributes.position,JP=bindPositions(),p=Math.max(1,Math.min(8,Number(S.falloff)||4)),half=p*.5;
  // Exclude non-deforming helpers and duplicate mechanical attachment anchors.
@@ -1222,8 +1223,25 @@ function frameFromEvent(e){const r=$('tl').getBoundingClientRect();return Math.m
 
 /* ---------- UI ---------- */
 const deg=r=>Math.round(r*180/Math.PI);
+// Joint-specific anatomical control for imported humanoids. A bone extending sideways
+// needs shoulder elevation around its front/back axis, not a twist about its own length.
+function isArmLiftJoint(i){return i>=0&&/^(?:arm|clavicle|shoulder)_[LR]$/.test(S.joints[i]?.name||'')}
+function setAnatomicalArmLift(i,degrees){
+ const bone=S.bones[i], side=/_L$/.test(bone.name)?1:-1;
+ if(!bone||!S.fk[i])return;
+ const previous=S.armLift.get(i)||0, delta=(degrees-previous)*Math.PI/180;
+ if(Math.abs(delta)<1e-10)return;
+ // World-space Z is the T-pose elevation axis (Y is up). Convert to the parent's
+ // bone-local rotation coordinate; mirrored sign elevates either arm equally.
+ S.root?.updateMatrixWorld(true);
+ const parentQ=new THREE.Quaternion();if(bone.parent)bone.parent.getWorldQuaternion(parentQ);
+ const front=profileFacing();const worldAxis=front.endsWith('X')?V3(1,0,0):V3(0,0,1);
+ const localAxis=worldAxis.applyQuaternion(parentQ.invert()).normalize();
+ const raise=new THREE.Quaternion().setFromAxisAngle(localAxis,delta*side);
+ S.fk[i].premultiply(raise).normalize();S.armLift.set(i,degrees);
+}
 function syncSliders(){const i=S.sel;const nm=i>=0?dn(S.joints[i].name):'none';$('selName').textContent=$('activeBone').textContent=$('hudBone').textContent=nm;
- if(i>=0&&S.fk[i]){const e=new THREE.Euler().setFromQuaternion(S.fk[i]);[['rx',e.x],['ry',e.y],['rz',e.z]].forEach(([id,v])=>{$(id).value=deg(v);$('v'+id.slice(0,1).toUpperCase()+id.slice(1)).textContent=deg(v)})}}
+ if(i>=0&&S.fk[i]){const e=new THREE.Euler().setFromQuaternion(S.fk[i]);[['rx',e.x],['ry',e.y],['rz',e.z]].forEach(([id,v])=>{const value=id==='rx'&&$('anatomicalArmX')?.checked&&isArmLiftJoint(i)?(S.armLift.get(i)||0):deg(v);$(id).value=value;$('v'+id.slice(0,1).toUpperCase()+id.slice(1)).textContent=Math.round(value)})}}
 function refresh(){$('boneCount').textContent=S.joints.length;$('hudIK').textContent=S.chains.length;
  const depth=i=>{let d=0,p=S.joints[i].parent;while(p>=0){d++;p=S.joints[p].parent}return d};
  $('boneTree').innerHTML=S.joints.map((j,i)=>`<div class="ti ${i===S.sel?'sel':''}" data-i="${i}" style="padding-left:${8+depth(i)*10}px">${dn(j.name)}</div>`).join('');
@@ -1241,7 +1259,13 @@ document.querySelectorAll('.tool').forEach(el=>el.onclick=()=>setTool(el.dataset
 const bind=(id,fn,ev='oninput')=>$(id)[ev]=fn;
 bind('rigWidth',e=>{S.width=+e.target.value;$('vWidth').textContent=S.width.toFixed(2)});
 S.spineCount=5;bind('spineCount',e=>{S.spineCount=+e.target.value;$('vSpine').textContent=String(S.spineCount)});
-['rx','ry','rz'].forEach(id=>bind(id,()=>{if(S.sel<0)return;toPose();S.fk[S.sel].setFromEuler(new THREE.Euler($('rx').value*Math.PI/180,$('ry').value*Math.PI/180,$('rz').value*Math.PI/180));['rx','ry','rz'].forEach(k=>$('v'+k[0].toUpperCase()+k[1]).textContent=$(k).value)}));
+['rx','ry','rz'].forEach(id=>bind(id,()=>{if(S.sel<0)return;toPose();
+ if(id==='rx'&&$('anatomicalArmX')?.checked&&isArmLiftJoint(S.sel)){setAnatomicalArmLift(S.sel,Number($('rx').value));}
+ else {S.fk[S.sel].setFromEuler(new THREE.Euler(Number($('rx').value)*Math.PI/180,Number($('ry').value)*Math.PI/180,Number($('rz').value)*Math.PI/180));if(isArmLiftJoint(S.sel))S.armLift.delete(S.sel)}
+ ['rx','ry','rz'].forEach(k=>$('v'+k[0].toUpperCase()+k[1]).textContent=$(k).value);
+ applyPose();S.root?.updateMatrixWorld(true);
+}));
+bind('anatomicalArmX',()=>{if(S.sel>=0)syncSliders();say($('anatomicalArmX').checked?'Anatomical arm lift enabled: X raises/lowers arms symmetrically.':'Local Euler rotation enabled.');},'onchange');
 bind('gRot',()=>{$('gRot').classList.add('on');$('gMove').classList.remove('on');tc.setMode('rotate');setTool('fk')},'onclick');
 bind('gMove',()=>{$('gMove').classList.add('on');$('gRot').classList.remove('on');if(S.sel!==S.H)selectBone(S.H);tc.setMode('translate');setTool('fk')},'onclick');
 bind('btnResetBone',()=>{if(S.sel<0)return;toPose();S.fk[S.sel].copy(S.restQ[S.sel]);if(S.sel===S.H)S.hipsOff.set(0,0,0);syncSliders()},'onclick');
