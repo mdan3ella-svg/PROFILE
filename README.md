@@ -1,16 +1,22 @@
-# PROFILE | MOTION ENGINE | VERTASCAN — Offline Standalone Builder
+# PROFILE | MOTION ENGINE — Offline GitHub Review Build
 
-This package contains the complete existing PROFILE app source, with its embedded humanoid GLB and relaxed-arm animation behavior, plus the source and build scripts needed to bundle Three.js into the HTML.
+This source package contains the latest PROFILE VIS application and the **Operator Manual V2**. The application is currently **NOT COMPILED**. Run the builder once on a network-connected computer with Node.js 20+ to download pinned Three.js and esbuild dependencies and embed them into `dist/index.html`.
 
-## Build (one-time internet access required)
-1. Install **Node.js LTS** if necessary.
-2. On Windows, double-click `BUILD_WINDOWS.bat`. On macOS/Linux, run `sh BUILD_MAC_LINUX.sh`.
-3. The builder downloads exact Three.js **0.160.0** and esbuild **0.25.12** versions, then bundles them with the app into **PROFILE_OFFLINE_STANDALONE.html**.
-4. Copy only `PROFILE_OFFLINE_STANDALONE.html` to an offline computer. Open directly in a current Chrome or Edge browser. It no longer needs CDN URLs at runtime.
+## Windows
+Run `BUILD_WINDOWS.bat`.
 
-**This distributed ZIP is a source/builder package, not the already-built offline HTML.** The build could not be executed here because dependency download was unavailable. After initial `npm install`, subsequent builds can usually run without internet as long as `node_modules` remains installed.
+## macOS / Linux
+Run `sh BUILD_MAC_LINUX.sh`.
 
-The input application includes a ~22 MB embedded GLB; the bundled file will be larger. This does not certify material, animation, auto-bind, or export behavior in all browsers.
+## Result
+- `dist/index.html` — intended self-contained browser app with Three.js runtime, controls, importers, GLB exporter, PBR scene and embedded humanoid.
+- `dist/operator-manual.html` — self-contained illustrated operator manual.
+- `dist/.nojekyll` — disables Jekyll processing on GitHub Pages.
 
-## Quick checks
-After build, disconnect from internet. Open the generated HTML, press Enter Studio, load Demo Rig, and verify PBR appearance, arm pose, timeline playback, GLB export and re-import. Use DevTools Network tab to ensure no requests occur.
+Upload **all three dist files** to the GitHub repository root. GitHub Pages: Settings → Pages → Deploy from `main` / root.
+
+## Offline verification
+After compilation, copy the `dist` directory to a disconnected PC; open `index.html` in Chrome/Edge, disable Wi-Fi and use DevTools Network → Offline. Confirm the initial model, controls, PBR, manual, custom GLB import, binding and export work. The static build verification does not replace this live test. `file://` restrictions may affect certain browser APIs; hosting compiled assets on GitHub Pages still works online, and tests under a local HTTP server can distinguish browser security restrictions from missing dependencies.
+
+## Important limitations
+The builder eliminates Three.js **network dependencies**, but does not certify anatomical fit, physical simulation, exact skin weighting, motion quality, or cross-engine GLB compatibility. Performance and deformation must be evaluated using known models with independent reference results. The locked embedded model is an in-app reference, not cryptographic asset protection.

@@ -1,6 +1,6 @@
-#!/usr/bin/env sh
+#!/bin/sh
 set -eu
 cd "$(dirname "$0")"
 npm install --no-audit --no-fund
 npm run build
-printf '\nCreated PROFILE_OFFLINE_STANDALONE.html\n'
+printf 'Built: dist/index.html and dist/operator-manual.html\n'

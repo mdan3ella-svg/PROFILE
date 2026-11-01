@@ -1,14 +1,6 @@
 {
-  "name": "profile-verta-offline-builder",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "build": "node build.mjs"
-  },
-  "dependencies": {
-    "three": "0.160.0"
-  },
-  "devDependencies": {
-    "esbuild": "0.25.12"
-  }
+  "name":"profile-motion-engine-offline","version":"1.0.0","private":true,
+  "scripts":{"build":"node build.mjs && node verify.mjs","verify":"node verify.mjs"},
+  "dependencies":{"three":"0.160.0"},
+  "devDependencies":{"esbuild":"0.25.12"}
 }
