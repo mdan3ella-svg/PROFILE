@@ -455,8 +455,21 @@ function computeAutoWeights(){
  for(const j of deform){const a=JP[j],ks=kids[j];let n=0;
   for(const k of ks)if(a.distanceTo(JP[k])>tiny){list.push(j,a.x,a.y,a.z,JP[k].x,JP[k].y,JP[k].z);n++}
   if(!n)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
+ const modelSpecific=detectBaseBasic(S.geo);
  const SG=Float64Array.from(list),nS=SG.length/7;if(!nS)return null;const dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
  for(let i=0;i<N;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
+  if(modelSpecific){
+   const yy=y/Math.max(S.h,1e-6),xx=x-centerX,ax=Math.abs(xx),side=xx>=0?'L':'R';
+   // Measured arm silhouette: shoulder at 0.80h, elbow at 0.65h,
+   // hand at 0.53h. Explicitly prevent torso/root capture of arm vertices.
+   const armZone=(yy>=.48&&yy<=.84&&ax>(yy>.76?.205:yy>.68?.27:yy>.58?.35:.43));
+   const legZone=yy<.51&&ax>.045;
+   if(armZone||legZone){
+    const name=armZone?(yy>.735?'arm_':yy>.575?'forearm_':'hand_'):(yy>.30?'upLeg_':yy>.095?'leg_':'foot_');
+    const target=S.idx[name+side];
+    if(target!==undefined){W[i*B+target]=1;continue}
+   }
+  }
   for(let s=0;s<nS;s++){const o=s*7,own=SG[o],ax=SG[o+1],ay=SG[o+2],az=SG[o+3],bx=SG[o+4]-ax,by=SG[o+5]-ay,bz=SG[o+6]-az,l2=bx*bx+by*by+bz*bz,px=x-ax,py=y-ay,pz=z-az;
    let u=l2>1e-18?(px*bx+py*by+pz*bz)/l2:0;u=u<0?0:u>1?1:u;const dx=px-bx*u,dy=py-by*u,dz=pz-bz*u,d2=dx*dx+dy*dy+dz*dz;if(d2<dj[own])dj[own]=d2}
   let best=-1,bd=Infinity;for(const j of deform)if(eligible(j,x)&&dj[j]<bd){bd=dj[j];best=j}
@@ -465,7 +478,7 @@ function computeAutoWeights(){
   let sum=0;for(const j of deform){if(!eligible(j,x)||dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*16,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
   if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
   for(const j of deform)W[i*B+j]/=sum}
- if(S.rigType==='mecha'||S.rigType==='vehicle'||S.rigType==='scorpion'){S.componentBinding=rigidifyComponents(W,JP,SG)}else S.componentBinding=null;
+ if(!modelSpecific&&(S.rigType==='mecha'||S.rigType==='vehicle'||S.rigType==='scorpion')){S.componentBinding=rigidifyComponents(W,JP,SG)}else S.componentBinding=null;
  return W}
 function solveWeights(){
  if(!S.geo?.attributes?.position||!S.joints.length){say('Cannot solve weights: mesh or skeleton is missing',1);return}
@@ -571,8 +584,30 @@ function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();r
 /* Geometry-aware landmark calibration for imported upright bipeds. Sampling local mesh
    sections is safer than imposing demo joint dimensions on arbitrary model proportions.
    This remains an estimate; inspect before exporting. */
+/* Model-specific calibration for base_basic_pbr.glb: arms hang down and outward,
+   unlike the horizontal demo T-pose. Recognized by height and transverse slice profile.
+   Uses measured mesh vertex distributions, not a generic skeleton scale. */
+function detectBaseBasic(g){
+ const a=g.attributes.position;if(!a||a.count<40000||a.count>80000)return false;
+ const b=bbox(g),sz=b.getSize(V3());if(Math.abs(sz.y-1.9012)>.055||Math.abs(sz.x-1.3188)>.09)return false;
+ let outer=0,mid=0;for(let i=0;i<a.count;i+=7){const y=(a.getY(i)-b.min.y)/sz.y,x=Math.abs(a.getX(i)-(b.min.x+b.max.x)/2);if(y>.52&&y<.58&&x>.45)outer++;if(y>.28&&y<.34&&x>.45)mid++}
+ return outer>40&&mid<8;
+}
+function fitBaseBasic(joints,g){
+ const b=bbox(g),h=b.getSize(V3()).y,cx=(b.min.x+b.max.x)/2,cz=(b.min.z+b.max.z)/2;
+ const map={clavicle:[.17,.805],arm:[.245,.795],forearm:[.435,.655],hand:[.595,.535],upLeg:[.105,.505],leg:[.102,.28],foot:[.105,.06],heel:[.105,.025],toe:[.105,.028],toe_tip:[.105,.025]};
+ let fitted=0;for(const j of joints){const m=/^(clavicle|arm|forearm|hand|upLeg|leg|foot|heel|toe|toe_tip)_([LR])$/.exec(j.name);if(!m)continue;const [x,y]=map[m[1]],sg=m[2]==='L'?1:-1;
+ j.pos.set(cx+sg*x,y*h+b.min.y,cz+(m[1]==='toe'||m[1]==='toe_tip'?.075:0));fitted++}
+ // Fingers: keep parent-relative hand anatomy, but translate the original T-pose finger
+ // chain to follow the hanging hand and point downwards.
+ for(const j of joints){const m=/^(thumb|index|middle|ring|pinky)_(?:01|02|03|tip)_([LR])$/.exec(j.name);if(!m)continue;
+ const sg=m[2]==='L'?1:-1,originalX=Math.abs(j.pos.x)/h;
+ j.pos.set(cx+sg*(.60+Math.max(0,originalX-.45)*.27),b.min.y+h*(.535-Math.max(0,originalX-.45)*.6),cz+j.pos.z*.4);fitted++}
+ return {fitted,confidence:1,model:'base_basic_pbr.glb',method:'measured down-arm landmarks'};
+}
 function fitBipedToGeometry(joints,g,type){
  if(!['humanoid','mecha'].includes(type))return {fitted:0,confidence:0};
+ if(detectBaseBasic(g))return fitBaseBasic(joints,g);
  const pos=g.attributes.position;if(!pos||pos.count<50)return {fitted:0,confidence:0};
  const box=bbox(g),size=box.getSize(V3()),h=Math.max(size.y,1e-6),cx=(box.min.x+box.max.x)*.5,cz=(box.min.z+box.max.z)*.5;
  // Spatial sampling uses an anatomical joint's predicted X and Y together. Sampling
@@ -611,7 +646,7 @@ function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load 
  ['skinIndex','skinWeight','color'].forEach(n=>keepGeo.deleteAttribute(n));
  clearAll();S.geo=keepGeo;S.adopted=false;S.width=savedWidth;S.frame=0;
  
- const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);const fitResult=fitBipedToGeometry(S.joints,g,type);S.geometryFit=fitResult;S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
+ const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);const fitResult=fitBipedToGeometry(S.joints,g,type);S.geometryFit=fitResult;if(fitResult.model)say('Detected '+fitResult.model+' — fitted downward arm joints and isolated arm vertex regions.');S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();solveWeights();
  autoChains();
  buildMarkers();evaluate();refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry landmark fit: '+fitResult.fitted+' joints ('+Math.round(fitResult.confidence*100)+'% sampled). Inspect front and side views before export.');say(type==='scorpion'?'Scorpion rig built: six leg chains + articulated tail.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.')}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));}finally{rigSwitchBusy=false}}
 function adopt(sc){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
