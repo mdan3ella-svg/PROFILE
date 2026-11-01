@@ -1628,11 +1628,55 @@ function evaluationSelfTest(){
  say(errors.length?'Evaluation checks failed — see rig audit':'Evaluation checks completed — see rig audit',errors.length?1:0);
  return {errors,warnings,lines};
 }
-function exportGLB(){if(rigSwitchBusy){say('Wait for auto-bind to complete before exporting',1);return}if(!S.root||!S.mesh){say('Nothing to export',1);return}const check=rigPreflight();const bindCheck=checkNeutralBind();if(bindCheck.issues.length){say('Export blocked: neutral bind matrices inconsistent',1);$('rigAuditOutput').textContent='BIND MATRIX ERRORS: '+bindCheck.issues.join(' • ');return}if(check.errors.length){say('Export blocked: '+check.errors.slice(0,2).join('; '),1);$('rigAuditOutput').textContent='EXPORT BLOCKED: '+check.errors.join(' • ');return}if(check.warnings.length&&!confirm(check.warnings.join('\n')+'\nExport anyway?'))return;if(S.geometryFit&&S.geometryFit.confidence<.65&&['humanoid','mecha'].includes(S.rigType)){if(!confirm('Rig geometry fit is low confidence. Inspect and correct joint placement before exporting. Export anyway?'))return;}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
- S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
- const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
- const restore=()=>{S.fk.forEach((q,i)=>q.copy(saveQ[i]));S.hipsOff.copy(saveH);S.src=saveSrc;if(colA)S.geo.setAttribute('color',colA);applyPose();if(ikActive())solveAll();S.root.updateMatrixWorld(true)};
- serializeRigGLB(clips).then(res=>{restore();download(new Blob([res],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');say('GLB exported'+(clips.length?' with '+S.keys.size+' keys':''))}).catch(err=>{restore();say('Export failed: '+(err?.message||String(err)),1)}) }
+async function exportGLB(){
+ if(rigSwitchBusy){say('Wait for auto-bind to complete before exporting',1);return}
+ if(!S.root||!S.mesh){say('Nothing to export',1);return}
+ const check=rigPreflight(),bindCheck=checkNeutralBind();
+ if(bindCheck.issues.length||check.errors.length){
+  const problems=[...bindCheck.issues,...check.errors];say('Export blocked: '+problems.slice(0,2).join('; '),1);
+  const out=$('rigAuditOutput');if(out)out.textContent='EXPORT BLOCKED: '+problems.join(' • ');return;
+ }
+ if(check.warnings.length&&!confirm(check.warnings.join('\n')+'\nExport anyway?'))return;
+ const old={q:S.fk.map(q=>q.clone()),h:S.hipsOff.clone(),src:S.src,frame:S.frame,keys:S.keys,playing:S.playing,root:S.root.position.clone(),interp:S.interpolation};
+ const colA=S.geo.attributes.color;
+ const restore=()=>{
+  S.keys=old.keys;S.src=old.src;S.frame=old.frame;S.playing=old.playing;S.interpolation=old.interp;
+  S.fk.forEach((q,i)=>q.copy(old.q[i]));S.hipsOff.copy(old.h);S.root.position.copy(old.root);
+  if(colA)S.geo.setAttribute('color',colA);
+  applyPose();if(ikActive())solveAll();S.root.updateMatrixWorld(true);
+ };
+ try{
+  // Procedural previews are not timeline keys. Sample them into a temporary
+  // clip for export, without overwriting the user's editable animation.
+  if(!S.keys.size&&S.src==='proc'){
+   const sampled=new Map(),step=Math.max(1,Math.ceil(S.max/1800));
+   for(let f=0;f<=S.max;f+=step){
+    S.frame=f;procPose(f);applyPose();if(ikActive())solveAll();profileGroundContact();
+    sampled.set(f,{q:S.fk.map(q=>q.clone()),h:S.hipsOff.clone()});
+   }
+   if(!sampled.has(S.max)){
+    S.frame=S.max;procPose(S.max);applyPose();if(ikActive())solveAll();profileGroundContact();
+    sampled.set(S.max,{q:S.fk.map(q=>q.clone()),h:S.hipsOff.clone()});
+   }
+   S.keys=sampled;
+  }
+  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+  const clips=makeClip();
+  if(!clips.length){
+   if(!confirm('No animation keys or active procedural motion were found. Export a static rig?'))return;
+  }
+  if(colA)S.geo.deleteAttribute('color');
+  const bytes=await serializeRigGLB(clips);
+  // Verify the serialized GLB actually contains animation entries before download.
+  const view=new DataView(bytes),jsonLength=view.getUint32(12,true);
+  const jsonText=new TextDecoder().decode(new Uint8Array(bytes,20,jsonLength));
+  const json=JSON.parse(jsonText.trim());
+  if(clips.length&&(!json.animations||!json.animations.length))throw new Error('GLB exporter omitted animation tracks');
+  download(new Blob([bytes],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');
+  say('GLB exported: '+(json.animations?.length||0)+' animation clip(s), '+(json.animations?.[0]?.channels?.length||0)+' channels');
+ }catch(err){console.error('PROFILE GLB export:',err);say('Export failed: '+(err?.message||String(err)),1)}
+ finally{restore()}
+}
 bind('btnExport',exportGLB,'onclick');bind('btnExport2',exportGLB,'onclick');
 const rd=(a,n=5)=>Array.from(a,x=>+x.toFixed(n));
 function saveJSON(){if(!S.geo||!S.W){say('Nothing to save',1);return}const g=S.geo,si=g.attributes.skinIndex.array,sw=g.attributes.skinWeight.array;
