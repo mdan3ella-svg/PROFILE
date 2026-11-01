@@ -163,7 +163,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
     </div>
     <div class="panel" id="panel-rig">
       <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
-        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit verifies neutral-pose inverse bind matrices, weights, hierarchy and IK. Auto IK is OFF until enabled. Geometry fitting is approximate; inspect deformations before export.</div>
+        <button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnRoundTrip" title="Export to memory and reimport to check geometry, skin weights and inverse binds">↻ VERIFY GLB ROUND-TRIP</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit verifies neutral-pose inverse bind matrices, weights, hierarchy and IK. Auto IK is OFF until enabled. Geometry fitting is approximate; inspect deformations before export.</div>
         <label class="label" for="rigType">Rig preset · switches rebuild the active skeleton</label><select id="rigType" title="Choose a rig layout. Quadruped and scorpion presets assume the model faces +Z and its feet are near the ground"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
@@ -456,13 +456,14 @@ function computeAutoWeights(){
   for(const k of ks)if(a.distanceTo(JP[k])>tiny){list.push(j,a.x,a.y,a.z,JP[k].x,JP[k].y,JP[k].z);n++}
   if(!n)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
  const modelSpecific=detectBaseBasic(S.geo);
+ const weightBounds=bbox(S.geo),weightMinY=weightBounds.min.y;
  const SG=Float64Array.from(list),nS=SG.length/7;if(!nS)return null;const dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
  for(let i=0;i<N;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
   if(modelSpecific){
    // Model-specific hard partition: the hanging arm is a lateral silhouette,
    // not a torso/root region. Compare the vertex with the sampled shoulder,
    // elbow and wrist chain and exclude torso weights for the entire arm region.
-   const yy=(y-bbox(S.geo).min.y)/Math.max(S.h,1e-6),xx=x-centerX,ax=Math.abs(xx),side=xx>=0?'L':'R';
+   const yy=(y-weightMinY)/Math.max(S.h,1e-6),xx=x-centerX,ax=Math.abs(xx),side=xx>=0?'L':'R';
    // In the base_basic mesh the arms widen laterally as they descend.
    // A conservative, continuous lateral boundary prevents root capture at
    // shoulder, elbow, forearm and wrist; avoid classifying hips as arms.
@@ -670,6 +671,7 @@ function fitBipedToGeometry(joints,g,type){
 }
 function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load or create a model first',1);return}
  rigSwitchBusy=true;
+ say('Building rig and vertex weights — this may take time on dense meshes.');
  try{
  if(!rigSourceGeometry){if(S.adopted)S.geo=mergeGeos([S.geo]);rememberRigSource(S.geo)}
  const keepGeo=rigSourceGeometry.clone(),savedWidth=S.width,savedFrame=S.frame;
@@ -1036,6 +1038,60 @@ function rigPreflight(){
  if(S.geometryFit&&S.geometryFit.confidence<.7)warnings.push('Low confidence geometry fit: '+Math.round(S.geometryFit.confidence*100)+'%');
  return {errors:[...new Set(errors)],warnings};
 }
+/* Independent export/reimport validation: compares the actual binary glTF payload after decoding. */
+async function validateExportRoundTrip(buffer){
+ const issues=[],stats=[];const loader=new GLTFLoader();
+ const parsed=await new Promise((resolve,reject)=>loader.parse(buffer,'',resolve,reject));
+ const imported=[];parsed.scene.traverse(o=>{if(o.isSkinnedMesh)imported.push(o)});
+ const source=[];S.root.traverse(o=>{if(o.isSkinnedMesh)source.push(o)});
+ if(imported.length!==source.length)issues.push(`Skinned mesh count ${source.length} → ${imported.length}`);
+ const tolerance=2e-4;
+ for(let mi=0;mi<Math.min(source.length,imported.length);mi++){
+  const a=source[mi],b=imported[mi],pa=a.geometry.attributes.position,pb=b.geometry.attributes.position;
+  if(pa.count!==pb.count){issues.push(`Mesh ${mi}: vertex count ${pa.count} → ${pb.count}`);continue}
+  let positionError=0;for(let v=0;v<pa.count;v++)for(let k=0;k<3;k++)positionError=Math.max(positionError,Math.abs(pa.getComponent(v,k)-pb.getComponent(v,k)));
+  stats.push(`mesh ${mi} vertex deviation ${positionError.toExponential(2)}`);
+  if(positionError>tolerance)issues.push(`Mesh ${mi}: vertex position mismatch`);
+  const ia=a.geometry.attributes.skinIndex,ib=b.geometry.attributes.skinIndex,wa=a.geometry.attributes.skinWeight,wb=b.geometry.attributes.skinWeight;
+  if(!ia||!ib||!wa||!wb){issues.push(`Mesh ${mi}: missing skin attributes`);continue}
+  let weightError=0,wrong=0,unweighted=0;
+  for(let v=0;v<pa.count;v++){
+   let sa=0,sb=0;const left=[],right=[];
+   for(let k=0;k<4;k++){const x=wa.getComponent(v,k),y=wb.getComponent(v,k);sa+=x;sb+=y;if(x>1e-7)left.push([ia.getComponent(v,k),x]);if(y>1e-7)right.push([ib.getComponent(v,k),y])}
+   left.sort((x,y)=>x[0]-y[0]);right.sort((x,y)=>x[0]-y[0]);
+   if(left.length!==right.length){wrong++;continue}
+   for(let k=0;k<left.length;k++){if(left[k][0]!==right[k][0])wrong++;weightError=Math.max(weightError,Math.abs(left[k][1]-right[k][1]))}
+   if(Math.abs(sa-1)>.01||Math.abs(sb-1)>.01)unweighted++;
+  }
+  stats.push(`mesh ${mi} max weight deviation ${weightError.toExponential(2)}, index mismatches ${wrong}`);
+  if(weightError>0.002||wrong)issues.push(`Mesh ${mi}: weights or bone indices changed`);
+  if(unweighted)issues.push(`Mesh ${mi}: ${unweighted} non-normalized vertices`);
+  const ask=a.skeleton,bsk=b.skeleton;
+  if(ask.bones.length!==bsk.bones.length){issues.push(`Mesh ${mi}: bone count changed`);continue}
+  let invError=0;for(let j=0;j<ask.bones.length;j++){
+   if(ask.bones[j].name!==bsk.bones[j].name)issues.push(`Bone ${j}: name changed`);
+   for(let k=0;k<16;k++)invError=Math.max(invError,Math.abs(ask.boneInverses[j].elements[k]-bsk.boneInverses[j].elements[k]));
+  }
+  stats.push(`mesh ${mi} max inverse-bind deviation ${invError.toExponential(2)}`);
+  if(invError>0.002)issues.push(`Mesh ${mi}: inverse bind matrices changed`);
+ }
+ return {issues,stats,clips:parsed.animations.length};
+}
+async function verifyGLBRoundTrip(){
+ if(!S.root||!S.mesh){say('Load and bind a model first',1);return}
+ const previous=$('rigAuditOutput').textContent;$('rigAuditOutput').textContent='Verifying binary GLB round-trip…';
+ const src=S.src,oldQ=S.fk.map(q=>q.clone()),oldH=S.hipsOff.clone();
+ try{
+  S.src='pose';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+  const neutral=checkNeutralBind();if(neutral.issues.length)throw new Error(neutral.issues.join('; '));
+  const data=await new Promise((resolve,reject)=>new GLTFExporter().parse(S.root,resolve,reject,{binary:true,animations:makeClip()}));
+  const result=await validateExportRoundTrip(data);
+  $('rigAuditOutput').textContent=(result.issues.length?'ROUND-TRIP FAILED: '+result.issues.join(' • '):'ROUND-TRIP PASSED: binary GLB reimport preserved checked vertices, weights and inverse bind matrices')+' | '+result.stats.join(' | ')+' | clips '+result.clips;
+  say(result.issues.length?'Round-trip errors detected':'Round-trip integrity checks passed',result.issues.length?1:0);
+ }catch(err){$('rigAuditOutput').textContent='ROUND-TRIP FAILED: '+(err?.message||String(err));say('Round-trip failed',1)}
+ finally{S.fk.forEach((q,i)=>q.copy(oldQ[i]));S.hipsOff.copy(oldH);S.src=src;applyPose();S.root.updateMatrixWorld(true)}
+}
+$('btnRoundTrip').addEventListener('click',verifyGLBRoundTrip);
 function exportGLB(){if(!S.root||!S.mesh){say('Nothing to export',1);return}const check=rigPreflight();const bindCheck=checkNeutralBind();if(bindCheck.issues.length){say('Export blocked: neutral bind matrices inconsistent',1);$('rigAuditOutput').textContent='BIND MATRIX ERRORS: '+bindCheck.issues.join(' • ');return}if(check.errors.length){say('Export blocked: '+check.errors.slice(0,2).join('; '),1);$('rigAuditOutput').textContent='EXPORT BLOCKED: '+check.errors.join(' • ');return}if(check.warnings.length&&!confirm(check.warnings.join('\n')+'\nExport anyway?'))return;if(S.geometryFit&&S.geometryFit.confidence<.65&&['humanoid','mecha'].includes(S.rigType)){if(!confirm('Rig geometry fit is low confidence. Inspect and correct joint placement before exporting. Export anyway?'))return;}const saveQ=S.fk.map(q=>q.clone()),saveH=S.hipsOff.clone(),saveSrc=S.src;
  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);const clips=makeClip();
  const colA=S.geo.attributes.color;if(colA)S.geo.deleteAttribute('color');/* weight-paint colours must not leak into the file as COLOR_0 */
@@ -1118,10 +1174,18 @@ function staticFrom(o){
   indexOffset+=g.index?.count??count;vertexOffset+=count;g.dispose();
  }
  const out=new THREE.BufferGeometry();for(const a of attrs)out.setAttribute(a,new THREE.Float32BufferAttribute(values[a],a==='position'||a==='normal'?3:2));out.setIndex(indices);for(const gr of groups)out.addGroup(gr.start,gr.count,gr.materialIndex);
- importedSurfaceMaterials=surfaces;S.geo=out;S.adopted=false;rig();say('Imported '+surfaces.length+' material slots with UVs and textures retained');
+ // Import must remain a lightweight preview operation. Rig fitting/weight solving is
+ // explicitly started by BUILD RIG + BIND, not synchronously during GLB parsing.
+ clearAll();importedSurfaceMaterials=surfaces;S.geo=out;S.adopted=false;
+ rememberRigSource(out);S.N=out.attributes.position.count;S.B=0;
+ const preview=new THREE.Mesh(out,rigMaterial());preview.name='Imported geometry — unrigged preview';
+ preview.frustumCulled=false;preview.castShadow=true;preview.receiveShadow=true;
+ S.mesh=S.root=preview;scene.add(preview);S.h=bbox(out).getSize(V3()).y;
+ refresh();frameModel();$('hudInfo').textContent=S.N+' vertices • UNRIGGED — select BUILD RIG + BIND';
+ say('Imported '+surfaces.length+' material slots. Geometry ready; use RIG → BUILD RIG + BIND when ready.');
 }
 document.querySelectorAll('.tab[role=button]').forEach(t=>t.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t.click()}}));
-$('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;const main=files.find(f=>/\.(glb|gltf|obj|fbx|json)$/i.test(f.name))||files[0];try{await loadFile(main,files)}catch(err){console.error('PROFILE import error:',err);say('Import failed: '+(err?.message||String(err)),1)}};
+$('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;const main=files.find(f=>/\.(glb|gltf|obj|fbx|json)$/i.test(f.name))||files[0];try{say('Importing '+main.name+'…');await new Promise(r=>setTimeout(r,0));await loadFile(main,files)}catch(err){console.error('PROFILE import error:',err);say('Import failed: '+(err?.message||String(err)),1)}};
 
 function loadDemo(){releaseImportedMaterials();if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();S.geo=humanoidGeo();S.adopted=false;rig();say('Demo rig ready — root sits on the ground datum')}
 
