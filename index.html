@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PROFILE | MOTION ENGINE | VERTASCAN</title>
+<title>PROFILE | MOTION ENGINE | VERTASCAN — Evaluation PBR Audit</title>
 <meta name="description" content="Single-file 3D rigging engine: auto-rig, skin weights and painting, FK/IK with pole vectors and blend, procedural motion, keyframes, GLB and project import/export. By Vertascan."/>
 <meta name="theme-color" content="#08080a"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23000'/%3E%3Cpath d='M6 8l10 18L26 8' fill='none' stroke='%23a6ff7a' stroke-width='3'/%3E%3C/svg%3E"/>
@@ -124,7 +124,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
   </div>
 </div>
 
-<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><p class="ld-note">Imported materials are preserved. Adjustments below affect the current model; presets intentionally replace its surface appearance.</p><button class="btn" id="ldRestore">↺ RESTORE IMPORTED MATERIALS</button><label>Material scope</label><select id="ldScope"><option value="all">All model materials</option><option value="first">First material only</option></select><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Environment reflections</label><select id="ldEnvironment"><option value="studio">Studio IBL</option><option value="off">Direct lights only</option></select><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn" id="ldPBRAudit">◈ PBR INTEGRITY AUDIT</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported UVs, texture maps and material slots are retained during automatic rig generation; LookDev presets may override their appearance. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
+<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><p class="ld-note">Imported materials are preserved. Adjustments below affect the current model; presets intentionally replace its surface appearance.</p><button class="btn" id="ldRestore">↺ RESTORE IMPORTED MATERIALS</button><label><input type="checkbox" id="ldProtect" checked style="width:auto;min-height:0"/> Protect imported PBR materials (default)</label><p class="ld-note" id="ldProtectStatus">Original imported surface appearance is protected. Uncheck to edit material properties.</p><label>Material scope</label><select id="ldScope"><option value="all">All model materials</option><option value="first">First material only</option></select><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Environment reflections</label><select id="ldEnvironment"><option value="studio">Studio IBL</option><option value="off">Direct lights only</option></select><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn" id="ldPBRAudit">◈ PBR INTEGRITY AUDIT</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported UVs, texture maps and material slots are retained during automatic rig generation; LookDev presets may override their appearance. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
@@ -634,7 +634,7 @@ async function solveWeights(){
  }
  if(S.componentBinding)say('Topology binding: '+S.componentBinding.rigid+' rigid components; '+S.componentBinding.skipped+' retained per-vertex')
 }
-function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
+function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));if(!g.getAttribute('color'))g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
  const m=new THREE.SkinnedMesh(g,rigMaterial());m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();m.bind(skeleton,m.matrixWorld.clone());m.updateMatrixWorld(true);S.mesh=S.root=m}
 function buildCreatureJoints(type,bb,h,w){
  if(type==='humanoid')return buildJoints(h,w);
@@ -749,13 +749,14 @@ function buildCreatureJoints(type,bb,h,w){
 let rigSourceGeometry=null,rigSwitchBusy=false,rigStage="idle",rigCancelRequested=false,rigStartedAt=0;
 function setRigStage(stage){rigStage=stage;const h=document.getElementById("hudInfo");if(h&&rigSwitchBusy)h.textContent="Auto-bind: "+stage;}
 let importedSurfaceMaterials=null;
-let profilePBRBaseline=null;
+let profilePBRBaseline=null;let profilePBRSignature=null;
+function profileMaterialSignature(m){return {name:m?.name||'',type:m?.type||'',roughness:m?.roughness??null,metalness:m?.metalness??null,vertexColors:!!m?.vertexColors,normalScale:m?.normalScale?.toArray?.()||null,maps:Object.fromEntries(['map','normalMap','metalnessMap','roughnessMap','aoMap','emissiveMap','alphaMap'].map(k=>[k,!!m?.[k]]))}}
 function profileCapturePBRBaseline(){
- profilePBRBaseline=importedSurfaceMaterials?.map(m=>m.clone())||null;
+ profilePBRBaseline=importedSurfaceMaterials?.map(m=>m.clone())||null;profilePBRSignature=profilePBRBaseline?.map(profileMaterialSignature)||null;
 }
 function profileRestorePBR(){
  if(!S.mesh||!profilePBRBaseline?.length){say('No imported PBR baseline available',1);return;}
- const restored=profilePBRBaseline.map(m=>m.clone());
+ const restored=profilePBRBaseline.map(m=>{const c=m.clone();c.needsUpdate=true;return c});
  importedSurfaceMaterials=restored;
  S.mesh.material=restored.length===1?restored[0]:restored;
  renderer.toneMappingExposure=1; $('ldExposure').value=1;$('ldExposureV').textContent='1.00';
@@ -767,27 +768,29 @@ function profilePBRAudit(){
  const mats=Array.isArray(S.mesh?.material)?S.mesh.material:S.mesh?.material?[S.mesh.material]:[];
  const lines=['PBR INTEGRITY / '+mats.length+' material(s)'];
  const uv=S.geo?.getAttribute('uv'),uv2=S.geo?.getAttribute('uv2');
- lines.push('UV0: '+(uv?.count||0)+' | UV2: '+(uv2?.count||0));
+ lines.push('UV0: '+(uv?.count||0)+' | UV2: '+(uv2?.count||0)+' | vertex colors: '+(S.geo?.attributes?.color?.count||0));
+ lines.push('Material groups: '+(S.geo?.groups?.length||0)+' | triangles: '+Math.floor((S.geo?.index?.count||S.geo?.attributes?.position?.count||0)/3));
  lines.push('Studio IBL: '+(scene.environment?'ACTIVE':'OFF')+' | exposure '+renderer.toneMappingExposure.toFixed(2));
  mats.forEach((m,i)=>{
  const maps=['map','normalMap','metalnessMap','roughnessMap','aoMap','emissiveMap'].filter(k=>m?.[k]);
  lines.push((i+1)+'. '+(m?.name||'unnamed')+' ['+(m?.type||'unknown')+']');
  lines.push('  maps: '+(maps.join(', ')||'none')+' | metal '+(m?.metalness??'n/a')+' | rough '+(m?.roughness??'n/a'));
  if(m?.aoMap&&!uv2)lines.push('  WARNING: AO map requires UV2');
- if(m?.normalMap&&!uv)lines.push('  WARNING: normal map has no UV0');
+ if(m?.normalMap&&!uv)lines.push('  ERROR: normal map has no UV0');
+  if(m?.map&&!uv)lines.push('  ERROR: base color map has no UV0');
+  if(m?.vertexColors&&!S.geo?.attributes?.color)lines.push('  ERROR: vertex colors required by material are absent');
+  if(m?.metalness>0.7&&!scene.environment)lines.push('  WARNING: metal needs a reflection environment');
+  if(m?.map&&m.map.colorSpace!==THREE.SRGBColorSpace)lines.push('  WARNING: color map not tagged sRGB');
+  const orig=profilePBRSignature?.[i];if(orig){if(orig.maps.map&&!m?.map)lines.push('  ERROR: original base-color map missing');if(orig.maps.normalMap&&!m?.normalMap)lines.push('  ERROR: original normal map missing')} 
  });
  const out=$('ldReport');if(out)out.textContent=lines.join('\n');return lines;
 }
 
 function releaseImportedMaterials(){if(importedSurfaceMaterials){for(const m of importedSurfaceMaterials){if(m?.userData?.profileOwned)m.dispose()}importedSurfaceMaterials=null}}
-function preserveMaterial(m){const c=m.clone();if(c.isMeshStandardMaterial||c.isMeshPhysicalMaterial){c.side=THREE.DoubleSide;c.shadowSide=THREE.FrontSide;if(c.normalMap&&c.normalScale.lengthSq()<1e-8)c.normalScale.set(1,1)}c.userData={...c.userData,profileOwned:true};
- // glTF base-color/emissive maps are sRGB; data maps must remain linear.
- for(const name of ['map','emissiveMap','sheenColorMap','specularColorMap']){const t=c[name];if(t){t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true}}
- if(c.isMeshStandardMaterial||c.isMeshPhysicalMaterial){/* Preserve authored metalness, roughness and IBL intensity from imported glTF. */}
- c.needsUpdate=true;return c}
+function preserveMaterial(m){const c=m.clone();c.userData={...c.userData,profileOwned:true};/* Preserve glTF material parameters, texture channel, color space, normal scale, alpha mode, and original sidedness. */c.needsUpdate=true;return c}
 function rigMaterial(){return importedSurfaceMaterials?.length?(importedSurfaceMaterials.length===1?importedSurfaceMaterials[0]:importedSurfaceMaterials):mat}
 
-function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight','color'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
+function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
 /* Geometry-aware landmark calibration for imported upright bipeds. Sampling local mesh
    sections is safer than imposing demo joint dimensions on arbitrary model proportions.
    This remains an estimate; inspect before exporting. */
@@ -880,7 +883,7 @@ async function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say(
  bindPreview=new THREE.Mesh(previewGeo,rigMaterial());
  bindPreview.name='Auto-bind progress preview';bindPreview.frustumCulled=false;
  bindPreview.castShadow=bindPreview.receiveShadow=true;
- ['skinIndex','skinWeight','color'].forEach(n=>keepGeo.deleteAttribute(n));
+ ['skinIndex','skinWeight'].forEach(n=>keepGeo.deleteAttribute(n));
  clearAll();scene.add(bindPreview);S.geo=keepGeo;S.adopted=false;S.width=savedWidth;S.frame=0;
  
  setRigStage('fitting joints');const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);const fitResult=fitBipedToGeometry(S.joints,g,type);S.geometryFit=fitResult;if(fitResult.model)say('Detected '+fitResult.model+' — fitted downward arm joints and isolated arm vertex regions.');S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();S.mesh.visible=false;setRigStage('solving vertex weights');await solveWeights();setRigStage('checking skin and bind matrices');
@@ -1754,7 +1757,7 @@ function staticFrom(o){
   if(!g.attributes.normal)g.computeVertexNormals();
   // A baked transform invalidates imported tangent space; Three.js derives a safe basis from UVs.
   g.deleteAttribute('tangent');
-  ['skinIndex','skinWeight','color'].forEach(n=>g.deleteAttribute(n));
+  ['skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));
   const materials=Array.isArray(m.material)?m.material:[m.material];
   const sourceGroups=g.groups.length?g.groups:[{start:0,count:g.index?g.index.count:g.attributes.position.count,materialIndex:0}];
   const localMap=materials.map(mm=>{surfaces.push(preserveMaterial(mm||mat));return surfaces.length-1});
@@ -1763,16 +1766,17 @@ function staticFrom(o){
  });
  if(!gs.length)throw new Error('No usable mesh geometry found.');
  // Do not fabricate zero tangents: invalid tangent frames can break normal-map lighting.
- const attrs=['position','normal','uv','uv1','uv2'];
+ const hasColors=gs.some(({g})=>!!g.attributes.color);
+ const attrs=['position','normal','uv','uv1','uv2',...(hasColors?['color']:[])];
  const values={};for(const a of attrs)values[a]=[];
  const indices=[],groups=[];let vertexOffset=0,indexOffset=0;
  for(const {g,groups:gr} of gs){if(!g.attributes.normal)g.computeVertexNormals();const count=g.attributes.position.count;
-  for(const a of attrs){const at=g.attributes[a]||(a==='uv2'?g.attributes.uv:null),components=a==='position'||a==='normal'?3:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):0)}
+  for(const a of attrs){const at=g.attributes[a]||(a==='uv2'?g.attributes.uv:null),components=a==='position'||a==='normal'||a==='color'?3:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):(a==='color'?1:0))}
   if(g.index){for(let i=0;i<g.index.count;i++)indices.push(g.index.getX(i)+vertexOffset)}else{for(let i=0;i<count;i++)indices.push(i+vertexOffset)}
   for(const gr0 of gr)groups.push({start:indexOffset+gr0.start,count:gr0.count,materialIndex:gr0.materialIndex});
   indexOffset+=g.index?.count??count;vertexOffset+=count;g.dispose();
  }
- const out=new THREE.BufferGeometry();for(const a of attrs)out.setAttribute(a,new THREE.Float32BufferAttribute(values[a],a==='position'||a==='normal'?3:2));out.setIndex(indices);for(const gr of groups)out.addGroup(gr.start,gr.count,gr.materialIndex);
+ const out=new THREE.BufferGeometry();for(const a of attrs)out.setAttribute(a,new THREE.Float32BufferAttribute(values[a],a==='position'||a==='normal'||a==='color'?3:2));out.setIndex(indices);for(const gr of groups)out.addGroup(gr.start,gr.count,gr.materialIndex);
  // Import must remain a lightweight preview operation. Rig fitting/weight solving is
  // explicitly started by BUILD RIG + BIND, not synchronously during GLB parsing.
  clearAll();importedSurfaceMaterials=surfaces;profileCapturePBRBaseline();S.geo=out;S.adopted=false;
@@ -1878,11 +1882,11 @@ function ldAudit(){const issues=[],ok=[];if(!S.mesh)issues.push('No mesh loaded'
  if(!S.keys.size&&S.src!=='clip'&&S.src!=='proc')issues.push('No baked animation keys (pose-only export)');else ok.push('Animation source: '+S.src);
  const out=['CHECKED',...ok.map(x=>'✓ '+x),...issues.map(x=>'! '+x),'','Inspect joint placement, intersections, ground contact and export playback manually.'];$('ldReport').textContent=out.join('\n');return issues}
 function ldMaterials(){if(!S.mesh)return [mat];const m=S.mesh.material;const all=Array.isArray(m)?m:[m];return $('ldScope').value==='first'?all.slice(0,1):all}
-function ldApply(){const rough=Number($('ldRough').value),metal=Number($('ldMetal').value);for(const m of ldMaterials()){if(m&&(m.isMeshStandardMaterial||m.isMeshPhysicalMaterial)){m.roughness=rough;m.metalness=metal;m.needsUpdate=true}}renderer.toneMappingExposure=Number($('ldExposure').value);$('ldRoughV').textContent=rough.toFixed(2);$('ldMetalV').textContent=metal.toFixed(2);$('ldExposureV').textContent=renderer.toneMappingExposure.toFixed(2)}
-$('ldPreset').addEventListener('change',()=>{const presets={ceramic:[.38,.12,0xd9c4b0],steel:[.26,.9,0xb9c4c5],rubber:[.9,0,0x3b4142],bronze:[.3,.8,0xb87842]};const [r,m,c]=presets[$('ldPreset').value];$('ldRough').value=r;$('ldMetal').value=m;ldApply();for(const material of ldMaterials()){if(material?.color){material.color.setHex(c);material.needsUpdate=true}}});
+function ldApply(){if($('ldProtect').checked){$('ldProtectStatus').textContent='Unlock material editing before modifying imported PBR.';return;}const rough=Number($('ldRough').value),metal=Number($('ldMetal').value);for(const m of ldMaterials()){if(m&&(m.isMeshStandardMaterial||m.isMeshPhysicalMaterial)){m.roughness=rough;m.metalness=metal;m.needsUpdate=true}}renderer.toneMappingExposure=Number($('ldExposure').value);$('ldRoughV').textContent=rough.toFixed(2);$('ldMetalV').textContent=metal.toFixed(2);$('ldExposureV').textContent=renderer.toneMappingExposure.toFixed(2)}
+$('ldPreset').addEventListener('change',()=>{if($('ldProtect').checked){say('Original PBR protected — unlock material editing first',1);return;}const presets={ceramic:[.38,.12,0xd9c4b0],steel:[.26,.9,0xb9c4c5],rubber:[.9,0,0x3b4142],bronze:[.3,.8,0xb87842]};const [r,m,c]=presets[$('ldPreset').value];$('ldRough').value=r;$('ldMetal').value=m;ldApply();for(const material of ldMaterials()){if(material?.color){material.color.setHex(c);material.needsUpdate=true}}});
 for(const id of ['ldRough','ldMetal','ldExposure'])$(id).addEventListener('input',ldApply);
 $('ldEnvironment').addEventListener('change',()=>{scene.environment=$('ldEnvironment').value==='studio'?studioEnvironment:null;say(scene.environment?'Studio reflections enabled':'Studio reflections disabled')});
-$('ldRestore').addEventListener('click',profileRestorePBR);$('ldPBRAudit').addEventListener('click',profilePBRAudit);
+$('ldRestore').addEventListener('click',()=>{profileRestorePBR();$('ldProtect').checked=true;$('ldProtectStatus').textContent='Original imported surface appearance restored and locked.'});$('ldProtect').addEventListener('change',()=>{$('ldProtectStatus').textContent=$('ldProtect').checked?'Imported PBR protected. Uncheck to edit materials.':'Look Dev material editing unlocked; Restore is always available.'});$('ldPBRAudit').addEventListener('click',profilePBRAudit);
 $('ldLighting').addEventListener('change',()=>{const v=$('ldLighting').value;dir.intensity=v==='contrast'?3.5:v==='flat'?1.4:2.4;fill.intensity=v==='contrast'?.25:v==='flat'?1.2:.7;rim.intensity=v==='contrast'?1.6:v==='flat'?.15:.9});
 function ldToggle(on){ldOpen=on;$('lookDevModal').hidden=!on;if(on){ldAudit();$('ldFrame').max=S.max;$('ldFrame').value=Math.round(S.frame);$('ldPlay').textContent=S.playing?'❚❚ PAUSE':'▶ PLAY'}}
 $('viewMaterials').addEventListener('click',()=>ldToggle(true));$('viewLighting').addEventListener('click',()=>{const modes=['studio','flat','contrast'],sel=$('ldLighting');sel.value=modes[(modes.indexOf(sel.value)+1)%modes.length];sel.dispatchEvent(new Event('change'));$('viewLighting').textContent='☀ '+sel.selectedOptions[0].text.toUpperCase()});$('btnLookDev').addEventListener('click',()=>ldToggle(true));$('ldClose').addEventListener('click',()=>ldToggle(false));$('ldRefresh').addEventListener('click',ldAudit);$('ldExport').addEventListener('click',()=>{ldAudit();$('btnExport').click()});
