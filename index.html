@@ -810,7 +810,26 @@ function fitBaseBasic(joints,g){
  for(const j of joints){const m=/^(thumb|index|middle|ring|pinky)_(?:01|02|03|tip)_([LR])$/.exec(j.name);if(!m)continue;
  const sg=m[2]==='L'?1:-1,originalX=Math.abs(j.pos.x)/h;
  j.pos.set(cx+sg*(.60+Math.max(0,originalX-.45)*.27),b.min.y+h*(.535-Math.max(0,originalX-.45)*.6),cz+j.pos.z*.4);fitted++}
- return {fitted,confidence:.55,model:'base_basic_pbr.glb',method:'estimated down-arm landmarks; requires visual verification'};
+ // Landmark proximity is measured against the mesh, not hardcoded.  This is a
+ // surface-support heuristic, NOT an anatomical or deformation-quality confidence.
+ const position=g.attributes.position, samples=[];
+ for(let i=0;i<position.count;i+=Math.max(1,Math.floor(position.count/14000)))
+   samples.push([position.getX(i),position.getY(i),position.getZ(i)]);
+ const supported=[],unsupported=[];let sum=0;
+ const radius=Math.max(.035*h,.0001), limit=Math.max(.14*h,.0001);
+ for(const j of joints){
+   if(!/^(clavicle|arm|forearm|hand|upLeg|leg|foot|heel|toe|toe_tip)_[LR]$/.test(j.name))continue;
+   let near=Infinity;
+   for(const v of samples){const dx=v[0]-j.pos.x,dy=v[1]-j.pos.y,dz=v[2]-j.pos.z;
+     const d=dx*dx+dy*dy+dz*dz;if(d<near)near=d;}
+   const distance=Math.sqrt(near), score=Math.max(0,1-Math.max(0,distance-radius)/(limit-radius));
+   sum+=score;
+   (score>=.5?supported:unsupported).push(j.name);
+ }
+ const total=supported.length+unsupported.length;
+ return {fitted,confidence:total?sum/total:0,model:'base_basic_pbr.glb',
+   metric:'surface proximity',supported:supported.length,total,unsupported,
+   method:'Measured landmark-to-surface proximity on sampled vertices; not anatomical validation'};
 }
 function fitBipedToGeometry(joints,g,type){
  if(!['humanoid','mecha'].includes(type))return {fitted:0,confidence:0};
@@ -871,7 +890,7 @@ async function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say(
  S.geo.computeBoundingSphere();S.geo.computeBoundingBox();
  autoChains();
  S.contactDatum=null;S.root.updateMatrixWorld(true);{const feet=profileFootEndpoints();if(feet.length)S.contactDatum={mesh:S.mesh,y:Math.min(...feet.map(b=>b.getWorldPosition(V3()).y))};}
- buildMarkers();evaluate();const neutralCheck=checkNeutralBind();if(neutralCheck.issues.length){$('rigAuditOutput').textContent='BIND TRANSFORM ERROR: '+neutralCheck.issues.join(' • ');say('Neutral bind matrix verification failed; inspect Rig Audit',1)}refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry landmark fit: '+fitResult.fitted+' joints ('+Math.round(fitResult.confidence*100)+'% sampled). Inspect front and side views before export.');say(type==='scorpion'?'Scorpion leg landmarks from mesh: '+(S.scorpionFit?.fittedLegs||0)+'/6 stations; unresolved: '+(S.scorpionFit?.unresolved?.join(', ')||'none')+'. Tail fit: '+S.tailFitStatus+'. Verify actual components before animation.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.');bindSucceeded=true;}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));
+ buildMarkers();evaluate();const neutralCheck=checkNeutralBind();if(neutralCheck.issues.length){$('rigAuditOutput').textContent='BIND TRANSFORM ERROR: '+neutralCheck.issues.join(' • ');say('Neutral bind matrix verification failed; inspect Rig Audit',1)}refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry fit: '+fitResult.fitted+' joints; '+Math.round(fitResult.confidence*100)+'% '+(fitResult.metric||'sampling coverage')+' (heuristic, not anatomical confidence). Inspect front and side views.');say(type==='scorpion'?'Scorpion leg landmarks from mesh: '+(S.scorpionFit?.fittedLegs||0)+'/6 stations; unresolved: '+(S.scorpionFit?.unresolved?.join(', ')||'none')+'. Tail fit: '+S.tailFitStatus+'. Verify actual components before animation.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.');bindSucceeded=true;}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));
  // Failure must never leave the scene blank: recover the original unskinned source.
  if(!bindSucceeded){
   if(bindPreview){scene.remove(bindPreview);bindPreview.geometry.dispose();bindPreview=null;}
@@ -1371,7 +1390,7 @@ function rigPreflight(){
  if(mesh?.skeleton?.boneInverses?.length!==B)errors.push('Bind inverse count mismatch');
  if(S.joints.some(j=>![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite)))errors.push('Nonfinite joint coordinates');
  for(const ch of S.chains){if(ch.idx.some(i=>i<0||i>=B))errors.push('Invalid IK '+ch.name);if(ch.idx.length<2)errors.push('Short IK '+ch.name)}
- if(S.geometryFit&&S.geometryFit.confidence<.7)warnings.push('Low confidence geometry fit: '+Math.round(S.geometryFit.confidence*100)+'%');
+ if(S.geometryFit&&S.geometryFit.confidence<.7)warnings.push('Low geometry '+(S.geometryFit.metric||'sampling coverage')+': '+Math.round(S.geometryFit.confidence*100)+'% (heuristic; check actual joint locations)');
  return {errors:[...new Set(errors)],warnings};
 }
 /* glTF requires joints to be addressable as independent scene nodes.  A bone
@@ -1618,7 +1637,7 @@ function evaluationSelfTest(){
   test('Skin preflight',pre.errors.length===0,pre.errors.slice(0,3).join('; ')||'no structural errors');
   test('Neutral bind',neutral.issues.length===0,neutral.issues.slice(0,3).join('; ')||'matrix check passed');
   if(pre.warnings.length)warnings.push(...pre.warnings);
-  if(S.geometryFit&&S.geometryFit.confidence<.75)warnings.push('Low-confidence joint fitting');
+  if(S.geometryFit&&S.geometryFit.confidence<.75)warnings.push('Geometry landmark review required: '+Math.round(S.geometryFit.confidence*100)+'% '+(S.geometryFit.metric||'coverage')+' (heuristic)');
   if(S.rigType==='scorpion'&&!S.geometryFit)warnings.push('Scorpion geometry-specific fit not verified');
  }
  if(!S.keys.size)warnings.push('No baked animation keys; export will not include a procedural clip unless baked');
