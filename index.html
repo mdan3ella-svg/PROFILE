@@ -124,7 +124,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
   </div>
 </div>
 
-<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><p class="ld-note">Imported materials are preserved. Adjustments below affect the current model; presets intentionally replace its surface appearance.</p><button class="btn" id="ldRestore">↺ RESTORE IMPORTED MATERIALS</button><label>Material scope</label><select id="ldScope"><option value="all">All model materials</option><option value="first">First material only</option></select><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Environment reflections</label><select id="ldEnvironment"><option value="studio">Studio IBL</option><option value="off">Direct lights only</option></select><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported UVs, texture maps and material slots are retained during automatic rig generation; LookDev presets may override their appearance. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
+<div id="lookDevModal" class="ld-modal" hidden role="dialog" aria-modal="true" aria-label="Look development and animation critique"><div class="ld-shell"><div class="ld-head"><strong>◈ LOOK DEV <span> / ANIMATION CRITIQUE</span></strong><button class="btn" id="ldClose">✕ CLOSE</button></div><div class="ld-body"><div class="ld-stage"><canvas id="ldCanvas" width="960" height="540" aria-label="Live animation preview"></canvas><div class="ld-scrub"><button class="btn" id="ldPlay">▶ / ❚❚</button><input type="range" id="ldFrame" min="0" max="120" step="1" value="0" aria-label="Critique frame"/><span id="ldTime">0.00 s</span></div></div><aside class="ld-side"><h3>PHYSICALLY BASED MATERIAL</h3><p class="ld-note">Imported materials are preserved. Adjustments below affect the current model; presets intentionally replace its surface appearance.</p><button class="btn" id="ldRestore">↺ RESTORE IMPORTED MATERIALS</button><label>Material scope</label><select id="ldScope"><option value="all">All model materials</option><option value="first">First material only</option></select><label>Surface preset</label><select id="ldPreset"><option value="ceramic">Ceramic / Neutral</option><option value="steel">Brushed steel</option><option value="rubber">Matte rubber</option><option value="bronze">Anodized bronze</option></select><label>Roughness <output id="ldRoughV">0.38</output></label><input type="range" id="ldRough" min="0.04" max="1" step="0.01" value="0.38"/><label>Metalness <output id="ldMetalV">0.12</output></label><input type="range" id="ldMetal" min="0" max="1" step="0.01" value="0.12"/><label>Exposure <output id="ldExposureV">1.00</output></label><input type="range" id="ldExposure" min="0.35" max="2.5" step="0.05" value="1"/><label>Environment reflections</label><select id="ldEnvironment"><option value="studio">Studio IBL</option><option value="off">Direct lights only</option></select><label>Lighting</label><select id="ldLighting"><option value="studio">Studio</option><option value="contrast">Contrast</option><option value="flat">Neutral inspection</option></select><h3>PRE-EXPORT CHECK</h3><div id="ldReport" class="ld-report">Open a rig to review.</div><button class="btn" id="ldRefresh">↻ RUN CHECKS</button><button class="btn" id="ldPBRAudit">◈ PBR INTEGRITY AUDIT</button><button class="btn accent" id="ldExport">EXPORT GLB</button><p class="ld-note">Material settings apply to the generated mesh. Imported UVs, texture maps and material slots are retained during automatic rig generation; LookDev presets may override their appearance. This is a visual review, not a physics or collision certification.</p></aside></div></div></div>
 <div class="topbar">
   <div class="logo mono">PROFILE <i>| MOTION ENGINE |</i> VERTASCAN</div>
   <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.json" multiple style="display:none"/>
@@ -299,18 +299,18 @@ let studioEnvironment=null;
 try{const room=new RoomEnvironment();studioEnvironment=environmentGenerator.fromScene(room,0.045).texture;room.dispose();}catch(error){console.warn('Studio IBL unavailable; using direct lighting',error)}
 environmentGenerator.dispose();
 if(studioEnvironment){scene.environment=studioEnvironment;scene.environmentIntensity=1.0;}else{scene.background=new THREE.Color(0x252932)}
-scene.add(new THREE.AmbientLight(0xffffff,1.15));
+scene.add(new THREE.AmbientLight(0xffffff,0.35));
 const camera=new THREE.PerspectiveCamera(42,1,0.05,100);camera.position.set(2.6,1.7,3.2);
 const orthoCamera=new THREE.OrthographicCamera(-2,2,2,-2,.01,1000);let activeCamera=camera;let orthoScale=2.5;
 const controls=new OrbitControls(camera,canvas);controls.target.set(0,0.95,0);controls.enableDamping=true;controls.dampingFactor=0.08;
 function resize(){const vp=$('viewport');if(!vp.clientWidth||!vp.clientHeight)return;renderer.setSize(vp.clientWidth,vp.clientHeight,false);camera.aspect=vp.clientWidth/vp.clientHeight;camera.updateProjectionMatrix();const a=vp.clientWidth/vp.clientHeight;orthoCamera.left=-orthoScale*a;orthoCamera.right=orthoScale*a;orthoCamera.top=orthoScale;orthoCamera.bottom=-orthoScale;orthoCamera.updateProjectionMatrix();resizeT()}
 new ResizeObserver(resize).observe($('viewport'));
 /* lighting: neutral sky/ground fill + warm shadow-casting key + cool fill + rim */
-scene.add(new THREE.HemisphereLight(0xffffff,0x666b77,1.45));
-const dir=new THREE.DirectionalLight(0xfff1e0,2.4);dir.position.set(3.2,5.5,4);dir.castShadow=true;dir.shadow.mapSize.set(2048,2048);
+scene.add(new THREE.HemisphereLight(0xffffff,0x666b77,0.65));
+const dir=new THREE.DirectionalLight(0xfff1e0,1.9);dir.position.set(3.2,5.5,4);dir.castShadow=true;dir.shadow.mapSize.set(2048,2048);
 Object.assign(dir.shadow.camera,{left:-3.5,right:3.5,top:3.5,bottom:-3.5,near:.5,far:20});dir.shadow.camera.updateProjectionMatrix();dir.shadow.bias=-0.0004;dir.shadow.normalBias=0.025;dir.shadow.radius=3;scene.add(dir);
-const fill=new THREE.DirectionalLight(0xd6e5ff,1.35);fill.position.set(-4,2.5,2.5);scene.add(fill);
-const rim=new THREE.DirectionalLight(0xd5faff,1.25);rim.position.set(-2,3,-4);scene.add(rim);
+const fill=new THREE.DirectionalLight(0xd6e5ff,0.65);fill.position.set(-4,2.5,2.5);scene.add(fill);
+const rim=new THREE.DirectionalLight(0xd5faff,0.7);rim.position.set(-2,3,-4);scene.add(rim);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(24,24),new THREE.MeshStandardMaterial({color:0x23242c,roughness:.92,metalness:0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 const grid=new THREE.GridHelper(24,48,0x3a3a46,0x2a2a34);grid.position.y=0.002;scene.add(grid);
 const gizmoRoot=new THREE.Group(),ovl=new THREE.Group();scene.add(gizmoRoot,ovl);
@@ -749,6 +749,36 @@ function buildCreatureJoints(type,bb,h,w){
 let rigSourceGeometry=null,rigSwitchBusy=false,rigStage="idle",rigCancelRequested=false,rigStartedAt=0;
 function setRigStage(stage){rigStage=stage;const h=document.getElementById("hudInfo");if(h&&rigSwitchBusy)h.textContent="Auto-bind: "+stage;}
 let importedSurfaceMaterials=null;
+let profilePBRBaseline=null;
+function profileCapturePBRBaseline(){
+ profilePBRBaseline=importedSurfaceMaterials?.map(m=>m.clone())||null;
+}
+function profileRestorePBR(){
+ if(!S.mesh||!profilePBRBaseline?.length){say('No imported PBR baseline available',1);return;}
+ const restored=profilePBRBaseline.map(m=>m.clone());
+ importedSurfaceMaterials=restored;
+ S.mesh.material=restored.length===1?restored[0]:restored;
+ renderer.toneMappingExposure=1; $('ldExposure').value=1;$('ldExposureV').textContent='1.00';
+ scene.environment=studioEnvironment; $('ldEnvironment').value='studio';
+ for(const m of restored)m.needsUpdate=true;
+ profilePBRAudit();say('Original GLB PBR materials restored');
+}
+function profilePBRAudit(){
+ const mats=Array.isArray(S.mesh?.material)?S.mesh.material:S.mesh?.material?[S.mesh.material]:[];
+ const lines=['PBR INTEGRITY / '+mats.length+' material(s)'];
+ const uv=S.geo?.getAttribute('uv'),uv2=S.geo?.getAttribute('uv2');
+ lines.push('UV0: '+(uv?.count||0)+' | UV2: '+(uv2?.count||0));
+ lines.push('Studio IBL: '+(scene.environment?'ACTIVE':'OFF')+' | exposure '+renderer.toneMappingExposure.toFixed(2));
+ mats.forEach((m,i)=>{
+ const maps=['map','normalMap','metalnessMap','roughnessMap','aoMap','emissiveMap'].filter(k=>m?.[k]);
+ lines.push((i+1)+'. '+(m?.name||'unnamed')+' ['+(m?.type||'unknown')+']');
+ lines.push('  maps: '+(maps.join(', ')||'none')+' | metal '+(m?.metalness??'n/a')+' | rough '+(m?.roughness??'n/a'));
+ if(m?.aoMap&&!uv2)lines.push('  WARNING: AO map requires UV2');
+ if(m?.normalMap&&!uv)lines.push('  WARNING: normal map has no UV0');
+ });
+ const out=$('ldReport');if(out)out.textContent=lines.join('\n');return lines;
+}
+
 function releaseImportedMaterials(){if(importedSurfaceMaterials){for(const m of importedSurfaceMaterials){if(m?.userData?.profileOwned)m.dispose()}importedSurfaceMaterials=null}}
 function preserveMaterial(m){const c=m.clone();if(c.isMeshStandardMaterial||c.isMeshPhysicalMaterial){c.side=THREE.DoubleSide;c.shadowSide=THREE.FrontSide;if(c.normalMap&&c.normalScale.lengthSq()<1e-8)c.normalScale.set(1,1)}c.userData={...c.userData,profileOwned:true};
  // glTF base-color/emissive maps are sRGB; data maps must remain linear.
@@ -1674,7 +1704,7 @@ function staticFrom(o){
  const values={};for(const a of attrs)values[a]=[];
  const indices=[],groups=[];let vertexOffset=0,indexOffset=0;
  for(const {g,groups:gr} of gs){if(!g.attributes.normal)g.computeVertexNormals();const count=g.attributes.position.count;
-  for(const a of attrs){const at=g.attributes[a],components=a==='position'||a==='normal'?3:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):0)}
+  for(const a of attrs){const at=g.attributes[a]||(a==='uv2'?g.attributes.uv:null),components=a==='position'||a==='normal'?3:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):0)}
   if(g.index){for(let i=0;i<g.index.count;i++)indices.push(g.index.getX(i)+vertexOffset)}else{for(let i=0;i<count;i++)indices.push(i+vertexOffset)}
   for(const gr0 of gr)groups.push({start:indexOffset+gr0.start,count:gr0.count,materialIndex:gr0.materialIndex});
   indexOffset+=g.index?.count??count;vertexOffset+=count;g.dispose();
@@ -1682,7 +1712,7 @@ function staticFrom(o){
  const out=new THREE.BufferGeometry();for(const a of attrs)out.setAttribute(a,new THREE.Float32BufferAttribute(values[a],a==='position'||a==='normal'?3:2));out.setIndex(indices);for(const gr of groups)out.addGroup(gr.start,gr.count,gr.materialIndex);
  // Import must remain a lightweight preview operation. Rig fitting/weight solving is
  // explicitly started by BUILD RIG + BIND, not synchronously during GLB parsing.
- clearAll();importedSurfaceMaterials=surfaces;S.geo=out;S.adopted=false;
+ clearAll();importedSurfaceMaterials=surfaces;profileCapturePBRBaseline();S.geo=out;S.adopted=false;
  rememberRigSource(out);S.N=out.attributes.position.count;S.B=0;
  const preview=new THREE.Mesh(out,rigMaterial());preview.name='Imported geometry — unrigged preview';
  preview.frustumCulled=false;preview.castShadow=true;preview.receiveShadow=true;
@@ -1789,7 +1819,7 @@ function ldApply(){const rough=Number($('ldRough').value),metal=Number($('ldMeta
 $('ldPreset').addEventListener('change',()=>{const presets={ceramic:[.38,.12,0xd9c4b0],steel:[.26,.9,0xb9c4c5],rubber:[.9,0,0x3b4142],bronze:[.3,.8,0xb87842]};const [r,m,c]=presets[$('ldPreset').value];$('ldRough').value=r;$('ldMetal').value=m;ldApply();for(const material of ldMaterials()){if(material?.color){material.color.setHex(c);material.needsUpdate=true}}});
 for(const id of ['ldRough','ldMetal','ldExposure'])$(id).addEventListener('input',ldApply);
 $('ldEnvironment').addEventListener('change',()=>{scene.environment=$('ldEnvironment').value==='studio'?studioEnvironment:null;say(scene.environment?'Studio reflections enabled':'Studio reflections disabled')});
-$('ldRestore').addEventListener('click',()=>{if(!S.mesh)return;const mats=importedSurfaceMaterials;if(!mats?.length){say('No saved imported materials to restore',1);return}const old=S.mesh.material;S.mesh.material=mats.map(m=>m.clone());if(S.mesh.material.length===1)S.mesh.material=S.mesh.material[0];say('Imported material properties restored')});
+$('ldRestore').addEventListener('click',profileRestorePBR);$('ldPBRAudit').addEventListener('click',profilePBRAudit);
 $('ldLighting').addEventListener('change',()=>{const v=$('ldLighting').value;dir.intensity=v==='contrast'?3.5:v==='flat'?1.4:2.4;fill.intensity=v==='contrast'?.25:v==='flat'?1.2:.7;rim.intensity=v==='contrast'?1.6:v==='flat'?.15:.9});
 function ldToggle(on){ldOpen=on;$('lookDevModal').hidden=!on;if(on){ldAudit();$('ldFrame').max=S.max;$('ldFrame').value=Math.round(S.frame);$('ldPlay').textContent=S.playing?'❚❚ PAUSE':'▶ PLAY'}}
 $('viewMaterials').addEventListener('click',()=>ldToggle(true));$('viewLighting').addEventListener('click',()=>{const modes=['studio','flat','contrast'],sel=$('ldLighting');sel.value=modes[(modes.indexOf(sel.value)+1)%modes.length];sel.dispatchEvent(new Event('change'));$('viewLighting').textContent='☀ '+sel.selectedOptions[0].text.toUpperCase()});$('btnLookDev').addEventListener('click',()=>ldToggle(true));$('ldClose').addEventListener('click',()=>ldToggle(false));$('ldRefresh').addEventListener('click',ldAudit);$('ldExport').addEventListener('click',()=>{ldAudit();$('btnExport').click()});
