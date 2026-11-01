@@ -434,15 +434,21 @@ function rigidifyComponents(W,JP,SG){
   for(let s=0;s<SG.length;s+=7){const j=SG[s],ax=SG[s+1],ay=SG[s+2],az=SG[s+3],dx=SG[s+4]-ax,dy=SG[s+5]-ay,dz=SG[s+6]-az;
    const l=dx*dx+dy*dy+dz*dz,u=l>1e-15?THREE.MathUtils.clamp(((cx-ax)*dx+(cy-ay)*dy+(cz-az)*dz)/l,0,1):0;
    const d=(cx-ax-u*dx)**2+(cy-ay-u*dy)**2+(cz-az-u*dz)**2;
-   if(d<dist){dist=d;best=j}}
-  if(best<0){skipped++;continue}
+   if(d<dist&&(!/^(?:clavicle|arm|forearm|hand|upLeg|leg|foot|heel|toe)/.test(S.joints[j]?.name||'')||!/_L$|_R$/.test(S.joints[j]?.name||'')||((/_L$/.test(S.joints[j].name)?1:-1)*(cx-(bbox(S.geo).min.x+bbox(S.geo).max.x)*.5)>=-scale*.018))){dist=d;best=j}}
+  if(best<0||dist>(scale*.18)**2){skipped++;continue}
   for(const i of group){W.fill(0,i*B,i*B+B);W[i*B+best]=1}rigid++;
  }
  return {groups:groups.length,rigid,skipped};
 }
 function computeAutoWeights(){
  const {N,B}=S,pos=S.geo.attributes.position,JP=bindPositions(),p=Math.max(1,Math.min(8,Number(S.falloff)||4)),half=p*.5;
- const deform=[];for(let j=0;j<B;j++)if(!/^root$/i.test(S.joints[j].name))deform.push(j);
+ // Exclude non-deforming helpers and duplicate mechanical attachment anchors.
+ const deform=[];for(let j=0;j<B;j++)if(!/^root$|^mech_(?:shoulder|forearm_guard|hip_armor|thigh_actuator|knee|shin_guard|chest_plate|backpack|torso_core)/i.test(S.joints[j].name))deform.push(j);
+ const centerX=(bbox(S.geo).min.x+bbox(S.geo).max.x)*.5;
+ const limbSide=name=>/_L$/.test(name)?1:/_R$/.test(name)?-1:0;
+ const lateralPart=name=>/^(?:clavicle|arm|forearm|hand|thumb|index|middle|ring|pinky|upLeg|leg|foot|heel|toe)/.test(name);
+ const sideGuard=Math.max(S.h*.018,1e-5);
+ const eligible=(j,x)=>{const name=S.joints[j].name,side=limbSide(name);return !side||!lateralPart(name)||side*(x-centerX)>=-sideGuard};
  if(!deform.length)return null;
  const kids=S.joints.map(()=>[]);S.joints.forEach((j,i)=>{if(j.parent>=0&&j.parent<B&&j.parent!==i)kids[j.parent].push(i)});
  const tiny=Math.max(S.h,1e-6)*1e-4,list=[];
@@ -453,10 +459,10 @@ function computeAutoWeights(){
  for(let i=0;i<N;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
   for(let s=0;s<nS;s++){const o=s*7,own=SG[o],ax=SG[o+1],ay=SG[o+2],az=SG[o+3],bx=SG[o+4]-ax,by=SG[o+5]-ay,bz=SG[o+6]-az,l2=bx*bx+by*by+bz*bz,px=x-ax,py=y-ay,pz=z-az;
    let u=l2>1e-18?(px*bx+py*by+pz*bz)/l2:0;u=u<0?0:u>1?1:u;const dx=px-bx*u,dy=py-by*u,dz=pz-bz*u,d2=dx*dx+dy*dy+dz*dz;if(d2<dj[own])dj[own]=d2}
-  let best=-1,bd=Infinity;for(const j of deform)if(dj[j]<bd){bd=dj[j];best=j}
-  if(best<0){W[i*B+deform[0]]=1;continue}
+  let best=-1,bd=Infinity;for(const j of deform)if(eligible(j,x)&&dj[j]<bd){bd=dj[j];best=j}
+  if(best<0){for(const j of deform)if(dj[j]<bd){bd=dj[j];best=j}W[i*B+best]=1;continue}
   if(S.rigType==='mecha'){W[i*B+best]=1;continue}
-  let sum=0;for(const j of deform){if(dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*16,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
+  let sum=0;for(const j of deform){if(!eligible(j,x)||dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*16,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),half);W[i*B+j]=w;sum+=w}
   if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
   for(const j of deform)W[i*B+j]/=sum}
  if(S.rigType==='mecha'||S.rigType==='vehicle'||S.rigType==='scorpion'){S.componentBinding=rigidifyComponents(W,JP,SG)}else S.componentBinding=null;
