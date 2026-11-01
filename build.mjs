@@ -1,0 +1,12 @@
+import {build} from 'esbuild';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+const out=resolve('profile.bundle.js');
+await build({entryPoints:[resolve('profile-app.js')], outfile:out,bundle:true,format:'iife',platform:'browser',target:['es2020'],minify:true,legalComments:'none',loader:{'.wasm':'dataurl'}});
+const js=readFileSync(out,'utf8').replaceAll('</script','<\\/script');
+let html=readFileSync('template.html','utf8');
+if(!html.includes('<!-- PROFILE_OFFLINE_SCRIPT -->')) throw Error('Template insertion marker missing');
+html=html.replace('<!-- PROFILE_OFFLINE_SCRIPT -->',`<script>${js}</script>`);
+if(/<script type="importmap">/.test(html)||/https:\/\/(?:unpkg|cdn\.jsdelivr)/.test(html)) throw Error('External dependency remains');
+writeFileSync('PROFILE_OFFLINE_STANDALONE.html',html);
+console.log('Created PROFILE_OFFLINE_STANDALONE.html:',(Buffer.byteLength(html)/1048576).toFixed(1),'MiB');

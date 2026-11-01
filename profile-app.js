@@ -1,0 +1,1793 @@
+
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {TransformControls} from 'three/addons/controls/TransformControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+const $=id=>document.getElementById(id), V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z), Q=()=>new THREE.Quaternion();
+const say=(m,bad)=>{const s=$('status');s.style.color=bad?'#ff8a8a':'#a6ff7a';s.textContent=m||'';if(m)clearTimeout(say.t),say.t=setTimeout(()=>s.textContent='',4000)};
+window.addEventListener('error',e=>say('Error: '+e.message,1));window.addEventListener('unhandledrejection',e=>say('Error: '+(e.reason&&e.reason.message||e.reason),1));
+
+/* ---------- scene ---------- */
+const canvas=$('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0d10);scene.fog=new THREE.Fog(0x0d0d10,14,32);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
+// Real image-based studio lighting: essential for reflective imported PBR metals.
+const environmentGenerator=new THREE.PMREMGenerator(renderer);
+let studioEnvironment=null;
+try{const room=new RoomEnvironment();studioEnvironment=environmentGenerator.fromScene(room,0.045).texture;room.dispose();}catch(error){console.warn('Studio IBL unavailable; using direct lighting',error)}
+environmentGenerator.dispose();
+if(studioEnvironment){scene.environment=studioEnvironment;scene.environmentIntensity=1.0;}else{scene.background=new THREE.Color(0x252932)}
+scene.add(new THREE.AmbientLight(0xffffff,0.35));
+const camera=new THREE.PerspectiveCamera(42,1,0.05,100);camera.position.set(2.6,1.7,3.2);
+const orthoCamera=new THREE.OrthographicCamera(-2,2,2,-2,.01,1000);let activeCamera=camera;let orthoScale=2.5;
+const controls=new OrbitControls(camera,canvas);controls.target.set(0,0.95,0);controls.enableDamping=true;controls.dampingFactor=0.08;
+function resize(){const vp=$('viewport');if(!vp.clientWidth||!vp.clientHeight)return;renderer.setSize(vp.clientWidth,vp.clientHeight,false);camera.aspect=vp.clientWidth/vp.clientHeight;camera.updateProjectionMatrix();const a=vp.clientWidth/vp.clientHeight;orthoCamera.left=-orthoScale*a;orthoCamera.right=orthoScale*a;orthoCamera.top=orthoScale;orthoCamera.bottom=-orthoScale;orthoCamera.updateProjectionMatrix();resizeT()}
+new ResizeObserver(resize).observe($('viewport'));
+/* lighting: neutral sky/ground fill + warm shadow-casting key + cool fill + rim */
+scene.add(new THREE.HemisphereLight(0xffffff,0x666b77,0.65));
+const dir=new THREE.DirectionalLight(0xfff1e0,1.9);dir.position.set(3.2,5.5,4);dir.castShadow=true;dir.shadow.mapSize.set(2048,2048);
+Object.assign(dir.shadow.camera,{left:-3.5,right:3.5,top:3.5,bottom:-3.5,near:.5,far:20});dir.shadow.camera.updateProjectionMatrix();dir.shadow.bias=-0.0004;dir.shadow.normalBias=0.025;dir.shadow.radius=3;scene.add(dir);
+const fill=new THREE.DirectionalLight(0xd6e5ff,0.65);fill.position.set(-4,2.5,2.5);scene.add(fill);
+const rim=new THREE.DirectionalLight(0xd5faff,0.7);rim.position.set(-2,3,-4);scene.add(rim);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(24,24),new THREE.MeshStandardMaterial({color:0x23242c,roughness:.92,metalness:0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(24,48,0x3a3a46,0x2a2a34);grid.position.y=0.002;scene.add(grid);
+const gizmoRoot=new THREE.Group(),ovl=new THREE.Group();scene.add(gizmoRoot,ovl);
+const tc=new TransformControls(camera,canvas);scene.add(tc.getHelper?tc.getHelper():tc);tc.setSize(0.8);
+tc.addEventListener('dragging-changed',e=>controls.enabled=!e.value);
+
+/* ---------- state ---------- */
+const MO={walk:{f:1,s:.55,l:.14,b:.03,a:.55,tw:.12,lean:.03,c:0},run:{f:1.6,s:.95,l:.28,b:.07,a:1,tw:.2,lean:.2,c:.03},idle:{f:.3,s:0,l:0,b:.004,a:.05,tw:.02,lean:0,c:0},jump:{f:.8,s:0,l:0,b:0,a:1,tw:0,lean:0,c:0},sneak:{f:.7,s:.38,l:.07,b:.02,a:.3,tw:.08,lean:.12,c:.12},strut:{f:.9,s:.6,l:.12,b:.03,a:.35,tw:.25,lean:-.02,c:0}};
+const S={armLift:new Map(),H:0,geo:null,mesh:null,root:null,adopted:false,joints:[],bones:[],roots:[],idx:{},restQ:[],restP:[],fk:[],hips0:V3(),hipsOff:V3(),W:null,N:0,B:0,adj:null,chains:[],markers:[],h:1.8,
+alias:null,baseQ:Q(),baseQi:Q(),unit:1,addons:[],clip:null,clipRt:null,ghost:.45,meshes:[],sel:-1,selChain:-1,gizmoObj:null,tool:'select',src:'pose',motion:'walk',speed:1,stride:1,frame:0,max:120,playing:false,loop:true,keys:new Map(),wview:false,falloff:4,width:1,brush:{r:.12,s:.5,mode:'add'},bindProfile:'auto',interpolation:'bezier',graphMode:false,graphDrag:null};
+const mat=new THREE.MeshPhysicalMaterial({color:0xd9c4b0,roughness:.38,metalness:.12,clearcoat:.16,clearcoatRoughness:.25,side:THREE.DoubleSide,shadowSide:THREE.FrontSide});
+
+/* ---------- geometry helpers ---------- */
+function mergeGeos(gs){const P=[],N=[],I=[];let off=0;for(const g0 of gs){const g=g0;if(!g.attributes.normal)g.computeVertexNormals();const p=g.attributes.position,n=g.attributes.normal;for(let i=0;i<p.count;i++){P.push(p.getX(i),p.getY(i),p.getZ(i));N.push(n.getX(i),n.getY(i),n.getZ(i))}if(g.index)for(let i=0;i<g.index.count;i++)I.push(g.index.getX(i)+off);else for(let i=0;i<p.count;i++)I.push(i+off);off+=p.count}
+ const m=new THREE.BufferGeometry();m.setAttribute('position',new THREE.Float32BufferAttribute(P,3));m.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));m.setIndex(I);return m}
+const bbox=g=>{g.computeBoundingBox();return g.boundingBox.clone()};
+const base=n=>n.replace(/_[LR]$/,'');
+const J=n=>S.idx[S.alias?S.alias[n]:n],dn=n=>n.replace('mixamorig','');
+/* Full humanoid skeleton. Origin = ground datum (world 0,0,0): `root` sits ON the ground, `hips` is its child. */
+const FINGERS=[['thumb',.456,.775,.012,[[.012,0,.009],[.009,0,.008],[.007,0,.007]]],['index',.498,.78,.016,[[.017,0,0],[.011,0,0],[.009,0,0]]],['middle',.5,.78,.006,[[.019,0,0],[.012,0,0],[.01,0,0]]],['ring',.497,.78,-.005,[[.017,0,0],[.011,0,0],[.009,0,0]]],['pinky',.49,.78,-.015,[[.013,0,0],[.008,0,0],[.007,0,0]]]];
+function buildJoints(h,w){const out=[];
+ const add=(n,p,x,y,z)=>{out.push({name:n,parent:p,pos:V3(x*h*w,y*h,z*h)});return out.length-1};
+ const root=add('root',-1,0,0,0),hips=add('hips',root,0,.53,0);let spParent=hips,spIds=[];const spineN=Math.max(3,Math.min(14,Math.round(S.spineCount||5)));for(let si=1;si<=spineN;si++){const t=si/(spineN+1);spParent=add('spine_'+String(si).padStart(2,'0'),spParent,0,.53+.19*t,0);spIds.push(spParent)}const s1=spIds[0],s2=spIds[Math.min(1,spIds.length-1)],ch=add('chest',spParent,0,.72,0),uc=add('upper_chest',ch,0,.775,0),nk=add('neck',uc,0,.82,0),hd=add('head',nk,0,.87,0);
+ const jw=add('jaw',hd,0,.888,.012);add('jaw_tip',jw,0,.879,.04);add('head_top',hd,0,.97,0);
+ for(const [s,k] of [['L',1],['R',-1]]){
+  add('eye_'+s,hd,k*.0125,.932,.047);
+  const cl=add('clavicle_'+s,uc,k*.03,.79,0),a=add('arm_'+s,cl,k*.12,.78,0),f=add('forearm_'+s,a,k*.29,.78,-.012),hn=add('hand_'+s,f,k*.45,.78,0);
+  for(const [nm,x0,y0,z0,steps] of FINGERS){let x=x0,y=y0,z=z0,p=add(nm+'_01_'+s,hn,k*x,y,z);
+   steps.forEach((d,i)=>{x+=d[0];y+=d[1];z+=d[2];p=add(nm+'_'+(i<2?'0'+(i+2):'tip')+'_'+s,p,k*x,y,z)})}
+  const u=add('upLeg_'+s,hips,k*.05,.50,0),l=add('leg_'+s,u,k*.05,.28,.012),ft=add('foot_'+s,l,k*.05,.05,0);add('heel_'+s,ft,k*.05,.014,-.03);const tb=add('toe_'+s,ft,k*.05,.02,.09);add('toe_tip_'+s,tb,k*.05,.0125,.114)}
+ return out}
+/* Demo body built from the SAME joint table (sole at y=0, crown at y=1.8, symmetric about x=0 and z=0) so mesh and skeleton match exactly. */
+function humanoidGeo(){const H=1.8,JT=buildJoints(H,1),M={};JT.forEach(j=>M[j.name]=j.pos);const p=n=>M[n],gs=[];
+ const strip=g=>{g.deleteAttribute('uv');return g};
+ const ell=(c,rx,ry,rz,d=22)=>{const g=strip(new THREE.SphereGeometry(1,d,Math.round(d*.7)));g.scale(rx,ry,rz);g.translate(c.x,c.y,c.z);gs.push(g)};
+ const seg=(a,b,ra,rb,sx=1,sz=1,d=16)=>{const len=a.distanceTo(b);if(len<1e-5)return;const sd=Math.max(5,Math.round(d*.6));
+  const g=mergeGeos([strip(new THREE.CylinderGeometry(rb,ra,len,d,1,true)),strip(new THREE.SphereGeometry(ra,d,sd).translate(0,-len/2,0)),strip(new THREE.SphereGeometry(rb,d,sd).translate(0,len/2,0))]);
+  g.scale(sx,1,sz);g.applyQuaternion(Q().setFromUnitVectors(V3(0,1,0),b.clone().sub(a).normalize()));const m=a.clone().add(b).multiplyScalar(.5);g.translate(m.x,m.y,m.z);gs.push(g)};
+ /* torso */
+ const hp=p('hips');ell(V3(0,hp.y-.04,0),.165,.115,.115);
+ seg(p('spine_01'),p('spine_02'),.135,.145,1.25,.82);seg(p('spine_02'),p('chest'),.145,.16,1.3,.85);seg(p('chest'),p('upper_chest'),.16,.165,1.35,.85);seg(p('upper_chest'),p('neck'),.165,.07,1.2,.85);
+ seg(p('neck'),p('head'),.052,.05,1,1,14);
+ ell(V3(0,H-.112,.005),.085,.112,.098,26);ell(V3(0,1.655,.098),.014,.018,.02,10);
+ /* arms + hands */
+ for(const [s,k] of [['L',1],['R',-1]]){const q=n=>p(n+'_'+s);
+  seg(q('clavicle'),q('arm'),.052,.05);ell(q('arm'),.06,.06,.06,16);seg(q('arm'),q('forearm'),.05,.042);seg(q('forearm'),q('hand'),.04,.03);
+  const hn=q('hand');ell(V3(hn.x+k*.043,hn.y,0),.046,.013,.042,14);
+  for(const [nm,,,,steps] of FINGERS){const r=nm==='thumb'?.0115:nm==='pinky'?.0075:.0092,ids=[nm+'_01',nm+'_02',nm+'_03',nm+'_tip'];
+   if(nm==='thumb')seg(hn,q(ids[0]),.014,r,1,1,8);
+   for(let i=0;i<3;i++)seg(q(ids[i]),q(ids[i+1]),r*[1,.9,.78][i],r*[.9,.78,.62][i],1,1,8)}
+  /* legs + feet */
+  seg(q('upLeg'),q('leg'),.088,.062);ell(q('leg'),.062,.062,.062,16);seg(q('leg'),q('foot'),.058,.04);ell(q('foot'),.04,.04,.04,14);
+  const fx=q('foot').x;seg(q('foot'),V3(fx,.045,.07),.04,.036,1,1,14);seg(V3(fx,.035,-.03),V3(fx,.022,.2),.035,.022,1.3,1,16)}
+ return mergeGeos(gs)}
+/* Drop a mesh onto the ground datum: sole -> y=0, torso centre -> x=z=0 (limbs/feet are ignored so the centre is stable). */
+function groundGeo(g){const bb=bbox(g),h=bb.max.y-bb.min.y,lo=bb.min.y+h*.4,hi=bb.min.y+h*.7,pos=g.attributes.position,b=new THREE.Box3(),v=V3();
+ for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i);if(v.y>=lo&&v.y<=hi)b.expandByPoint(v)}
+ if(b.isEmpty())b.copy(bb);g.translate(-(b.min.x+b.max.x)/2,-bb.min.y,-(b.min.z+b.max.z)/2);g.computeBoundingBox()}
+function setHips(){let i=J('hips');if(i===undefined)i=S.joints.findIndex(j=>/hips|pelvis/i.test(j.name));S.H=i>=0?i:0}
+function mixamoAlias(){if(S.idx.mixamorigHips===undefined)return null;const al={hips:'Hips',spine_01:'Spine',spine_02:'Spine1',chest:'Spine2',neck:'Neck',head:'Head'};for(const [s,L] of [['L','Left'],['R','Right']])Object.assign(al,{['clavicle_'+s]:L+'Shoulder',['arm_'+s]:L+'Arm',['forearm_'+s]:L+'ForeArm',['hand_'+s]:L+'Hand',['upLeg_'+s]:L+'UpLeg',['leg_'+s]:L+'Leg',['foot_'+s]:L+'Foot',['toe_'+s]:L+'ToeBase'});for(const k in al)al[k]='mixamorig'+al[k];return al}
+
+/* ---------- rig construction ---------- */
+function clearAll(){S.travelElapsed=0;if(typeof profileClearAccessories==='function')profileClearAccessories();tc.detach();if(S.root){scene.remove(S.root);S.root.traverse(o=>{if(o.isMesh||o.isSkinnedMesh){if(o.geometry&&o.geometry!==S.geo)o.geometry.dispose();if(o.material){for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m&&m!==mat&&!importedSurfaceMaterials?.includes(m))m.dispose()}}})}S.root=S.mesh=null;ovl.clear();boneLines=null;datum=null;gizmoRoot.clear();S.chains=[];S.markers=[];S.joints=[];S.bones=[];S.roots=[];S.idx={};S.keys.clear();S.relaxedQ=null;S.armLift.clear();S.sel=S.selChain=-1;S.gizmoObj=null;S.W=null;S.wview=false;S.originalWeightMaterial=null;S.originalWeightColors=null;S.alias=null;S.baseQ.identity();S.baseQi.identity();S.unit=1;S.H=0;S.addons=[];S.clip=S.clipRt=null;S.meshes=[];S.max=120;S.adj=null;S.hipsOff.set(0,0,0);S.tailFitStatus='';S.src='pose';S.playing=false;if($('poseStatus'))$('poseStatus').textContent='Import a model and build a rig to enable presets.';if(typeof vertexJointMode!=='undefined')vertexJointMode=false;$('btnVertexJoint')?.classList.remove('on');if($('btnVertexJoint'))$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';if($('jointModeHint'))$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';$('btnPlay').textContent='▶ PLAY';refresh()}
+function makeBones(){
+ // Normalize the joint table before creating a hierarchy. A malformed parent index,
+ // duplicate name or non-finite coordinate must never produce a detached/NaN bone.
+ const used=new Set();
+ S.joints=S.joints.map((j,i)=>{
+  let name=String(j?.name||('joint_'+String(i+1).padStart(2,'0'))).trim()||('joint_'+(i+1));
+  const baseName=name;let suffix=1;while(used.has(name))name=baseName+'_'+suffix++;
+  used.add(name);
+  const pos=j?.pos?.isVector3?j.pos.clone():V3(Number(j?.pos?.x)||0,Number(j?.pos?.y)||0,Number(j?.pos?.z)||0);
+  if(!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||!Number.isFinite(pos.z))pos.set(0,0,0);
+  let parent=Number.isInteger(j?.parent)?j.parent:-1;
+  if(parent< -1)parent=-1;else if(parent>=i)parent=i>0?0:-1;
+  return {name,parent,pos};
+ });
+ S.bones=S.joints.map(j=>{const b=new THREE.Bone();b.name=j.name;return b});S.idx={};
+ S.joints.forEach((j,i)=>{S.idx[j.name]=i;if(j.parent>=0){S.bones[j.parent].add(S.bones[i]);S.bones[i].position.copy(j.pos).sub(S.joints[j.parent].pos)}else S.bones[i].position.copy(j.pos)});
+ S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));captureRest()
+}
+function captureRest(){S.relaxedQ=null;S.armLift?.clear();setHips();S.restQ=S.bones.map(b=>b.quaternion.clone());S.restP=S.bones.map(b=>b.position.clone());S.fk=S.restQ.map(q=>q.clone());S.hips0.copy(S.bones[S.H].position);S.hipsOff.set(0,0,0)}
+function top4(i,bi,bv){bi.fill(0);bv.fill(0);const B=S.B,o=i*B;for(let j=0;j<B;j++){const w=S.W[o+j];if(w>bv[3]){let k=3;while(k>0&&w>bv[k-1]){bv[k]=bv[k-1];bi[k]=bi[k-1];k--}bv[k]=w;bi[k]=j}}let s=bv[0]+bv[1]+bv[2]+bv[3];if(s<1e-6){bi[0]=0;bv[0]=1;s=1}return s}
+function applyWeights(prune,list){const g=S.geo,si=g.attributes.skinIndex,sw=g.attributes.skinWeight,bi=[0,0,0,0],bv=[0,0,0,0],B=S.B;
+ const one=i=>{const s=top4(i,bi,bv);for(let k=0;k<4;k++){si.array[i*4+k]=bi[k];sw.array[i*4+k]=bv[k]/s}
+  if(prune){S.W.fill(0,i*B,i*B+B);for(let k=0;k<4;k++)S.W[i*B+bi[k]]+=bv[k]/s}};
+ if(list)for(const i of list)one(i);else for(let i=0;i<S.N;i++)one(i);
+ si.needsUpdate=sw.needsUpdate=true}
+/* Imported skins can use normalized Uint8/Uint16 weights or interleaved buffers; writing floats into those truncates to 0/1. Always work on plain Uint16 + Float32 copies. */
+function ensureSkinAttrs(g){const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;if(!si||!sw)return;
+ if(!(si.array instanceof Uint16Array)||si.isInterleavedBufferAttribute){const a=new Uint16Array(si.count*4);for(let i=0;i<si.count;i++){a[i*4]=si.getX(i);a[i*4+1]=si.getY(i);a[i*4+2]=si.getZ(i);a[i*4+3]=si.getW(i)}g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(a,4))}
+ if(!(sw.array instanceof Float32Array)||sw.normalized||sw.isInterleavedBufferAttribute){const a=new Float32Array(sw.count*4);for(let i=0;i<sw.count;i++){a[i*4]=sw.getX(i);a[i*4+1]=sw.getY(i);a[i*4+2]=sw.getZ(i);a[i*4+3]=sw.getW(i)}g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(a,4))}}
+/* Rest joint positions in the mesh's own (geometry) space, read from the actual bind: inverse(boneInverse) is the bone's world matrix at bind time and bindMatrixInverse brings it into geometry space.
+   For generated rigs this equals S.joints[i].pos; for imported rigs (scaled/rotated armature or mesh node) S.joints holds world positions and would NOT line up with the vertices. */
+function bindPositions(){const m=S.mesh,sk=m&&m.skeleton;
+ if(sk&&sk.boneInverses&&sk.boneInverses.length===S.joints.length){const inv=new THREE.Matrix4();return S.joints.map((_,i)=>V3().setFromMatrixPosition(inv.copy(sk.boneInverses[i]).invert()).applyMatrix4(m.bindMatrixInverse))}
+ return S.joints.map(j=>j.pos.clone())}
+/* Automatic weights. A joint is the PIVOT of its bone, so each bone owns the segments from its joint OUT to its children (upper arm = arm->forearm belongs to `arm`; bending the elbow
+   rotates `forearm` and must not touch the upper arm). End joints with no children own just their own point. A parent whose only child sits on top of it (wheel hub -> wheel) owns nothing,
+   so the child bone gets that region alone. Weights = inverse distance to the owned segments, normalised against the nearest bone so the result does not depend on model scale. */
+/* Topology-aware rigid binding: connected triangles share a single bone when
+   their component is compact enough. This prevents hard-surface panels from
+   tearing at a joint. Unindexed geometry has no reliable shared-vertex graph. */
+function meshComponents(g){
+ const n=g.attributes.position.count,idx=g.index;if(!idx||n>1200000)return null;
+ const parent=new Int32Array(n);for(let i=0;i<n;i++)parent[i]=i;
+ const find=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i]}return i};
+ const join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[b]=a};
+ for(let i=0;i+2<idx.count;i+=3){const a=idx.getX(i),b=idx.getX(i+1),c=idx.getX(i+2);if(a<n&&b<n&&c<n){join(a,b);join(a,c)}}
+ const groups=new Map();for(let i=0;i<n;i++){const k=find(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i)}
+ return [...groups.values()];
+}
+// Shared cooperative yield: used by both component and vertex solvers.
+const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
+async function rigidifyComponents(W,JP,SG,rigidity=0.75){
+ const groups=meshComponents(S.geo);if(!groups)return {groups:0,rigid:0,skipped:0};
+ const pos=S.geo.attributes.position,B=S.B,scale=Math.max(S.h,1e-5);
+ const bounds=bbox(S.geo),midX=(bounds.min.x+bounds.max.x)*.5;
+ let rigid=0,skipped=0;
+ for(let gi=0;gi<groups.length;gi++){
+  if((gi&31)===0){if(rigCancelRequested)throw new Error("Auto-bind cancelled by user");setRigStage(`mechanical components ${Math.round(100*gi/Math.max(1,groups.length))}% (${gi}/${groups.length})`);await yieldUI()}
+  const group=groups[gi];if(group.length<3){skipped++;continue}
+  let minx=Infinity,miny=Infinity,minz=Infinity,maxx=-Infinity,maxy=-Infinity,maxz=-Infinity,cx=0,cy=0,cz=0;
+  for(const i of group){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);cx+=x;cy+=y;cz+=z;minx=Math.min(minx,x);miny=Math.min(miny,y);minz=Math.min(minz,z);maxx=Math.max(maxx,x);maxy=Math.max(maxy,y);maxz=Math.max(maxz,z)}
+  // Do not force an entire connected character/large assembly onto one bone.
+  if(Math.hypot(maxx-minx,maxy-miny,maxz-minz)>scale*(rigidity>.6?.65:.28)){skipped++;continue}
+  cx/=group.length;cy/=group.length;cz/=group.length;
+  let best=-1,dist=Infinity;
+  for(let s=0;s<SG.length;s+=7){const j=SG[s],ax=SG[s+1],ay=SG[s+2],az=SG[s+3],dx=SG[s+4]-ax,dy=SG[s+5]-ay,dz=SG[s+6]-az;
+   const l=dx*dx+dy*dy+dz*dz,u=l>1e-15?THREE.MathUtils.clamp(((cx-ax)*dx+(cy-ay)*dy+(cz-az)*dz)/l,0,1):0;
+   const d=(cx-ax-u*dx)**2+(cy-ay-u*dy)**2+(cz-az-u*dz)**2;
+   if(d<dist&&(!/^(?:clavicle|arm|forearm|hand|upLeg|leg|foot|heel|toe)/.test(S.joints[j]?.name||'')||!/_L$|_R$/.test(S.joints[j]?.name||'')||((/_L$/.test(S.joints[j].name)?1:-1)*(cx-midX)>=-scale*.018))){dist=d;best=j}}
+  if(best<0||dist>(scale*.30)**2){skipped++;continue}
+  // Reject components whose existing weights strongly disagree: likely a joint-spanning organic surface.
+  let votes=0;for(const i of group){let own=0,weight=-1;for(let j=0;j<B;j++)if(W[i*B+j]>weight){weight=W[i*B+j];own=j}if(own===best)votes++}
+  if(votes/group.length<rigidity){skipped++;continue}
+  for(const i of group){W.fill(0,i*B,i*B+B);W[i*B+best]=1}rigid++;
+ }
+ return {groups:groups.length,rigid,skipped};
+}
+// Material-region segmentation: retain GLB primitive/material boundaries and use
+// topology islands as an independent second signal. No UV/color guessing.
+function materialRegionProfiles(g, materials, fallback){
+ const n=g.attributes.position.count, index=g.index, counts=new Uint16Array(n), region=new Int16Array(n);
+ const names=(materials||[]).map(m=>String(m?.name||'').toLowerCase());
+ const classify=name=>/armor|armour|plate|metal|steel|iron|chrome|hard|shell|panel|weapon|helmet|bolt|gear|mechanical|rigid/.test(name)?'hard':/rubber|silicone|latex|elastomer|joint|gasket|tire|tyre/.test(name)?'rubber':/cloth|fabric|cotton|leather|cape|garment|textile|suit/.test(name)?'cloth':/skin|flesh|body|face|organic|muscle|creature/.test(name)?'organic':null;
+ const types=['inherit','organic','hard','android','rubber','cloth'];
+ const groups=g.groups?.length?g.groups:[{start:0,count:index?index.count:n,materialIndex:0}];
+ const votes=new Uint16Array(n*types.length);
+ for(const group of groups){const kind=classify(names[group.materialIndex]||'');const code=types.indexOf(kind||'inherit');const end=Math.min(index?index.count:n,group.start+group.count);
+  for(let k=group.start;k<end;k++){const v=index?index.getX(k):k;if(v>=0&&v<n){votes[v*types.length+code]++;counts[v]++}}
+ }
+ const distribution={};for(let i=0;i<n;i++){let best=0,bestVotes=-1;for(let j=0;j<types.length;j++){const v=votes[i*types.length+j];if(v>bestVotes){bestVotes=v;best=j}}region[i]=best;const key=types[best]==='inherit'?fallback:types[best];distribution[key]=(distribution[key]||0)+1}
+ return {region,types,distribution,materials:names.length,groups:groups.length};
+}
+async function computeAutoWeights(){
+ const ui=yieldUI; // Legacy compatibility, shared globally with component solver.
+ await yieldUI();
+ const {N,B}=S,pos=S.geo.attributes.position,JP=bindPositions(),p=Math.max(1,Math.min(8,Number(S.falloff)||4)),half=p*.5;
+ // Exclude non-deforming helpers and duplicate mechanical attachment anchors.
+ const deform=[];for(let j=0;j<B;j++)if(!/^root$|^mech_(?:shoulder|forearm_guard|hip_armor|thigh_actuator|knee|shin_guard|chest_plate|backpack|torso_core)/i.test(S.joints[j].name))deform.push(j);
+ const centerX=(bbox(S.geo).min.x+bbox(S.geo).max.x)*.5;
+ const isBaseBasic=detectBaseBasic(S.geo); // Expensive geometry recognition must run ONCE, not once per vertex.
+ // Derive limb side from fitted bind-space joints, never from _L/_R naming.
+ const sideGuard=Math.max(S.h*.018,1e-5);
+ const limbSide=new Int8Array(B),limbFlag=new Uint8Array(B);
+ for(let j=0;j<B;j++){const name=S.joints[j].name;limbFlag[j]=/^(?:clavicle|arm|forearm|hand|thumb|index|middle|ring|pinky|upLeg|leg|foot|heel|toe)/.test(name)?1:0;limbSide[j]=/_L$|_R$/.test(name)?Math.sign(JP[j].x-centerX):0;}
+ const lateralPart=name=>/^(?:clavicle|arm|forearm|hand|thumb|index|middle|ring|pinky|upLeg|leg|foot|heel|toe)/.test(name);
+ const eligible=(j,x)=>!limbFlag[j]||!limbSide[j]||limbSide[j]*(x-centerX)>=-sideGuard;
+ if(!deform.length)return null;
+ const kids=S.joints.map(()=>[]);S.joints.forEach((j,i)=>{if(j.parent>=0&&j.parent<B&&j.parent!==i)kids[j.parent].push(i)});
+ const tiny=Math.max(S.h,1e-6)*1e-4,list=[];
+ for(const j of deform){const a=JP[j],ks=kids[j];let n=0;
+  for(const k of ks)if(a.distanceTo(JP[k])>tiny){list.push(j,a.x,a.y,a.z,JP[k].x,JP[k].y,JP[k].z);n++}
+  if(!n)list.push(j,a.x,a.y,a.z,a.x,a.y,a.z)}
+ const profile=S.bindProfile==='auto'?(S.rigType==='humanoid'||S.rigType==='dragon'||S.rigType==='quadruped'?'organic':S.rigType==='mecha'?'android':'hard'):S.bindProfile;
+ const segmentation=materialRegionProfiles(S.geo,importedSurfaceMaterials,profile);S.materialSegmentation=segmentation;
+ const modelSpecific=['humanoid','mecha'].includes(S.rigType)&&profile!=='hard';
+ // Limb ownership is based on measured bone segments. This is a heuristic, not semantic segmentation.
+ // Strictly identify outer-arm vertices by their distance from the fitted arm
+ // segments, not by a fixed world-space X threshold alone. Torso/hip vertices
+ // must never be captured just because the model is unusually broad.
+ const armRegions=[];
+ if(modelSpecific){
+  for(const side of ['L','R']){
+   const ids=['arm_','forearm_','hand_'].map(n=>S.idx[n+side]);
+   if(ids.every(j=>j!==undefined)){
+    const shoulder=JP[ids[0]],elbow=JP[ids[1]],wrist=JP[ids[2]];
+    armRegions.push({side,ids,shoulder,elbow,wrist});
+   }
+  }
+ }
+ // Limb separation: independently score left/right leg chains in full 3D.
+ // Prevent opposite-leg weight transfer even when the knees or ankles touch.
+ const legChains=[];
+ if(['humanoid','mecha'].includes(S.rigType))for(const suffix of ['L','R']){
+  const ids=['upLeg_','leg_','foot_'].map(n=>S.idx[n+suffix]);
+  if(ids.every(j=>j!==undefined))legChains.push({ids,hip:JP[ids[0]],knee:JP[ids[1]],ankle:JP[ids[2]]});
+ }
+ const legSegDistance=(x,y,z,a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,l=dx*dx+dy*dy+dz*dz;
+  const t=l>1e-15?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy+(z-a.z)*dz)/l)):0;
+  return (x-a.x-t*dx)**2+(y-a.y-t*dy)**2+(z-a.z-t*dz)**2};
+ const legInfluenceRadius=Math.max(S.h*.13,1e-5);
+ const weightBounds=bbox(S.geo),weightMinY=weightBounds.min.y;
+ const SG=Float64Array.from(list),nS=SG.length/7;if(!nS)return null;const dj=new Float64Array(B),W=new Float32Array(N*B),eps2=(Math.max(S.h,1e-6)*8e-4)**2;
+ for(let i=0;i<N;i++){
+  if((i&255)===0){if(rigCancelRequested)throw new Error('Auto-bind cancelled by user');rigStage=`weights ${Math.round(i/N*100)}% (${i.toLocaleString()}/${N.toLocaleString()} vertices; ${Math.round((performance.now()-rigStartedAt)/1000)}s elapsed)`;if($('hudInfo'))$('hudInfo').textContent=`Auto-bind: ${rigStage}`;await yieldUI()}
+  const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);dj.fill(Infinity);
+  const regionType=segmentation.types[segmentation.region[i]];const localProfile=regionType==='inherit'?profile:regionType;
+  // Anatomical ownership partition applies to ALL material profiles, including armor.
+  // A vertex near one leg cannot inherit the other leg's bones. The pelvis is
+  // excluded by a narrow distance gate so it retains torso/hip influences.
+  if(legChains.length===2){
+   let chosen=null,near=Infinity,other=Infinity;
+   for(const chain of legChains){
+    const d=Math.min(legSegDistance(x,y,z,chain.hip,chain.knee),legSegDistance(x,y,z,chain.knee,chain.ankle));
+    if(d<near){other=near;near=d;chosen=chain}else if(d<other)other=d;
+   }
+   const lowerBody=y<Math.max(legChains[0].hip.y,legChains[1].hip.y)-S.h*.035;
+   const belongs=lowerBody&&near<legInfluenceRadius*legInfluenceRadius&&
+     (other>near*1.08 || Math.abs(x-centerX)>S.h*.012);
+   if(belongs&&chosen){
+    const [thigh,shin,foot]=chosen.ids;
+    const d0=legSegDistance(x,y,z,chosen.hip,chosen.knee),
+          d1=legSegDistance(x,y,z,chosen.knee,chosen.ankle),
+          d2=(x-chosen.ankle.x)**2+(y-chosen.ankle.y)**2+(z-chosen.ankle.z)**2;
+    if(localProfile==='hard'){
+     const id=d0<=d1&&d0<=d2?thigh:d1<=d2?shin:foot;W[i*B+id]=1;
+    }else{
+     const power=localProfile==='android'?2.8:localProfile==='cloth'?.85:localProfile==='rubber'?1.1:1.8;
+     const v0=Math.pow(d0+eps2,-power),v1=Math.pow(d1+eps2,-power),v2=.32*Math.pow(d2+eps2,-power),sum=v0+v1+v2;
+     W[i*B+thigh]=v0/sum;W[i*B+shin]=v1/sum;W[i*B+foot]=v2/sum;
+    }
+    continue;
+   }
+  }
+  if(modelSpecific&&localProfile!=='hard'){
+   // Model-specific hard partition: the hanging arm is a lateral silhouette,
+   // not a torso/root region. Compare the vertex with the sampled shoulder,
+   // elbow and wrist chain and exclude torso weights for the entire arm region.
+   const yy=(y-weightMinY)/Math.max(S.h,1e-6),xx=x-centerX,ax=Math.abs(xx);
+   const side=xx>=0?'L':'R';
+   // Arm ownership is measured against actual bind-space limb segments.
+   // Do not use the old piecewise silhouette thresholds, which omit many
+   // forearm vertices and incorrectly send them to the torso.
+   const pointSegmentDistance=(a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
+    const len=dx*dx+dy*dy+dz*dz;
+    const t=len>1e-12?THREE.MathUtils.clamp(((x-a.x)*dx+(y-a.y)*dy+(z-a.z)*dz)/len,0,1):0;
+    return Math.hypot(x-a.x-t*dx,y-a.y-t*dy,z-a.z-t*dz)};
+   let armDistance=Infinity,armSide=0;
+   for(const r of armRegions){const d=Math.min(pointSegmentDistance(r.shoulder,r.elbow),pointSegmentDistance(r.elbow,r.wrist),Math.hypot(x-r.wrist.x,y-r.wrist.y,z-r.wrist.z));
+    if(d<armDistance){armDistance=d;armSide=Math.sign(r.shoulder.x-centerX)}}
+   const armZone=armRegions.length>0&&yy>.38&&yy<.94&&armDistance<Math.max(S.h*.115,1e-5)&&armSide*(x-centerX)>S.h*.085;
+   const legZone=false; // superseded by 3D per-leg ownership partition
+   if(armZone&&armRegions.length){
+    // Select the limb by actual 3D segment proximity, NOT by a presumed
+    // left/right X sign. Mirrored imports frequently reverse that convention.
+    const segDist=(a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
+     const len=dx*dx+dy*dy+dz*dz;
+     const t=len>1e-12?THREE.MathUtils.clamp(((x-a.x)*dx+(y-a.y)*dy+(z-a.z)*dz)/len,0,1):0;
+     return (x-a.x-t*dx)**2+(y-a.y-t*dy)**2+(z-a.z-t*dz)**2};
+    let selected=null,minimum=Infinity,du=0,dl=0,dh=0;
+    for(const r of armRegions){
+     const u=segDist(r.shoulder,r.elbow),l=segDist(r.elbow,r.wrist);
+     const h=(x-r.wrist.x)**2+(y-r.wrist.y)**2+(z-r.wrist.z)**2;
+     const d=Math.min(u,l,h);
+     if(d<minimum){minimum=d;selected=r;du=u;dl=l;dh=h}
+    }
+    // The nearest arm receives all influence in the arm silhouette.
+    // Never allow a torso/root fallback for these vertices.
+    if(selected){
+     const [upper,lower,hand]=selected.ids;
+     const vals=[[upper,1/(du+eps2)],[lower,1/(dl+eps2)],[hand,.45/(dh+eps2)]];
+     const total=vals.reduce((sum,v)=>sum+v[1],0);
+     for(const [j,v] of vals)W[i*B+j]=v/total;
+     continue;
+    }
+   }
+   if(legZone){const name=yy>.30?'upLeg_':yy>.095?'leg_':'foot_',target=S.idx[name+side];
+    if(target!==undefined){W[i*B+target]=1;continue}}
+  }
+  for(let s=0;s<nS;s++){const o=s*7,own=SG[o],ax=SG[o+1],ay=SG[o+2],az=SG[o+3],bx=SG[o+4]-ax,by=SG[o+5]-ay,bz=SG[o+6]-az,l2=bx*bx+by*by+bz*bz,px=x-ax,py=y-ay,pz=z-az;
+   let u=l2>1e-18?(px*bx+py*by+pz*bz)/l2:0;u=u<0?0:u>1?1:u;const dx=px-bx*u,dy=py-by*u,dz=pz-bz*u,d2=dx*dx+dy*dy+dz*dz;if(d2<dj[own])dj[own]=d2}
+  let best=-1,bd=Infinity;for(const j of deform)if(eligible(j,x)&&dj[j]<bd){bd=dj[j];best=j}
+  if(best<0){for(const j of deform)if(dj[j]<bd){bd=dj[j];best=j}W[i*B+best]=1;continue}
+  if(localProfile==='hard'){W[i*B+best]=1;continue}
+  // Material-aware deformation: rubber and fabric have broader, softer transitions;
+  // android uses a concentrated blend only at articulations.
+  const exponent=localProfile==='android'?Math.max(3.5,half*2.5):localProfile==='rubber'?Math.max(.6,half*.65):localProfile==='cloth'?Math.max(.5,half*.5):half;
+  const reach=localProfile==='android'?5:localProfile==='rubber'?36:localProfile==='cloth'?64:16;
+  let sum=0;for(const j of deform){if(!eligible(j,x)||dj[j]===Infinity)continue;const w=dj[j]>Math.max(bd*reach,eps2*2500)?0:Math.pow((bd+eps2)/(dj[j]+eps2),exponent);W[i*B+j]=w;sum+=w}
+  if(!(sum>0)||!Number.isFinite(sum)){W.fill(0,i*B,i*B+B);W[i*B+best]=1;continue}
+  for(const j of deform)W[i*B+j]/=sum}
+ if(rigCancelRequested)throw new Error('Auto-bind cancelled by user');rigStage='finalizing component weights';if($('hudInfo'))$('hudInfo').textContent='Auto-bind: '+rigStage;await yieldUI();
+ // Rigidify only when the whole mesh uses a rigid profile. Per-material hard
+ // regions already receive one-bone weights; global component rigidification
+ // would otherwise weld flesh and armor across shared topology.
+ if((profile==='hard'||profile==='android') && Object.keys(segmentation.distribution).every(k=>k==='hard'||k==='android')){S.componentBinding=await rigidifyComponents(W,JP,SG,profile==='hard'?0.65:0.55)}else S.componentBinding=null;
+ return W}
+async function solveWeights(){
+ if(!S.geo?.attributes?.position||!S.joints.length){say('Cannot solve weights: mesh or skeleton is missing',1);return}
+ const W=await computeAutoWeights();if(rigCancelRequested)throw new Error('Auto-bind cancelled by user');if(!W)throw new Error('Auto-bind could not produce deforming joint weights')
+ S.W=W;const report=$('materialRegionReport');if(report&&S.materialSegmentation)report.textContent='Material regions: '+Object.entries(S.materialSegmentation.distribution).map(([k,v])=>k+' '+v.toLocaleString()+' vertices').join(' · ')+' ('+S.materialSegmentation.groups+' primitive groups)';setRigStage('uploading skin attributes');await new Promise(r=>setTimeout(r,0));applyWeights(true);updateColors();
+ // Hard invariant: weights must be finite, normalized, and indices valid before any pose or export.
+ if(rigCancelRequested)throw new Error('Auto-bind cancelled by user');const audit=rigPreflight();if(audit.errors.length)throw new Error('Skin binding invalid: '+audit.errors.join('; '));
+ if(detectBaseBasic(S.geo)){
+  const a=S.geo.attributes.position,si=S.geo.attributes.skinIndex,sw=S.geo.attributes.skinWeight;
+  const bb=bbox(S.geo),cx=(bb.min.x+bb.max.x)*.5,h=Math.max(S.h,1e-6);
+  let arms=0,wrong=0,root=0;
+  for(let i=0;i<a.count;i++){const y=(a.getY(i)-bb.min.y)/h,x=a.getX(i)-cx,ax=Math.abs(x);
+   const edge=y>.76?.17:y>.67?.225:y>.57?.285:.355;
+   if(y<.45||y>.865||ax<=edge)continue;arms++;
+   for(let k=0;k<4;k++){const w=sw.getComponent(i,k);if(w<.001)continue;
+    const name=S.joints[si.getComponent(i,k)]?.name||'';
+    if(name==='root'||name==='hips')root++;
+    if(/_(L|R)$/.test(name)){const joint=S.joints[si.getComponent(i,k)];const side=joint?.name.endsWith('_L')?'L':'R';const shoulder=S.joints[S.idx['arm_'+side]]?.pos;const opposite=S.joints[S.idx['arm_'+(side==='L'?'R':'L')]]?.pos;if(shoulder&&opposite&&Math.abs(a.getX(i)-opposite.x)+1e-5<Math.abs(a.getX(i)-shoulder.x))wrong++;}
+   }
+  }
+  S.armBindDiagnostics={vertices:arms,wrongSideInfluences:wrong,rootInfluences:root};
+  $('rigAuditOutput').textContent='ARM SEGMENT BIND: '+arms+' lateral arm vertices; '+root+' root/hips influences; '+wrong+' opposite-side influences. Inspect shoulder deformation before export.';
+  if(!arms||wrong||root)say('Arm binding diagnostic requires review: '+arms+' arm vertices, '+root+' root, '+wrong+' opposite-side',1);
+ }
+ if(S.componentBinding)say('Topology binding: '+S.componentBinding.rigid+' rigid components; '+S.componentBinding.skipped+' retained per-vertex')
+}
+function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));/* No artificial vertex color channel: preserve the imported GLB's PBR color semantics. */
+ const m=new THREE.SkinnedMesh(g,rigMaterial());m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();m.bind(skeleton,m.matrixWorld.clone());m.updateMatrixWorld(true);S.mesh=S.root=m}
+function buildCreatureJoints(type,bb,h,w){
+ if(type==='humanoid')return buildJoints(h,w);
+ const out=[],sz=bb.getSize(V3()),mn=bb.min,mx=bb.max;
+ const add=(name,parent,x,y,z)=>{const pos=V3(mn.x+sz.x*(.5+(x-.5)*Math.max(.25,Math.min(2,w))),mn.y+sz.y*y,mn.z+sz.z*z);out.push({name,parent,pos});return out.length-1};
+ if(type==='mecha'){
+  const j=buildJoints(h,w);out.push(...j);
+  const idx={};out.forEach((o,i)=>idx[o.name]=i);
+  const anchor=(n,parent,x,y,z)=>{const pi=idx[parent]??idx.hips;const i=out.length;out.push({name:n,parent:pi,pos:V3(mn.x+sz.x*(.5+(x-.5)*Math.max(.25,Math.min(2,w))),mn.y+sz.y*y,mn.z+sz.z*z)});idx[n]=i;return i};
+  anchor('mech_torso_core','spine_02',.5,.66,.5);anchor('mech_chest_plate','chest',.5,.76,.54);anchor('mech_backpack','upper_chest',.5,.76,.43);
+  for(const [side,x] of [['L',.32],['R',.68]]){anchor('mech_shoulder_'+side,'clavicle_'+side,x,.79,.5);anchor('mech_forearm_guard_'+side,'forearm_'+side,x,.61,.52);anchor('mech_hip_armor_'+side,'hips',x,.51,.5);anchor('mech_thigh_actuator_'+side,'upLeg_'+side,x,.38,.5);anchor('mech_knee_'+side,'leg_'+side,x,.23,.52);anchor('mech_shin_guard_'+side,'leg_'+side,x,.12,.52)}
+  return out;
+ }
+ const root=add('root',-1,.5,0,.5);if(type==='vehicle'){const chassis=add('chassis',root,.5,.47,.5),body=add('body_mount',chassis,.5,.58,.5),cab=add('cab_mount',body,.5,.7,.38),steer=add('steering_column',cab,.5,.56,.36);add('steering_wheel',steer,.5,.55,.34);add('front_axle',chassis,.5,.28,.78);add('rear_axle',chassis,.5,.28,.22);for(const [side,x] of [['L',.12],['R',.88]])for(const [axle,z] of [['front',.79],['rear',.21]]){const corner=add('suspension_'+axle+'_'+side,chassis,x,.25,z),hub=add('wheel_hub_'+axle+'_'+side,corner,x,.19,z);add('wheel_'+axle+'_'+side,hub,x,.19,z);if(axle==='front')add('steer_pivot_'+side,corner,x,.22,z)}add('turret_mount',chassis,.5,.62,.55);add('door_hinge_L',body,.18,.48,.48);add('door_hinge_R',body,.82,.48,.48);add('rear_equipment_mount',chassis,.5,.5,.12);return out}const pelvis=add('hips',root,.5,.57,.48);let spineParent=pelvis,spineIds=[];const spineN=Math.max(3,Math.min(14,Math.round(S.spineCount||5)));for(let si=1;si<=spineN;si++){const t=si/(spineN+1);spineParent=add('spine_'+String(si).padStart(2,'0'),spineParent,.5,.57+.08*t,.48-.23*t);spineIds.push(spineParent)}const sp1=spineIds[0],sp2=spineIds[Math.min(1,spineIds.length-1)],ch=add('chest',spineParent,.5,.65,.25),neck=add('neck',ch,.5,.66,.18),head=add('head',neck,.5,.7,.14);
+ if(type==='dragon'){
+  // Winged creature: four limbs, paired articulated wings and a long, controllable tail.
+  const shoulder=add('shoulder_girdle',ch,.5,.63,.28),rear=add('rear_girdle',pelvis,.5,.56,.57);
+  for(const [side,x] of [['L',.28],['R',.72]]){
+   let a=add('foreLeg_'+side,shoulder,x,.43,.3),b=add('foreShin_'+side,a,x,.2,.28);add('foreFoot_'+side,b,x,.04,.25);
+   a=add('rearLeg_'+side,rear,x,.4,.58);b=add('rearShin_'+side,a,x,.19,.61);add('rearFoot_'+side,b,x,.04,.64);
+   let w0=add('wing_'+side+'_shoulder',ch,side==='L'?.48:.52,.66,.31),w1=add('wing_'+side+'_elbow',w0,side==='L'?.18:.82,.69,.34),w2=add('wing_'+side+'_wrist',w1,side==='L'?.04:.96,.73,.37),w3=add('wing_'+side+'_tip',w2,side==='L'?.01:.99,.76,.42);
+   add('wing_'+side+'_finger_01',w1,side==='L'?.12:.88,.61,.40);add('wing_'+side+'_finger_02',w2,side==='L'?.02:.98,.58,.46);add('wing_'+side+'_finger_03',w2,side==='L'?.10:.90,.67,.48);
+  }
+  let tail=pelvis;for(let i=1;i<=Math.max(5,spineN);i++){const t=i/Math.max(5,spineN);tail=add('dragon_tail_'+String(i).padStart(2,'0'),tail,.5,.55-.16*t,.58+.32*t)}add('dragon_tail_tip',tail,.5,.35,.94);add('dragon_jaw',head,.5,.68,.10);return out;
+ }
+ if(type==='vehicle'){
+  const chassis=add('chassis',root,.5,.47,.5),body=add('body_mount',chassis,.5,.58,.5),cab=add('cab_mount',body,.5,.7,.38),steer=add('steering_column',cab,.5,.56,.36);add('steering_wheel',steer,.5,.55,.34);add('front_axle',chassis,.5,.28,.78);add('rear_axle',chassis,.5,.28,.22);
+  for(const [side,x] of [['L',.12],['R',.88]])for(const [axle,z,label] of [['front',.79,'F'],['rear',.21,'R']]){const corner=add('suspension_'+axle+'_'+side,chassis,x,.25,z),hub=add('wheel_hub_'+axle+'_'+side,corner,x,.19,z);add('wheel_'+axle+'_'+side,hub,x,.19,z);if(axle==='front')add('steer_pivot_'+side,corner,x,.22,z)}
+  add('turret_mount',chassis,.5,.62,.55);add('door_hinge_L',body,.18,.48,.48);add('door_hinge_R',body,.82,.48,.48);add('rear_equipment_mount',chassis,.5,.5,.12);return out;
+ }
+ if(type==='quadruped'){
+  const shoulder=add('shoulder_girdle',ch,.5,.62,.3),rear=add('rear_girdle',pelvis,.5,.57,.58);
+  for(const [side,x] of [['L',.28],['R',.72]]){
+   let a=add('foreLeg_'+side,shoulder,x,.43,.3),b=add('foreShin_'+side,a,x,.2,.28);add('foreFoot_'+side,b,x,.04,.25);
+   a=add('rearLeg_'+side,rear,x,.4,.58);b=add('rearShin_'+side,a,x,.19,.61);add('rearFoot_'+side,b,x,.04,.64);
+  }
+  add('tail_base',pelvis,.5,.58,.68);return out;
+ }
+ // Scorpion-style mecha: three articulated leg pairs and a six-segment controllable tail.
+ add('mech_core',ch,.5,.64,.28);add('abdomen_01',pelvis,.5,.55,.57);add('abdomen_02',pelvis,.5,.59,.66);
+ // Geometry-derived leg landmarks: measure local vertex clusters at each longitudinal station.
+ // A station is only accepted when there are sufficient actual surface samples.
+ const pa=S.geo?.attributes?.position, samples=[];
+ if(pa)for(let i=0;i<pa.count;i++){const x=pa.getX(i),y=pa.getY(i),z=pa.getZ(i);if(Number.isFinite(x+y+z))samples.push(V3(x,y,z))}
+ const median=(arr)=>{if(!arr.length)return null;arr.sort((a,b)=>a-b);return arr[Math.floor(arr.length/2)]};
+ const q=(arr,f)=>{if(!arr.length)return null;arr.sort((a,b)=>a-b);return arr[Math.min(arr.length-1,Math.floor((arr.length-1)*f))]};
+ let fittedLegs=0,unresolved=[];
+ for(let pair=1;pair<=3;pair++)for(const [side,x] of [['L',.18],['R',.82]]){
+  const zf=.76-pair*.105,zc=mn.z+sz.z*zf,sg=side==='L'?-1:1,xc=(mn.x+mx.x)*.5;
+  const slab=samples.filter(v=>Math.abs(v.z-zc)<sz.z*.095&&sg*(v.x-xc)>sz.x*.035);
+  // Separate near-body attachment from progressively more lateral limb surfaces.
+  const bands=[[.07,.30],[.30,.65],[.65,1.02]],points=[];
+  for(const [lo,hi] of bands){const band=slab.filter(v=>{const lateral=sg*(v.x-xc)/Math.max(sz.x*.5,1e-6);return lateral>=lo&&lateral<hi});
+   if(band.length<12){points.push(null);continue}
+   const ys=band.map(v=>v.y),targetY=q(ys,lo<.3?.70:lo<.65?.45:.12);
+   const patch=band.filter(v=>Math.abs(v.y-targetY)<Math.max(sz.y*.045,1e-5));
+   points.push(patch.length>=5?V3(median(patch.map(v=>v.x)),median(patch.map(v=>v.y)),median(patch.map(v=>v.z))):null);
+  }
+  const tag='leg'+pair+'_'+side;
+  // Never label guessed bounding-box points as fitted anatomy.
+  const fallback=[V3(mn.x+sz.x*x,mn.y+sz.y*.52,zc),V3(mn.x+sz.x*(side==='L'?.08:.92),mn.y+sz.y*.38,zc-sz.z*.015),V3(mn.x+sz.x*(side==='L'?.035:.965),mn.y+sz.y*.2,zc-sz.z*.04)];
+  const actual=points.every(Boolean);if(actual)fittedLegs++;else unresolved.push(tag);
+  const pts=points.map((p,i)=>p||fallback[i]);
+  const toNorm=v=>[(v.x-mn.x)/Math.max(sz.x,1e-6),(v.y-mn.y)/Math.max(sz.y,1e-6),(v.z-mn.z)/Math.max(sz.z,1e-6)];
+  const hip=add(tag+'_hip',pelvis,...toNorm(pts[0])),upper=add(tag+'_upper',hip,...toNorm(pts[1])),lower=add(tag+'_lower',upper,...toNorm(pts[2]));
+  const feet=slab.filter(v=>sg*(v.x-xc)>sz.x*.24&&v.y<mn.y+sz.y*.20);
+  const foot=feet.length>=8?feet.reduce((best,v)=>v.y<best.y?v:best):V3(pts[2].x,mn.y+sz.y*.035,pts[2].z);
+  add(tag+'_foot',lower,...toNorm(foot));
+ }
+ S.scorpionFit={fittedLegs,total:6,unresolved};
+ // Scan actual geometry in rearward slices. Preserve the original curved geometry
+ // rather than forcing a procedural arc. The last joint is snapped to a REAL vertex.
+ const lift=Number($('tailCurve')?.value||.65),fit=$('tailFit')?.checked!==false;
+ const attr=S.geo?.attributes?.position,verts=[];
+ if(attr)for(let i=0;i<attr.count;i++){const x=attr.getX(i),y=attr.getY(i),z=attr.getZ(i);if(Number.isFinite(x+y+z))verts.push(V3(x,y,z))}
+ const cx=(mn.x+mx.x)*.5,cz=mn.z+sz.z*.62;
+ // Rearward -Z by convention; the candidate must lie in the upper/central corridor.
+ const candidates=verts.filter(v=>v.z<cz&&Math.abs(v.x-cx)<sz.x*.27&&v.y>mn.y+sz.y*.29);
+ const minZ=candidates.length?Math.min(...candidates.map(v=>v.z)):mn.z;
+ const tailStart=V3(cx,mn.y+sz.y*.57,cz);
+ const span=Math.max(sz.z*.22,cz-minZ),bins=[];
+ for(let i=0;i<=11;i++){
+  const z=cz-span*i/11,r=Math.max(sz.z*.035,span/14);
+  const near=candidates.filter(v=>Math.abs(v.z-z)<=r);
+  if(!near.length){bins.push(null);continue}
+  // Uppermost body ridge is useful for a raised stinger; use a robust high quantile
+  // rather than the absolute maximum (which is often a spike or a leg).
+  near.sort((a,b)=>a.y-b.y);const top=near[Math.floor((near.length-1)*.82)];
+  const close=near.filter(v=>Math.abs(v.y-top.y)<sz.y*.075).sort((a,b)=>Math.abs(a.x-cx)-Math.abs(b.x-cx));
+  bins.push(close[0]||top);
+ }
+ const valid=bins.filter(Boolean),verticalRange=valid.length?Math.max(...valid.map(v=>v.y))-Math.min(...valid.map(v=>v.y)):0;
+ const useFit=fit&&valid.length>=7&&verticalRange>sz.y*.08;
+ const count=10;let par=pelvis,curve=[tailStart];
+ for(let i=1;i<=count;i++){
+  const t=i/(count+1);let v=null;
+  if(useFit){const k=Math.min(11,Math.round(t*11));v=bins[k];if(!v){for(let off=1;off<=11&&!v;off++)v=bins[k-off]||bins[k+off]||null}}
+  if(!v)v=V3(cx,mn.y+sz.y*(.56+lift*(.05*t+.48*t*t)),mn.z+sz.z*(.60-.57*t+.08*t*t));
+  curve.push(v.clone());par=add('tail_seg_'+String(i).padStart(2,'0'),par,(v.x-mn.x)/Math.max(sz.x,1e-6),(v.y-mn.y)/Math.max(sz.y,1e-6),(v.z-mn.z)/Math.max(sz.z,1e-6));
+ }
+ let tip;
+ if(useFit){
+  // Snap to a vertex at the distal end of the sampled tail; never an arbitrary box fraction.
+  const last=valid[valid.length-1],far=candidates.filter(v=>v.z<=minZ+span*.16);
+  far.sort((a,b)=>a.distanceTo(last)-b.distanceTo(last));
+  tip=(far[0]||last).clone();
+ }else tip=V3(cx,mn.y+sz.y*(.56+lift*.62),mn.z+sz.z*.055);
+ add('tail_stinger',par,(tip.x-mn.x)/Math.max(sz.x,1e-6),(tip.y-mn.y)/Math.max(sz.y,1e-6),(tip.z-mn.z)/Math.max(sz.z,1e-6));
+ S.tailFitStatus=useFit?'Geometry-scanned tail candidate: '+count+' links; verify tail ownership':'Fallback arc: '+count+' links (tail scan inconclusive)';
+ add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
+}
+let rigSourceGeometry=null,rigSwitchBusy=false,rigStage="idle",rigCancelRequested=false,rigStartedAt=0;
+function setRigStage(stage){rigStage=stage;const h=document.getElementById("hudInfo");if(h&&rigSwitchBusy)h.textContent="Auto-bind: "+stage;}
+let importedSurfaceMaterials=null;
+let profilePBRBaseline=null;let profilePBRSignature=null;
+function profileMaterialSignature(m){return {name:m?.name||'',type:m?.type||'',roughness:m?.roughness??null,metalness:m?.metalness??null,vertexColors:!!m?.vertexColors,normalScale:m?.normalScale?.toArray?.()||null,maps:Object.fromEntries(['map','normalMap','metalnessMap','roughnessMap','aoMap','emissiveMap','alphaMap'].map(k=>[k,!!m?.[k]]))}}
+function profileCapturePBRBaseline(){
+ profilePBRBaseline=importedSurfaceMaterials?.map(m=>m.clone())||null;profilePBRSignature=profilePBRBaseline?.map(profileMaterialSignature)||null;
+}
+function profileRestorePBR(){
+ if(!S.mesh||!profilePBRBaseline?.length){say('No imported PBR baseline available',1);return;}
+ const restored=profilePBRBaseline.map(m=>{const c=m.clone();c.needsUpdate=true;return c});
+ importedSurfaceMaterials=restored;
+ S.mesh.material=restored.length===1?restored[0]:restored;
+ renderer.toneMappingExposure=1; $('ldExposure').value=1;$('ldExposureV').textContent='1.00';
+ scene.environment=studioEnvironment; $('ldEnvironment').value='studio';
+ for(const m of restored)m.needsUpdate=true;
+ profilePBRAudit();say('Original GLB PBR materials restored');
+}
+function profilePBRAudit(){
+ const mats=Array.isArray(S.mesh?.material)?S.mesh.material:S.mesh?.material?[S.mesh.material]:[];
+ const lines=['PBR INTEGRITY / '+mats.length+' material(s)'];
+ const uv=S.geo?.getAttribute('uv'),uv2=S.geo?.getAttribute('uv2');
+ lines.push('UV0: '+(uv?.count||0)+' | UV2: '+(uv2?.count||0)+' | vertex colors: '+(S.geo?.attributes?.color?.count||0));
+ lines.push('Material groups: '+(S.geo?.groups?.length||0)+' | triangles: '+Math.floor((S.geo?.index?.count||S.geo?.attributes?.position?.count||0)/3));
+ lines.push('Studio IBL: '+(scene.environment?'ACTIVE':'OFF')+' | exposure '+renderer.toneMappingExposure.toFixed(2));
+ mats.forEach((m,i)=>{
+ const maps=['map','normalMap','metalnessMap','roughnessMap','aoMap','emissiveMap'].filter(k=>m?.[k]);
+ lines.push((i+1)+'. '+(m?.name||'unnamed')+' ['+(m?.type||'unknown')+']');
+ lines.push('  maps: '+(maps.join(', ')||'none')+' | metal '+(m?.metalness??'n/a')+' | rough '+(m?.roughness??'n/a'));
+ if(m?.aoMap&&!uv2)lines.push('  WARNING: AO map requires UV2');
+ if(m?.normalMap&&!uv)lines.push('  ERROR: normal map has no UV0');
+  if(m?.map&&!uv)lines.push('  ERROR: base color map has no UV0');
+  if(m?.vertexColors&&!S.geo?.attributes?.color)lines.push('  ERROR: vertex colors required by material are absent');
+  if(m?.metalness>0.7&&!scene.environment)lines.push('  WARNING: metal needs a reflection environment');
+  if(m?.map&&m.map.colorSpace!==THREE.SRGBColorSpace)lines.push('  WARNING: color map not tagged sRGB');
+  const orig=profilePBRSignature?.[i];if(orig){if(orig.maps.map&&!m?.map)lines.push('  ERROR: original base-color map missing');if(orig.maps.normalMap&&!m?.normalMap)lines.push('  ERROR: original normal map missing')} 
+ });
+ const out=$('ldReport');if(out)out.textContent=lines.join('\n');return lines;
+}
+
+function releaseImportedMaterials(){if(importedSurfaceMaterials){for(const m of importedSurfaceMaterials){if(m?.userData?.profileOwned)m.dispose()}importedSurfaceMaterials=null}}
+function preserveMaterial(m){const c=m.clone();c.userData={...c.userData,profileOwned:true};/* Preserve glTF material parameters, texture channel, color space, normal scale, alpha mode, and original sidedness. */c.needsUpdate=true;return c}
+function rigMaterial(){return importedSurfaceMaterials?.length?(importedSurfaceMaterials.length===1?importedSurfaceMaterials[0]:importedSurfaceMaterials):mat}
+
+function rememberRigSource(g){if(rigSourceGeometry)rigSourceGeometry.dispose();rigSourceGeometry=g.clone();['skinIndex','skinWeight'].forEach(n=>rigSourceGeometry.deleteAttribute(n));}
+/* Geometry-aware landmark calibration for imported upright bipeds. Sampling local mesh
+   sections is safer than imposing demo joint dimensions on arbitrary model proportions.
+   This remains an estimate; inspect before exporting. */
+/* Model-specific calibration for base_basic_pbr.glb: arms hang down and outward,
+   unlike the horizontal demo T-pose. Recognized by height and transverse slice profile.
+   Uses measured mesh vertex distributions, not a generic skeleton scale. */
+function detectBaseBasic(g){
+ const a=g.attributes.position;if(!a||a.count<40000||a.count>80000)return false;
+ const b=bbox(g),sz=b.getSize(V3());if(Math.abs(sz.y-1.9012)>.055||Math.abs(sz.x-1.3188)>.09)return false;
+ let outer=0,mid=0;for(let i=0;i<a.count;i+=7){const y=(a.getY(i)-b.min.y)/sz.y,x=Math.abs(a.getX(i)-(b.min.x+b.max.x)/2);if(y>.52&&y<.58&&x>.45)outer++;if(y>.28&&y<.34&&x>.45)mid++}
+ return outer>40&&mid<8;
+}
+function fitBaseBasic(joints,g){
+ const b=bbox(g),h=b.getSize(V3()).y,cx=(b.min.x+b.max.x)/2,cz=(b.min.z+b.max.z)/2;
+ const map={clavicle:[.17,.805],arm:[.245,.795],forearm:[.435,.655],hand:[.595,.535],upLeg:[.105,.505],leg:[.102,.28],foot:[.105,.06],heel:[.105,.025],toe:[.105,.028],toe_tip:[.105,.025]};
+ let fitted=0;for(const j of joints){const m=/^(clavicle|arm|forearm|hand|upLeg|leg|foot|heel|toe|toe_tip)_([LR])$/.exec(j.name);if(!m)continue;const [x,y]=map[m[1]],sg=m[2]==='L'?1:-1;
+ j.pos.set(cx+sg*x,y*h+b.min.y,cz+(m[1]==='toe'||m[1]==='toe_tip'?.075:0));fitted++}
+ // Fingers: keep parent-relative hand anatomy, but translate the original T-pose finger
+ // chain to follow the hanging hand and point downwards.
+ for(const j of joints){const m=/^(thumb|index|middle|ring|pinky)_(?:01|02|03|tip)_([LR])$/.exec(j.name);if(!m)continue;
+ const sg=m[2]==='L'?1:-1,originalX=Math.abs(j.pos.x)/h;
+ j.pos.set(cx+sg*(.60+Math.max(0,originalX-.45)*.27),b.min.y+h*(.535-Math.max(0,originalX-.45)*.6),cz+j.pos.z*.4);fitted++}
+ // Landmark proximity is measured against the mesh, not hardcoded.  This is a
+ // surface-support heuristic, NOT an anatomical or deformation-quality confidence.
+ const position=g.attributes.position, samples=[];
+ for(let i=0;i<position.count;i+=Math.max(1,Math.floor(position.count/14000)))
+   samples.push([position.getX(i),position.getY(i),position.getZ(i)]);
+ const supported=[],unsupported=[];let sum=0;
+ const radius=Math.max(.035*h,.0001), limit=Math.max(.14*h,.0001);
+ for(const j of joints){
+   if(!/^(clavicle|arm|forearm|hand|upLeg|leg|foot|heel|toe|toe_tip)_[LR]$/.test(j.name))continue;
+   let near=Infinity;
+   for(const v of samples){const dx=v[0]-j.pos.x,dy=v[1]-j.pos.y,dz=v[2]-j.pos.z;
+     const d=dx*dx+dy*dy+dz*dz;if(d<near)near=d;}
+   const distance=Math.sqrt(near), score=Math.max(0,1-Math.max(0,distance-radius)/(limit-radius));
+   sum+=score;
+   (score>=.5?supported:unsupported).push(j.name);
+ }
+ const total=supported.length+unsupported.length;
+ return {fitted,confidence:total?sum/total:0,model:'base_basic_pbr.glb',
+   metric:'surface proximity',supported:supported.length,total,unsupported,
+   method:'Measured landmark-to-surface proximity on sampled vertices; not anatomical validation'};
+}
+function fitBipedToGeometry(joints,g,type){
+ if(!['humanoid','mecha'].includes(type))return {fitted:0,confidence:0};
+ if(detectBaseBasic(g))return fitBaseBasic(joints,g);
+ const pos=g.attributes.position;if(!pos||pos.count<50)return {fitted:0,confidence:0};
+ const box=bbox(g),size=box.getSize(V3()),h=Math.max(size.y,1e-6),cx=(box.min.x+box.max.x)*.5,cz=(box.min.z+box.max.z)*.5;
+ // Spatial sampling uses an anatomical joint's predicted X and Y together. Sampling
+ // the entire height slice collapses elbows and wrists onto the same arm centroid.
+ const pts=[];for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);if(Number.isFinite(x+y+z))pts.push([x,y,z])}
+ const limb=/^(clavicle|arm|forearm|hand|upLeg|leg|foot)_/;
+ const core=/^(hips|spine_|chest|upper_chest|neck|head$)/;
+ let fitted=0,attempted=0;
+ for(const j of joints){const n=j.name;if(!limb.test(n)&&!core.test(n))continue;attempted++;
+  const isLimb=limb.test(n),side=/_L$/.test(n)?1:/_R$/.test(n)?-1:0;
+  const predicted=j.pos.clone();predicted.x+=cx;predicted.y+=box.min.y;predicted.z+=cz;
+  const radiusX=isLimb?Math.max(h*.065,size.x*.09):Math.max(h*.09,size.x*.14);
+  const radiusY=h*(isLimb?.065:.045),candidates=[];
+  for(const v of pts){if(Math.abs(v[1]-predicted.y)>radiusY)continue;
+   if(isLimb&&side*(v[0]-cx)<h*.015)continue;
+   if(Math.abs(v[0]-predicted.x)>radiusX)continue;
+   candidates.push(v)}
+  if(candidates.length<8)continue;
+  // Robust center from the nearest local patch, with limited movement to avoid
+  // snapping to a neighboring limb, armor projection or disconnected accessory.
+  candidates.sort((u,v)=>((u[0]-predicted.x)**2+(u[1]-predicted.y)**2+(u[2]-predicted.z)**2)-((v[0]-predicted.x)**2+(v[1]-predicted.y)**2+(v[2]-predicted.z)**2));
+  const chosen=candidates.slice(0,Math.min(48,candidates.length));
+  const avg=k=>chosen.reduce((sum,v)=>sum+v[k],0)/chosen.length;
+  const tx=avg(0),tz=avg(2),limit=isLimb?h*.055:h*.035;
+  j.pos.x+=THREE.MathUtils.clamp(tx-predicted.x,-limit,limit);
+  j.pos.z+=THREE.MathUtils.clamp(tz-predicted.z,-limit,limit);
+  fitted++;
+ }
+ return {fitted,confidence:attempted?fitted/attempted:0};
+}
+async function rig(){if(rigSwitchBusy)return;if(!S.geo&&!rigSourceGeometry){say('Load or create a model first',1);return}
+ rigCancelRequested=false;profileBindComplete=false;rigStartedAt=performance.now();rigSwitchBusy=true;setRigStage('preparing geometry');
+ let bindPreview=null,bindSucceeded=false;
+ say('Building rig: keeping model visible while weights are calculated.');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ try{
+ if((S.adopted||S.keys.size||S.clip)&&!confirm('Rebuilding the rig replaces the existing skeleton, skin weights and animation keys/clips. Export or save your project first. Continue?'))return;
+ if(!rigSourceGeometry){if(S.adopted)S.geo=mergeGeos([S.geo]);rememberRigSource(S.geo)}
+ const keepGeo=rigSourceGeometry.clone(),savedWidth=S.width,savedFrame=S.frame;
+ // Keep an independent, non-skinned copy visible while the asynchronous solver runs.
+ // Otherwise the newly created SkinnedMesh has zeroed skin weights and can vanish.
+ const previewGeo=keepGeo.clone();
+ groundGeo(previewGeo); // Same prepared local-space coordinates as the eventual skinned geometry.
+ bindPreview=new THREE.Mesh(previewGeo,rigMaterial());
+ bindPreview.name='Auto-bind progress preview';bindPreview.frustumCulled=false;
+ bindPreview.castShadow=bindPreview.receiveShadow=true;
+ ['skinIndex','skinWeight'].forEach(n=>keepGeo.deleteAttribute(n));
+ clearAll();scene.add(bindPreview);S.geo=keepGeo;S.adopted=false;S.width=savedWidth;S.frame=0;
+ 
+ setRigStage('fitting joints');const g=S.geo;groundGeo(g);const bb=bbox(g);S.h=bb.max.y-bb.min.y;const type=$('rigType')?.value||'humanoid';S.rigType=type;S.joints=buildCreatureJoints(type,bb,S.h,S.width);const fitResult=fitBipedToGeometry(S.joints,g,type);S.geometryFit=fitResult;if(fitResult.model)say('Detected '+fitResult.model+' — fitted downward arm joints and isolated arm vertex regions.');S.B=S.joints.length;S.N=g.attributes.position.count;S.adj=null;makeBones();buildSkinned();S.mesh.visible=false;setRigStage('solving vertex weights');await solveWeights();setRigStage('checking skin and bind matrices');
+ const bindNow=checkNeutralBind();if(bindNow.issues.length)throw new Error('Bind-pose matrix failure: '+bindNow.issues.join('; '));
+ S.mesh.visible=true;setRigStage('finalizing rig and viewport');
+ if(bindPreview){scene.remove(bindPreview);bindPreview.geometry.dispose();bindPreview=null;}
+ S.geo.computeBoundingSphere();S.geo.computeBoundingBox();
+ autoChains();
+ S.contactDatum=null;S.root.updateMatrixWorld(true);{const feet=profileFootEndpoints();if(feet.length)S.contactDatum={mesh:S.mesh,y:Math.min(...feet.map(b=>b.getWorldPosition(V3()).y))};}
+ buildMarkers();S.src='pose';S.playing=false;S.frame=0;const relaxed=profileSetRelaxedArms(82);if(!relaxed){S.fk.forEach((q,i)=>q.copy(S.restQ[i]));applyPose()}evaluate();const neutralCheck=checkNeutralBind();if(neutralCheck.issues.length){$('rigAuditOutput').textContent='BIND TRANSFORM ERROR: '+neutralCheck.issues.join(' • ');say('Neutral bind matrix verification failed; inspect Rig Audit',1)}refresh();$('hudInfo').textContent=S.B+' bones • '+S.N+' verts • '+type+' rig';if(type==='humanoid'||type==='mecha')say('Geometry fit: '+fitResult.fitted+' joints; '+Math.round(fitResult.confidence*100)+'% '+(fitResult.metric||'sampling coverage')+' (heuristic, not anatomical confidence). Inspect front and side views.');say(type==='scorpion'?'Scorpion leg landmarks from mesh: '+(S.scorpionFit?.fittedLegs||0)+'/6 stations; unresolved: '+(S.scorpionFit?.unresolved?.join(', ')||'none')+'. Tail fit: '+S.tailFitStatus+'. Verify actual components before animation.':type==='dragon'?'Dragon rig built: paired articulated wings, four limbs and segmented tail.':type==='vehicle'?'Vehicle rig built: chassis, suspension, wheels and steering pivots.':type==='quadruped'?'Quadruped rig built: four leg chains.':type==='mecha'?'Mecha biped rig built with torso, armor and actuator control bones.':type==='humanoid'?'Humanoid rig built.':'Rig built.');frameModel();if(savedFrame>0)say('Preset rebuilt at rest pose; old animation keys cleared.');bindSucceeded=true;}catch(err){console.error('PROFILE rig build failed',err);say('Rig build failed: '+(err?.message||String(err)),1);$('rigAuditOutput').textContent='RIG BUILD ERROR: '+(err?.message||String(err));
+ // Failure must never leave the scene blank: recover the original unskinned source.
+ if(!bindSucceeded){
+  if(bindPreview){scene.remove(bindPreview);bindPreview.geometry.dispose();bindPreview=null;}
+  const restore=rigSourceGeometry?.clone();
+  if(restore){clearAll();S.geo=restore;S.N=restore.attributes.position.count;S.B=0;S.adopted=false;
+   const fallback=new THREE.Mesh(restore,rigMaterial());fallback.name='Recovered unrigged model';fallback.frustumCulled=false;
+   S.root=S.mesh=fallback;scene.add(fallback);S.h=bbox(restore).getSize(V3()).y;refresh();frameModel();
+   say('Auto-bind failed; original model restored without rig.',1);}
+ }
+ }finally{if(bindPreview){scene.remove(bindPreview);bindPreview.geometry.dispose();}rigSwitchBusy=false;rigCancelRequested=false;profileBindComplete=bindSucceeded;rigStage=bindSucceeded?'complete':'failed / cancelled';if(bindSucceeded){say('Auto-bind completed; running queued validation checks.');queueMicrotask(()=>profileFlushChecks());}else{profilePendingChecks.length=0;}}}
+function adopt(sc){if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}let sk=null;sc.traverse(o=>{if(!sk&&o.isSkinnedMesh&&o.skeleton)sk=o});if(!sk)return false;clearAll();scene.add(sc);sc.updateMatrixWorld(true);S.root=sc;S.mesh=sk;S.geo=sk.geometry;S.adopted=true;profileBindComplete=true;S.bones=sk.skeleton.bones.slice();sk.frustumCulled=false;ensureSkinAttrs(S.geo);
+ // Do not invent a vertex color attribute for imported skins: it changes PBR output.
+ const seen={};S.joints=S.bones.map((b,i)=>{let n=b.name||'bone_'+i;if(seen[n])n+='_'+i;seen[n]=1;b.name=n;return{name:n,parent:S.bones.indexOf(b.parent),pos:b.getWorldPosition(V3())}});S.idx={};S.joints.forEach((j,i)=>S.idx[j.name]=i);
+ S.alias=mixamoAlias();S.roots=S.bones.filter(b=>!S.bones.includes(b.parent));S.B=S.bones.length;S.N=S.geo.attributes.position.count;S.W=new Float32Array(S.N*S.B);const si=S.geo.attributes.skinIndex,sw=S.geo.attributes.skinWeight;for(let i=0;i<S.N;i++)for(let k=0;k<4;k++){const bi=si.array[i*4+k];if(bi<S.B)S.W[i*S.B+bi]+=sw.array[i*4+k]}
+ S.h=bbox(S.geo).getSize(V3()).y;captureRest();autoChains();S.contactDatum=null;S.root.updateMatrixWorld(true);{const feet=profileFootEndpoints();if(feet.length)S.contactDatum={mesh:S.mesh,y:Math.min(...feet.map(b=>b.getWorldPosition(V3()).y))};}buildMarkers();refresh();frameModel();return true}
+
+/* ---------- viz ---------- */
+const COL={c:new THREE.Color(0xa6ff7a),l:new THREE.Color(0x6ec8ff),r:new THREE.Color(0xff9a6e),sel:new THREE.Color(0xffff55)};
+const sideCol=n=>/_L$|Left/.test(n)?COL.l:/_R$|Right/.test(n)?COL.r:COL.c;
+let boneLines=null,datum=null;let showRigGuides=false,showIKGuides=false;
+/* every joint = node sphere; every bone = octahedral bone shape (parent -> child); ring + heading tick = ground datum under the root */
+function buildMarkers(){ovl.clear();S.markers=[];const h=S.h,B=S.joints.length,kidMin=S.joints.map(()=>Infinity);
+ S.joints.forEach(j=>{if(j.parent>=0)kidMin[j.parent]=Math.min(kidMin[j.parent],j.pos.distanceTo(S.joints[j.parent].pos))});
+ S.joints.forEach((j,i)=>{const l=isFinite(kidMin[i])?kidMin[i]:h*.03,r=Math.min(h*.012,Math.max(h*.0045,l*.16))*(i===S.H||i===0?1.5:1);
+  const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),new THREE.MeshBasicMaterial({color:sideCol(j.name).clone(),depthTest:false,transparent:true}));m.renderOrder=20;m.userData.bone=i;ovl.add(m);S.markers.push(m)});
+ const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(B*24*3),3));lg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(B*24*3),3));
+ boneLines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({vertexColors:true,depthTest:false,transparent:true,opacity:.9}));boneLines.renderOrder=19;boneLines.frustumCulled=false;ovl.add(boneLines);
+ const rr=h*.13,pts=[];for(let a=0;a<=48;a++)pts.push(V3(Math.cos(a/48*Math.PI*2)*rr,0,Math.sin(a/48*Math.PI*2)*rr));
+ const dm=new THREE.LineBasicMaterial({color:0xa6ff7a,depthTest:false,transparent:true,opacity:.7});datum=new THREE.Group();
+ datum.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),dm),new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([V3(-rr,0,0),V3(rr,0,0),V3(0,0,-rr),V3(0,0,rr),V3(0,0,rr),V3(rr*.2,0,rr*.7),V3(0,0,rr),V3(-rr*.2,0,rr*.7)]),dm));datum.renderOrder=18;ovl.add(datum);
+ S.chains.forEach(c=>{ovl.add(c.target,c.pole)});syncRigGuides()}
+function syncRigGuides(){
+ if(boneLines)boneLines.visible=showRigGuides;
+ if(datum)datum.visible=showRigGuides;
+ S.markers.forEach((m,i)=>m.visible=showRigGuides||i===S.sel);
+ S.chains.forEach(c=>{if(c.target)c.target.visible=showIKGuides;if(c.pole)c.pole.visible=showIKGuides});
+ $('viewRigOverlay')?.classList.toggle('on',showRigGuides);
+ $('viewIKOverlay')?.classList.toggle('on',showIKGuides);
+}
+$('viewRigOverlay').addEventListener('click',()=>{showRigGuides=!showRigGuides;syncRigGuides()});
+$('viewIKOverlay').addEventListener('click',()=>{showIKGuides=!showIKGuides;syncRigGuides()});
+const _w=V3(),_a=V3(),_b=V3(),_u=V3(),_n1=V3(),_n2=V3(),_ref=V3(),_mid=V3(),_cs=[V3(),V3(),V3(),V3()],_dq=Q(),_de=new THREE.Euler();
+function updateViz(){if(!S.bones.length||!boneLines)return;S.root.updateMatrixWorld(true);
+ S.bones.forEach((b,i)=>{b.getWorldPosition(_w);S.markers[i].position.copy(_w);S.markers[i].visible=showRigGuides||i===S.sel;S.markers[i].material.color.copy(i===S.sel?COL.sel:sideCol(S.joints[i].name))});
+ const pa=boneLines.geometry.attributes.position,ca=boneLines.geometry.attributes.color,h=S.h;
+ S.joints.forEach((j,i)=>{const o=i*24,c=i===S.sel?COL.sel:sideCol(j.name);for(let v=0;v<24;v++)ca.setXYZ(o+v,c.r,c.g,c.b);
+  if(j.parent<0){for(let v=0;v<24;v++)pa.setXYZ(o+v,0,0,0);return}
+  _a.copy(S.markers[j.parent].position);_b.copy(S.markers[i].position);_u.subVectors(_b,_a);const len=_u.length();
+  if(len<1e-6){for(let v=0;v<24;v++)pa.setXYZ(o+v,_a.x,_a.y,_a.z);return}
+  _u.divideScalar(len);_ref.set(0,1,0);if(Math.abs(_u.y)>.9)_ref.set(1,0,0);_n1.crossVectors(_u,_ref).normalize();_n2.crossVectors(_u,_n1);
+  const w=Math.min(len*.13,h*.016);_mid.copy(_a).addScaledVector(_u,len*.22);
+  _cs[0].copy(_mid).addScaledVector(_n1,w);_cs[1].copy(_mid).addScaledVector(_n2,w);_cs[2].copy(_mid).addScaledVector(_n1,-w);_cs[3].copy(_mid).addScaledVector(_n2,-w);
+  let v=o;const put=p=>pa.setXYZ(v++,p.x,p.y,p.z);for(let k=0;k<4;k++){put(_a);put(_cs[k])}for(let k=0;k<4;k++){put(_cs[k]);put(_b)}for(let k=0;k<4;k++){put(_cs[k]);put(_cs[(k+1)%4])}});
+ pa.needsUpdate=ca.needsUpdate=true;
+ const r0=S.markers[0].position;S.bones[0].getWorldQuaternion(_dq);_de.setFromQuaternion(_dq,'YXZ');datum.position.set(r0.x,.004,r0.z);datum.rotation.set(0,_de.y,0)}
+function frameModel(){if(!S.root)return;const bb=new THREE.Box3().setFromObject(S.mesh||S.root);if(bb.isEmpty())return;const c=bb.getCenter(V3()),sz=bb.getSize(V3()),d=Math.max(sz.y*1.2,sz.x*.7,.5)*2.1;
+ controls.target.copy(c);const dv=camera.position.clone().sub(c);if(dv.lengthSq()<1e-6)dv.set(.55,.2,.8);dv.normalize();camera.position.copy(c).addScaledVector(dv,d);camera.near=Math.max(.01,d/200);camera.far=d*40;camera.updateProjectionMatrix();scene.fog.near=d*2.5;scene.fog.far=d*7;controls.update()}
+function updateColors(list){if(!S.wview||!S.geo||!S.geo.attributes.color||!S.W)return;const c=S.geo.attributes.color,b=Math.max(0,S.sel),B=S.B,n=list?list.length:S.N;for(let q=0;q<n;q++){const i=list?list[q]:q;const w=S.W[i*B+b];let r,g,bl;if(w<.5){const t=w*2;r=0;g=t;bl=1-t}else{const t=(w-.5)*2;r=t;g=1-t;bl=0}c.setXYZ(i,r,g,bl)}c.needsUpdate=true}
+function setWView(on){
+ if(!S.mesh)return;
+ if(on===S.wview)return;
+ if(on){
+  S.originalWeightMaterial=S.mesh.material;
+  S.originalWeightColors=S.geo.getAttribute('color')?.clone()||null;
+  const ms=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];
+  const preview=ms.map(m=>{const c=m.clone();c.vertexColors=true;c.needsUpdate=true;return c});
+  S.mesh.material=Array.isArray(S.mesh.material)?preview:preview[0];
+  if(!S.geo.getAttribute('color'))S.geo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(S.N*3).fill(1),3));
+  S.wview=true;updateColors();
+ }else{
+  const ms=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];
+  S.mesh.material=S.originalWeightMaterial||S.mesh.material;
+  ms.forEach(m=>{if(m!==S.mesh.material&&m.dispose)m.dispose()});
+  if(S.originalWeightColors)S.geo.setAttribute('color',S.originalWeightColors);
+  else S.geo.deleteAttribute('color');
+  S.originalWeightMaterial=null;S.originalWeightColors=null;S.wview=false;
+ }
+ $('btnWView').textContent='Weights: '+(on?'ON':'OFF');$('btnWView').classList.toggle('on',on);
+}
+
+/* ---------- IK ---------- */
+function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg_L','leg_L','foot_L',V3(0,0,.5),1],['upLeg_R','leg_R','foot_R',V3(0,0,.5),1],['arm_L','forearm_L','hand_L',V3(0,0,-.5),0],['arm_R','forearm_R','hand_R',V3(0,0,-.5),0],['foreLeg_L','foreShin_L','foreFoot_L',V3(0,0,.5),1],['foreLeg_R','foreShin_R','foreFoot_R',V3(0,0,.5),1],['rearLeg_L','rearShin_L','rearFoot_L',V3(0,0,-.5),1],['rearLeg_R','rearShin_R','rearFoot_R',V3(0,0,-.5),1]];
+ // Creature leg chains start enabled; quadruped chains were previously forced to blend=0.
+ for(let p=1;p<=3;p++)for(const side of ['L','R'])candidates.push([`leg${p}_${side}_upper`,`leg${p}_${side}_lower`,`leg${p}_${side}_foot`,V3(side==='L'?-1:1,.15,(p-2)*.35),1]);
+ candidates.forEach(c=>mkChain(c.slice(0,3).map(ln),c[3],c[4]));
+ for(const side of ['L','R']){const wn=['wing_'+side+'_shoulder','wing_'+side+'_elbow','wing_'+side+'_wrist','wing_'+side+'_tip'];if(wn.every(n=>S.idx[n]!==undefined))mkChain(wn,V3(side==='L'?-1:1,.35,.2),1)}
+ // Dedicated tail chain includes the stinger so the actual tip is the IK endpoint.
+ const tailNames=Array.from({length:10},(_,i)=>'tail_seg_'+String(i+1).padStart(2,'0')).concat('tail_stinger');
+ if(tailNames.every(n=>S.idx[n]!==undefined))mkChain(tailNames,V3(0,1,-.7),1);
+}
+function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.some(i=>i===undefined))return null;
+ S.root.updateMatrixWorld(true);const end=S.bones[idx[idx.length-1]].getWorldPosition(V3()),mid=S.bones[idx[Math.min(1,idx.length-2)]].getWorldPosition(V3()),r=Math.max(.02,S.h*.02);
+ const target=new THREE.Mesh(new THREE.BoxGeometry(r*1.6,r*1.6,r*1.6),new THREE.MeshBasicMaterial({color:0x55ff55,depthTest:false,transparent:true,opacity:.85}));const pole=new THREE.Mesh(new THREE.SphereGeometry(r,10,10),new THREE.MeshBasicMaterial({color:0x55aaff,depthTest:false,transparent:true,opacity:.85}));
+ target.renderOrder=pole.renderOrder=21;target.position.copy(end);pole.position.copy(mid).add(poleOff.clone().multiplyScalar(S.h/1.8));
+ const endName=names[names.length-1];const c={name:'IK_'+endName,idx,target,pole,blend:blend,on:false,rest:end.clone(),foot:/foot/i.test(endName),side:/(?:_R(?:_|$)|Right)/.test(names.join('_'))?1:0};const pw=idx.map(i=>S.bones[i].getWorldPosition(V3()));c.len=pw.slice(1).reduce((sum,v,i)=>sum+v.distanceTo(pw[i]),0);c.root0=pw[0];target.userData.chain=pole.userData.chain=S.chains.length;target.userData.kind='target';pole.userData.kind='pole';
+ S.chains.push(c);ovl.add(target,pole);return c}
+function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.bones[i]),n=bs.length;S.root.updateMatrixWorld(true);
+ const P=bs.map(b=>b.getWorldPosition(V3())),L=[];for(let i=0;i<n-1;i++)L.push(P[i].distanceTo(P[i+1]));const T=ch.target.position.clone(),root=P[0].clone(),total=L.reduce((a,b)=>a+b,0),footQ=ch.foot?bs[n-1].getWorldQuaternion(Q()):null,lastFk=bs[n-1].quaternion.clone();
+ if(n===3){/* exact analytic two-bone IK (law of cosines); the knee is pushed toward the pole vector */
+  const ax=T.clone().sub(root),d=ax.length();if(d>1e-6){ax.divideScalar(d);const dd=Math.min(Math.max(d,Math.abs(L[0]-L[1])+1e-4),total-1e-5),x=(L[0]*L[0]+dd*dd-L[1]*L[1])/(2*dd),hh=Math.sqrt(Math.max(0,L[0]*L[0]-x*x));
+   let pd=ch.pole.position.clone().sub(root);pd.addScaledVector(ax,-pd.dot(ax));if(pd.length()<1e-6){pd=P[1].clone().sub(root);pd.addScaledVector(ax,-pd.dot(ax))}if(pd.length()<1e-6)pd=Math.abs(ax.y)<.9?V3(0,1,0).cross(ax):V3(1,0,0).cross(ax);pd.normalize();
+   P[1].copy(root).addScaledVector(ax,x).addScaledVector(pd,hh);P[2].copy(root).addScaledVector(ax,dd)}}
+ else if(root.distanceTo(T)>=total){for(let i=0;i<n-1;i++){const d=T.clone().sub(P[i]).normalize();P[i+1].copy(P[i]).addScaledVector(d,L[i])}}
+ else for(let it=0;it<24;it++){P[n-1].copy(T);
+  for(let i=n-2;i>=0;i--){const d=P[i].clone().sub(P[i+1]).normalize();P[i].copy(P[i+1]).addScaledVector(d,L[i])}   /* read the direction BEFORE overwriting (it was zeroed -> chain collapsed -> legs folded up) */
+  P[0].copy(root);
+  for(let i=0;i<n-1;i++){const d=P[i+1].clone().sub(P[i]).normalize();P[i+1].copy(P[i]).addScaledVector(d,L[i])}
+  // Pole-vector correction for multi-segment tails: rotate each intermediate joint
+  // around its neighbouring-joint axis while preserving its axial offset and radius.
+  if(n>3){for(let i=1;i<n-1;i++){
+   const axis=P[i+1].clone().sub(P[i-1]);if(axis.lengthSq()<1e-10)continue;axis.normalize();
+   const rel=P[i].clone().sub(P[i-1]),axial=axis.clone().multiplyScalar(rel.dot(axis)),perp=rel.sub(axial);
+   const pv=ch.pole.position.clone().sub(P[i-1]);pv.addScaledVector(axis,-pv.dot(axis));
+   if(perp.lengthSq()<1e-10||pv.lengthSq()<1e-10)continue;
+   const pn=perp.clone().normalize(),vn=pv.normalize(),ang=Math.atan2(axis.dot(pn.clone().cross(vn)),Math.max(-1,Math.min(1,pn.dot(vn))));
+   perp.applyAxisAngle(axis,ang*.22);P[i].copy(P[i-1]).add(axial).add(perp);
+  }}
+  if(P[n-1].distanceTo(T)<1e-4)break}
+ const fk=bs.map(b=>b.quaternion.clone()),A=V3(),Bp=V3(),qa=Q(),qw=Q(),pq=Q();
+ for(let i=0;i<n-1;i++){const b=bs[i];b.updateWorldMatrix(true,false);bs[i+1].updateWorldMatrix(true,false);b.getWorldPosition(A);bs[i+1].getWorldPosition(Bp);
+  const cur=Bp.sub(A).normalize(),des=P[i+1].clone().sub(A).normalize();qa.setFromUnitVectors(cur,des);b.getWorldQuaternion(qw);qw.premultiply(qa);b.parent.getWorldQuaternion(pq);b.quaternion.copy(pq.invert().multiply(qw)).normalize()}
+ /* feet keep their flat FK world orientation instead of tilting with the shin */
+ if(footQ){const lb=bs[n-1];lb.parent.updateWorldMatrix(true,false);lb.parent.getWorldQuaternion(pq);lb.quaternion.copy(pq.invert().multiply(footQ)).normalize()}
+ if(ch.blend<1){for(let i=0;i<n-1;i++)bs[i].quaternion.slerpQuaternions(fk[i],bs[i].quaternion.clone(),ch.blend);if(footQ)bs[n-1].quaternion.slerpQuaternions(lastFk,bs[n-1].quaternion.clone(),ch.blend)}}
+function solveAll(){S.chains.forEach(solveChain)}
+function syncTargets(){S.root.updateMatrixWorld(true);S.chains.forEach(c=>c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3())))}
+
+/* ---------- pose / motion / keys ---------- */
+function applyPose(){S.bones.forEach((b,i)=>{b.quaternion.copy(S.fk[i]);b.position.copy(S.restP[i])});S.bones[S.H].position.copy(S.hips0).add(S.hipsOff)}
+function wq(i){const q=S.fk[i].clone();let p=S.joints[i].parent;while(p>=0){q.premultiply(S.fk[p]);p=S.joints[p].parent}return q.premultiply(S.baseQ)}
+function rotW(name,axis,ang){const i=J(name);if(i===undefined)return;const p=S.joints[i].parent,Wp=p>=0?wq(p):S.baseQ.clone(),Qw=Q().setFromAxisAngle(axis,ang);
+ S.fk[i].premultiply(Wp.clone().invert().multiply(Qw).multiply(Wp)).normalize()}
+const AX={x:V3(1,0,0),y:V3(0,1,0),z:V3(0,0,1)};
+function profileFacing(){return document.getElementById('rigFacing')?.value||'-Z'}
+function profilePitchAxis(){const f=profileFacing();return f.endsWith('X')?V3(0,0,f[0]==='+'?1:-1):V3(f[0]==='+'?-1:1,0,0)}
+function gaitSign(){return Number(document.getElementById('gaitPhase')?.value||1)}
+function profileFacingVector(){const f=profileFacing();return f.endsWith('X')?V3(f[0]==='+'?1:-1,0,0):V3(0,0,f[0]==='+'?1:-1)}
+
+function procPose(fr){S.fkDriven=false;const m=MO[S.motion]||MO.walk,ph=fr/clipFPS()*S.speed*m.f*Math.PI*2,sn=Math.sin(ph),cs=Math.cos(ph),s=m.s*S.stride*S.h/1.8*.5;
+ S.fk.forEach((q,i)=>q.copy(S.relaxedQ?.[i]||S.restQ[i]));const jump=S.motion==='jump',jy=jump?Math.max(0,sn)*.45*S.h/1.8:0,k=S.h/1.8;
+ if(S.rigType==='quadruped'){S.fkDriven=true;
+  for(const side of ['L','R']){const d=side==='L'?1:-1;rotW('foreLeg_'+side,profilePitchAxis(),gaitSign()*d*sn*m.a*.7);rotW('foreShin_'+side,profilePitchAxis(),-gaitSign()*Math.max(0,-d*sn)*.45*m.a);rotW('rearLeg_'+side,profilePitchAxis(),-gaitSign()*d*sn*m.a*.75);rotW('rearShin_'+side,profilePitchAxis(),-gaitSign()*Math.max(0,d*sn)*.5*m.a)}
+  rotW('spine_02',AX.x,.04*cs);rotW('head',AX.x,-.04*cs);S.hipsOff.set(0,m.b*k*Math.cos(2*ph)-m.c*k,0);return;
+ }
+ if(S.rigType==='scorpion'){S.fkDriven=true;
+  // Alternating tripod gait: pairs 1/3 move together, pair 2 in opposition; left/right alternate.
+  for(let pair=1;pair<=3;pair++)for(const side of ['L','R']){
+   const sidePhase=side==='L'?0:Math.PI, pairPhase=(pair===2?Math.PI:0)+sidePhase, a=ph+pairPhase, d=side==='L'?1:-1;
+   rotW(`leg${pair}_${side}_upper`,AX.y,gaitSign()*d*Math.sin(a)*m.a*.30);
+   rotW(`leg${pair}_${side}_lower`,profilePitchAxis(),-gaitSign()*Math.max(0,Math.sin(a+.35))*.38*m.a);
+  }
+  // Tail wave travels from base to tip; the stinger counter-articulates at the end.
+  for(let i=1;i<=10;i++)rotW('tail_seg_'+String(i).padStart(2,'0'),AX.x,Math.sin(ph-i*.42)*(.07+i*.014));
+  rotW('tail_stinger',AX.z,.16*cs);rotW('mech_torso_plate',AX.y,.025*cs);S.hipsOff.set(0,m.b*k*Math.cos(2*ph)*.35,0);return;
+ }
+ // Drive biped locomotion through FK, independent of disabled/missing IK targets.
+ // A pose cycle must rotate the thigh, knee and ankle; root bob alone is not locomotion.
+ S.fkDriven=true;
+ const locomotion=S.motion!=='idle'&&S.motion!=='jump';
+ for(const side of ['L','R']){
+  const phase=ph+(side==='R'?Math.PI:0), swing=Math.sin(phase), lift=Math.max(0,Math.cos(phase));
+  const amp=locomotion?m.a*(S.motion==='run'?.95:.72):0;
+  rotW('upLeg_'+side,profilePitchAxis(),gaitSign()*amp*swing);
+  rotW('leg_'+side,profilePitchAxis(),-gaitSign()*(locomotion?(0.10+Math.max(0,lift)*m.a*.9):0.04));
+  rotW('foot_'+side,profilePitchAxis(),gaitSign()*(locomotion?(-.32*amp*swing+.15*lift):0));
+ }
+ for(const side of ['L','R']){const d=side==='L'?1:-1,swing=(side==='L'?1:-1)*sn*m.a;
+  rotW('arm_'+side,profilePitchAxis(),gaitSign()*(jump?-Math.max(0,sn)*1.4:-swing*.65));rotW('forearm_'+side,profilePitchAxis(),-(.25+.25*Math.abs(sn)*m.a))}
+ rotW('spine_02',profilePitchAxis(),m.lean+(S.motion==='run'?.08:0));rotW('chest',AX.y,m.tw*cs);if(S.motion==='idle')rotW('chest',AX.x,.025*Math.sin(ph*4));
+ S.hipsOff.set((m.tw>.15?.02:.01)*k*cs,(jump?jy:m.b*k*Math.cos(2*ph)-m.c*k),0).applyQuaternion(S.baseQi).divideScalar(S.unit);
+}
+function recordKey(f){S.keys.set(f,{q:S.bones.map(b=>b.quaternion.clone()),h:S.bones[S.H].position.clone(),root:S.root?.position.clone()||V3()})}
+function shapeT(t){switch(S.interpolation){case 'step':return 0;case 'easeIn':return t*t;case 'easeOut':return 1-(1-t)*(1-t);case 'easeInOut':case 'bezier':return t*t*(3-2*t);default:return t}}
+function keyPose(fr){const ks=[...S.keys.keys()].sort((a,b)=>a-b);if(!ks.length)return;let p=null,n=null;for(const k of ks){if(k<=fr)p=k;else if(n===null)n=k}
+ let A,B,t=0;if(p===null){A=B=S.keys.get(ks[0])}else{A=S.keys.get(p);if(n===null){if(S.loop&&ks.length>1){B=S.keys.get(ks[0]);t=(fr-p)/Math.max(1e-6,ks[0]+S.max-p)}else B=A}else{B=S.keys.get(n);t=(fr-p)/(n-p)}}t=shapeT(Math.max(0,Math.min(1,t)));
+ S.fk.forEach((q,i)=>{const a=A.q[i],b=B.q[i];if(a&&b)q.slerpQuaternions(a,b,t);else if(a||b)q.copy(a||b)});S.hipsOff.copy(A.h).lerp(B.h,t).sub(S.hips0);if(S.root&&A.root&&B.root){S.root.position.copy(A.root).lerp(B.root,t)}}
+const _cq=Q();
+function useClip(a){S.clip=a;const tr=a.clip.tracks,q=[];let p=null;tr.forEach(t=>{const m=t.name.match(/^(.*)\.(quaternion|position)$/);if(!m)return;const i=S.idx[m[1]];if(i===undefined)return;if(m[2]==='quaternion')q.push({i,it:t.createInterpolant()});else if(i===S.H)p=t.createInterpolant()});
+ S.clipRt={q,p};S.max=Math.max(8,Math.round(a.clip.duration*clipFPS()));S.frame=0;S.src='clip';$('hudSrc').textContent='clip';refresh()}
+function clipPose(fr){const r=S.clipRt;if(!r)return;S.fk.forEach((q,i)=>q.copy(S.restQ[i]));const t=fr/clipFPS();r.q.forEach(o=>{const v=o.it.evaluate(t);S.fk[o.i].set(v[0],v[1],v[2],v[3])});
+ if(r.p){const v=r.p.evaluate(t);S.hipsOff.set(v[0]-S.hips0.x,v[1]-S.hips0.y,v[2]-S.hips0.z)}}
+/* Quadruped/scorpion procedural walks pose the legs and tail with FK; their IK targets are never animated, so running IK on top pinned every limb back to its rest pose. */
+function ikActive(){return S.src==='pose'}
+/* Ground-contact correction for procedural locomotion. Keeps the lowest supporting
+   foot endpoint at its calibrated rest height without altering the bind pose.
+   The correction is applied to hips translation, not bone bind matrices. */
+function profileFootEndpoints(){
+ const type=S.rigType||'humanoid';
+ if(type==='vehicle')return [];
+ const re=type==='scorpion'?/^leg[123]_[LR]_foot$/i:
+   type==='quadruped'||type==='dragon'?/^(foreFoot|rearFoot)_[LR]$/i:
+   /^(foot|toe_tip)_[LR]$/i;
+ return S.bones.filter(b=>re.test(b.name));
+}
+function profileGroundContact(){
+ if(S.src!=='proc'||S.motion==='jump'||!S.bones.length||!S.mesh||!S.H&&S.H!==0)return;
+ const feet=profileFootEndpoints();if(!feet.length)return;
+ // Use the rest-pose foot datum, measured once per generated/imported rig.
+ if(!S.contactDatum||S.contactDatum.mesh!==S.mesh){
+  S.root.updateMatrixWorld(true);
+  const baseline=Math.min(...feet.map(b=>b.getWorldPosition(V3()).y));
+  S.contactDatum={mesh:S.mesh,y:baseline};
+ }
+ S.root.updateMatrixWorld(true);
+ const low=Math.min(...feet.map(b=>b.getWorldPosition(V3()).y));
+ const correction=S.contactDatum.y-low;
+ if(!Number.isFinite(correction))return;
+ // The hip translation is in its parent's coordinates; convert a world-up delta.
+ const hips=S.bones[S.H],parent=hips?.parent;if(!hips||!parent)return;
+ parent.updateWorldMatrix(true,false);
+ const q=parent.getWorldQuaternion(Q()).invert();
+ const scale=parent.getWorldScale(V3());
+ const local=V3(0,correction,0).applyQuaternion(q);
+ local.set(local.x/(scale.x||1),local.y/(scale.y||1),local.z/(scale.z||1));
+ // Limit pathological corrections on badly fitted rigs; never hide a large rigging error.
+ const cap=Math.max(.025,(S.h||1)*.16);
+ if(local.length()>cap)local.setLength(cap);
+ hips.position.add(local);S.hipsOff.add(local);
+ S.root.updateMatrixWorld(true);
+}
+function evaluate(){if(!S.bones.length)return; if(S.root){if(!S.root.userData.locomotionOrigin)S.root.userData.locomotionOrigin=S.root.position.clone();if(S.src!=='keys'||![...S.keys.values()].some(k=>k.root))S.root.position.copy(S.root.userData.locomotionOrigin);if(S.src==='proc'&&S.playing&&document.getElementById('rootTravel')?.checked&&['walk','run','sneak','strut'].includes(S.motion)){const meters=(S.travelElapsed||0)*S.speed*(S.motion==='run'?2.6:1.25)*S.stride;S.root.position.addScaledVector(profileFacingVector(),meters*Number(document.getElementById('gaitDirection')?.value||1));}}if(S.src==='proc')procPose(S.frame);else if(S.src==='keys')keyPose(S.frame);else if(S.src==='clip')clipPose(S.frame);applyPose();if(ikActive())solveAll();profileGroundContact()}
+function toPose(){if(S.src!=='pose'){syncTargets();S.src='pose';$('hudSrc').textContent='pose'}}
+function bake(){
+ if(!S.bones.length)return;
+ const isClip=S.src==='clip'&&S.clipRt, len=Math.max(1,Math.round(S.max)), fps=clipFPS();
+ const maxSamples=1800,step=Math.max(1,Math.ceil(len/maxSamples));
+ if(S.keys.size&&!confirm('Bake will replace '+S.keys.size+' existing keyframes. Continue?'))return;
+ const source=S.src,oldFrame=S.frame,oldKeys=S.keys;
+ const baked=new Map();S.keys=baked;
+ S.interpolation='linear';if($('interpMode'))$('interpMode').value='linear';
+ try{
+  for(let f=0;f<=len;f+=step){S.frame=f;if(isClip)clipPose(f);else procPose(f);applyPose();if(!isClip&&ikActive())solveAll();if(!isClip)profileGroundContact();if(S.root&&source==='proc'&&$('rootTravel')?.checked&&['walk','run','sneak','strut'].includes(S.motion)){const distance=(f/fps)*S.speed*(S.motion==='run'?2.6:1.25)*S.stride;S.root.position.copy(S.root.userData.locomotionOrigin||V3()).addScaledVector(profileFacingVector(),distance*Number($('gaitDirection')?.value||1))}recordKey(f)}
+  if(len%step){S.frame=len;if(isClip)clipPose(len);else procPose(len);applyPose();if(S.root&&source==='proc'&&$('rootTravel')?.checked){const distance=(len/fps)*S.speed*(S.motion==='run'?2.6:1.25)*S.stride;S.root.position.copy(S.root.userData.locomotionOrigin||V3()).addScaledVector(profileFacingVector(),distance*Number($('gaitDirection')?.value||1))}recordKey(len)}
+  S.src='keys';S.frame=0;$('hudSrc').textContent='keys';say('Baked '+baked.size+' keys over '+(len/fps).toFixed(2)+'s; sample interval '+step+' frames');refresh();
+ }catch(err){S.keys=oldKeys;S.src=source;S.frame=oldFrame;evaluate();say('Bake failed: '+(err?.message||err),1)}
+}
+function makeClip(){
+ if(!S.keys.size)return[];
+ const fps=clipFPS(),ks=[...S.keys.keys()].sort((a,b)=>a-b),times=ks.map(k=>k/fps),tracks=[];
+ if(!Number.isFinite(fps)||fps<=0||times.some((t,i)=>!Number.isFinite(t)||(i&&t<=times[i-1])))throw new Error('Invalid animation frame times');
+ const unique=new Set();
+ S.bones.forEach((b,i)=>{
+  if(!b.name||unique.has(b.name))throw new Error('Bone animation requires unique, nonempty names: '+(b.name||i));
+  unique.add(b.name);
+  const values=[];ks.forEach(k=>{const q=S.keys.get(k)?.q?.[i];if(!q)throw new Error('Missing quaternion key for bone '+b.name+' frame '+k);values.push(...q.toArray())});
+  tracks.push(new THREE.QuaternionKeyframeTrack(b.name+'.quaternion',times,values));
+ });
+ if(S.H>=0&&S.bones[S.H]){
+  const values=[];ks.forEach(k=>{const h=S.keys.get(k)?.h;if(!h)throw new Error('Missing hip translation at '+k);values.push(...h.clone().add(S.restP[S.H]||V3()).toArray())});
+  tracks.push(new THREE.VectorKeyframeTrack(S.bones[S.H].name+'.position',times,values));
+ }
+ if(S.root&&ks.every(k=>S.keys.get(k)?.root)){
+  if(!S.root.name)S.root.name='PROFILE_RigRoot';
+  const values=[];ks.forEach(k=>values.push(...S.keys.get(k).root.toArray()));
+  tracks.push(new THREE.VectorKeyframeTrack(S.root.name+'.position',times,values));
+ }
+ return[new THREE.AnimationClip('Take_'+S.motion,-1,tracks)];
+}
+
+/* ---------- weight painting ---------- */
+function adjust(i,b,d){const B=S.B,o=i*B,W=S.W;if(!Number.isInteger(b)||b<0||b>=B)return;const nw=Math.min(1,Math.max(0,(Number(W[o+b])||0)+d));let other=0;for(let j=0;j<B;j++)if(j!==b)other+=Math.max(0,Number(W[o+j])||0);
+ if(other>1e-8){const k=(1-nw)/other;for(let j=0;j<B;j++)if(j!==b)W[o+j]=Math.max(0,W[o+j])*k;W[o+b]=nw}
+ else{const p=S.joints[b].parent;if(p>=0&&p!==b){W[o+p]=1-nw;W[o+b]=nw}else{W.fill(0,o,o+B);W[o+b]=1}}}
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let painting=false,vertexJointMode=false;
+function setRay(e){const r=canvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera)}
+const paintSet=new Set();
+function paintAt(e){if(!S.mesh||!S.W||S.sel<0)return;setRay(e);const h=ray.intersectObject(S.mesh,false)[0];if(!h||!h.face)return;
+ // Compare all distances in the same space: deformed/skinned local positions.
+ // Previously the hit used posed geometry but the brush used bind-pose vertices,
+ // causing paint to stick to the wrong surface as the character moved.
+ const pos=S.geo.attributes.position,localHit=S.mesh.worldToLocal(h.point.clone()),v=V3();
+ const b=S.sel,{s,mode}=S.brush,r=Math.max(1e-6,S.brush.r*Math.max(S.h,1e-6)/1.8),hit=[];
+ const idx=S.geo.index,tri=h.faceIndex;
+ // Restrict to the connected triangle island touched by the brush: no paint-through to rear surfaces.
+ // A front-facing normal test also prevents painting unrelated back-facing shells.
+ const faceNormal=h.face.normal.clone().transformDirection(S.mesh.matrixWorld),normal=new THREE.Vector3();
+ for(let i=0;i<S.N;i++){
+  if(S.mesh.getVertexPosition)S.mesh.getVertexPosition(i,v);else v.fromBufferAttribute(pos,i);
+  const d=v.distanceTo(localHit);if(d>r)continue;
+  if(S.geo.attributes.normal){normal.fromBufferAttribute(S.geo.attributes.normal,i).transformDirection(S.mesh.matrixWorld);if(normal.dot(faceNormal)<-.2)continue}
+  const f=Math.pow(1-d/r,2)*s*.35;
+  if(mode==='replace')adjust(i,b,(1-S.W[i*S.B+b])*f);else adjust(i,b,mode==='sub'?-f:f);
+  hit.push(i);paintSet.add(i)
+ }
+ if(hit.length){applyWeights(false,hit);updateColors(hit)}
+}
+function endPaint(){if(!paintSet.size)return;const l=[...paintSet];paintSet.clear();
+ // Weld split UV/normal seam vertices after each stroke so weights do not visibly tear.
+ const pos=S.geo.attributes.position,q=Math.max(S.h,1e-3)*1e-5,keys=new Set();
+ for(const i of l)keys.add(Math.round(pos.getX(i)/q)+','+Math.round(pos.getY(i)/q)+','+Math.round(pos.getZ(i)/q));
+ const groups=new Map();for(let i=0;i<S.N;i++){const key=Math.round(pos.getX(i)/q)+','+Math.round(pos.getY(i)/q)+','+Math.round(pos.getZ(i)/q);if(keys.has(key)){if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i)}}
+ const changed=new Set(l),strokeSet=new Set(l),B=S.B;
+ for(const group of groups.values()){const painted=group.filter(i=>strokeSet.has(i));if(!painted.length)continue;const avg=new Float32Array(B);for(const i of painted)for(let j=0;j<B;j++)avg[j]+=S.W[i*B+j]/painted.length;for(const i of group){S.W.set(avg,i*B);changed.add(i)}}
+ const affected=[...changed];applyWeights(true,affected);updateColors(affected)}
+/* Weld vertices that share a position (mesh seams, merged primitives, UV/normal splits) so smoothing treats them as one point and never tears a seam open. */
+function buildAdj(){const pos=S.geo.attributes.position,N=S.N,q=Math.max(S.h,1e-3)*1e-5,map=new Map(),grp=new Int32Array(N),reps=[];
+ for(let i=0;i<N;i++){const key=Math.round(pos.getX(i)/q)+','+Math.round(pos.getY(i)/q)+','+Math.round(pos.getZ(i)/q);let g=map.get(key);if(g===undefined){g=reps.length;map.set(key,g);reps.push(i)}grp[i]=g}
+ const nb=reps.map(()=>new Set()),ix=S.geo.index,link=(a,b)=>{const ga=grp[a],gb=grp[b];if(ga!==gb){nb[ga].add(gb);nb[gb].add(ga)}};
+ const tri=(a,b,c)=>{link(a,b);link(b,c);link(c,a)};
+ if(ix){for(let i=0;i+2<ix.count;i+=3)tri(ix.getX(i),ix.getX(i+1),ix.getX(i+2))}else for(let i=0;i+2<N;i+=3)tri(i,i+1,i+2);
+ S.adj={grp,reps,nb:nb.map(x=>[...x])}}
+function smoothWeights(){if(!S.W){say('No weights to smooth',1);return}if(!S.adj)buildAdj();
+ const {grp,reps,nb}=S.adj,B=S.B,W=S.W,out=new Float32Array(W.length);
+ for(let g=0;g<reps.length;g++){const r=reps[g],ns=nb[g],cnt=ns.length+1,o=r*B;for(let j=0;j<B;j++){let sum=W[o+j];for(const n of ns)sum+=W[reps[n]*B+j];out[o+j]=sum/cnt}}
+ for(let i=0;i<S.N;i++){const r=reps[grp[i]];if(r!==i)out.copyWithin(i*B,r*B,r*B+B)}
+ S.W=out;applyWeights(true);updateColors()}
+
+/* ---------- selection / gizmo ---------- */
+function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace($('gizmoSpace')?.value||'local');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace($('gizmoSpace')?.value||'world');tc.attach(S.gizmoObj)}}
+tc.addEventListener('mouseDown',toPose);
+tc.addEventListener('objectChange',()=>{if(S.tool==='fk'&&S.sel>=0){const b=S.bones[S.sel];if(tc.mode==='rotate')S.fk[S.sel].copy(b.quaternion);else if(S.sel===S.H)S.hipsOff.copy(b.position).sub(S.hips0);syncSliders()}});
+function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();updateColors();refresh()}
+function selectIK(ci,obj){S.selChain=ci;S.gizmoObj=obj;if(S.tool!=='ik'){setTool('ik')}else syncGizmo();refresh()}
+function setTool(t){S.tool=t;document.querySelectorAll('.tool').forEach(e=>e.classList.toggle('active',e.dataset.tool===t));if(t==='fk')tc.setMode($('gMove').classList.contains('on')?'translate':'rotate');syncGizmo()}
+let down=null;
+async function addJointAtVertex(worldPoint){
+ if(!S.mesh||!S.W||S.adopted){say('Build a generated rig first; vertex joints are not available for adopted skin rigs yet.',1);return}
+ const parent=S.sel>=0?S.sel:(S.idx.hips??0);
+ if(!Number.isInteger(parent)||parent<0||parent>=S.bones.length){say('Select a valid parent joint before creating a custom joint.',1);return}
+ const local=worldPoint.isVector3?worldPoint.clone():V3();
+ if(!Number.isFinite(local.x)||!Number.isFinite(local.y)||!Number.isFinite(local.z)){say('Joint placement failed: picked vertex has invalid coordinates.',1);return}
+ if(local.distanceTo(S.joints[parent].pos)<Math.max(1e-5,S.h*.002)){say('Joint is too close to its parent. Pick a vertex farther along the mesh.',1);return}
+ const nameBase='custom_joint_'+String(S.joints.filter(j=>j.name.startsWith('custom_joint_')).length+1).padStart(2,'0');let name=nameBase,n=1;while(S.idx[name]!==undefined)name=nameBase+'_'+n++;
+ // Build the new joint against the true bind pose, not a temporary animated pose.
+ S.src='pose';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();syncTargets();
+ const ji=S.joints.length;S.joints.push({name,parent,pos:local.clone()});
+ const b=new THREE.Bone();b.name=name;b.position.copy(local).sub(S.joints[parent].pos);S.bones[parent].add(b);S.bones.push(b);S.idx[name]=ji;S.B=S.joints.length;
+ // Rebuild the skeleton inverse bind matrices after extending the hierarchy. Keep
+ // the mesh bind matrix so existing vertices do not jump when a joint is added.
+ S.root.updateMatrixWorld(true);S.mesh.updateMatrixWorld(true);
+ const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();S.mesh.bind(skeleton,S.mesh.bindMatrix.clone());
+ captureRest();
+ // Keep every existing (possibly hand-painted) weight. Only carve out the new joint's own region; its handle vertex becomes fully driven by it.
+ {const B=S.B,B0=B-1,N=S.N,oldW=S.W,nw=new Float32Array(N*B),auto=await computeAutoWeights();for(let i=0;i<N;i++){nw.set(oldW.subarray(i*B0,i*B0+B0),i*B);const t=auto?Math.min(1,auto[i*B+ji]*2):0;if(t>0){for(let j=0;j<B0;j++)nw[i*B+j]*=1-t;nw[i*B+ji]=t}}S.W=nw;applyWeights(true);S.keys.forEach(k=>k.q.push(S.restQ[ji].clone()))}
+ updateColors();buildMarkers();evaluate();selectBone(ji);say('Created connected joint '+name+' under '+S.joints[parent].name+'.');return ji
+}
+function toggleVertexJoint(){vertexJointMode=!vertexJointMode;$('btnVertexJoint').classList.toggle('on',vertexJointMode);$('btnVertexJoint').textContent=vertexJointMode?'● CLICK MESH TO CREATE JOINT':'＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent=vertexJointMode?'Vertex mode active: click the mesh to place a joint under the selected bone.':'Select a parent bone first; then enable vertex mode and click the mesh.';setTool(vertexJointMode?'select':S.tool)}
+$('btnVertexJoint').addEventListener('click',toggleVertexJoint);
+canvas.addEventListener('pointerdown',e=>{if(tc.axis)return;down={x:e.clientX,y:e.clientY};if(S.tool==='paint'&&S.mesh&&e.button===0){if(S.sel<0){say('Select a bone in the Bones tab first, then paint its weights',1)}else{setRay(e);if(ray.intersectObject(S.mesh,false)[0]){painting=true;e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);paintAt(e)}}}},{capture:true});
+canvas.addEventListener('pointermove',e=>{if(painting){paintAt(e);e.stopImmediatePropagation()}},{capture:true});
+canvas.addEventListener('pointerup',e=>{if(painting){painting=false;endPaint();down=null;return}
+ if(!down||tc.dragging)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y)>4;down=null;if(moved||tc.axis)return;if(S.tool==='paint')return;
+ setRay(e);if(vertexJointMode&&S.mesh){const vh=ray.intersectObject(S.mesh,false)[0];if(vh?.face){let best=vh.face.a,bd=Infinity;const pa=S.geo.attributes.position,hitLocal=S.mesh.worldToLocal(vh.point.clone());for(const vi of [vh.face.a,vh.face.b,vh.face.c]){const deformed=S.mesh.getVertexPosition?S.mesh.getVertexPosition(vi,V3()):V3().fromBufferAttribute(pa,vi),d=hitLocal.distanceToSquared(deformed);if(d<bd){bd=d;best=vi}}const vp=V3().fromBufferAttribute(pa,best);vertexJointMode=false;$('btnVertexJoint').classList.remove('on');$('btnVertexJoint').textContent='＋ CREATE JOINT FROM VERTEX';$('jointModeHint').textContent='Select a parent bone first; then enable vertex mode and click the mesh.';addJointAtVertex(vp);return}}const objs=[...S.markers,...S.chains.flatMap(c=>[c.target,c.pole])],h=ray.intersectObjects(objs,false)[0];if(!h)return;const o=h.object;
+ if(o.userData.bone!==undefined)selectBone(o.userData.bone);else if(o.userData.kind)selectIK(o.userData.chain,o)});
+function frameFromEvent(e){const r=$('tl').getBoundingClientRect();return Math.max(0,Math.min(S.max,Math.round(timelineStart+(e.clientX-r.left)/Math.max(1,r.width)*timelineSpan())))}
+
+/* ---------- UI ---------- */
+const deg=r=>Math.round(r*180/Math.PI);
+// Joint-specific anatomical control for imported humanoids. A bone extending sideways
+// needs shoulder elevation around its front/back axis, not a twist about its own length.
+function isArmLiftJoint(i){return i>=0&&/^(?:arm|clavicle|shoulder)_[LR]$/.test(S.joints[i]?.name||'')}
+function setAnatomicalArmLift(i,degrees){
+ const bone=S.bones[i];if(!bone||!S.fk[i]||!S.joints[i])return;
+ // Recalculate from REST each time. Delta rotation on a live hierarchy drifts as
+ // parents move and incorrectly interprets shoulder motion as axial roll.
+ const tag=S.joints[i].name, side=/_L$/.test(tag)?1:-1;
+ const anchor=S.joints[i].pos;
+ const nextName=tag.startsWith('clavicle_')?'arm_':tag.startsWith('arm_')?'forearm_':'hand_';
+ const childIndex=S.idx[nextName+(side===1?'L':'R')];
+ let direction=childIndex!==undefined?S.joints[childIndex].pos.clone().sub(anchor):V3(side,0,0);
+ if(direction.lengthSq()<1e-9)direction.set(side,0,0);
+ direction.normalize();
+ const mode=$('armMotionMode')?.value||'lift';
+ // The target displacement, not a guessed Euler channel, defines the axis.
+ const desired=mode==='lift'?V3(0,1,0):profileFacingVector();
+ let axis=direction.clone().cross(desired);
+ if(axis.lengthSq()<1e-8)axis=mode==='lift'?profileFacingVector():V3(0,1,0);
+ axis.normalize();
+ // Rotate in the coordinate system of the parent's neutral pose. Current parent
+ // transforms must not cause changes when the slider is revisited.
+ const parent=bone.parent, parentWorld=new THREE.Quaternion();
+ S.root?.updateMatrixWorld(true);
+ if(parent)parent.getWorldQuaternion(parentWorld);
+ const localAxis=axis.applyQuaternion(parentWorld.invert()).normalize();
+ const sign=1; // cross(direction, target) already mirrors left/right correctly
+ S.fk[i].copy(new THREE.Quaternion().setFromAxisAngle(localAxis,degrees*Math.PI/180*sign).multiply(S.restQ[i])).normalize();
+ S.armLift.set(i,degrees);
+}
+function syncSliders(){const i=S.sel;const nm=i>=0?dn(S.joints[i].name):'none';$('selName').textContent=$('activeBone').textContent=$('hudBone').textContent=nm;
+ if(i>=0&&S.fk[i]){const e=new THREE.Euler().setFromQuaternion(S.fk[i]);[['rx',e.x],['ry',e.y],['rz',e.z]].forEach(([id,v])=>{const value=id==='rx'&&$('anatomicalArmX')?.checked&&isArmLiftJoint(i)?(S.armLift.get(i)||0):deg(v);$(id).value=value;$('v'+id.slice(0,1).toUpperCase()+id.slice(1)).textContent=Math.round(value)})}}
+function refresh(){$('boneCount').textContent=S.joints.length;$('hudIK').textContent=S.chains.length;
+ const depth=i=>{let d=0,p=S.joints[i].parent;while(p>=0){d++;p=S.joints[p].parent}return d};
+ $('boneTree').innerHTML=S.joints.map((j,i)=>`<div class="ti ${i===S.sel?'sel':''}" data-i="${i}" style="padding-left:${8+depth(i)*10}px">${dn(j.name)}</div>`).join('');
+ $('boneTree').querySelectorAll('.ti').forEach(el=>el.onclick=()=>selectBone(+el.dataset.i));
+ $('ikList').innerHTML=S.chains.map((c,i)=>`<div class="ti ${i===S.selChain?'sel':''}" data-i="${i}">${c.on?'●':'○'} ${dn(c.name)} • ${c.blend.toFixed(2)}</div>`).join('');
+ $('ikList').querySelectorAll('.ti').forEach(el=>el.onclick=()=>selectIK(+el.dataset.i,S.chains[+el.dataset.i].target));
+ const c=S.chains[S.selChain];if(c){$('ikfk').value=c.blend;$('vBlend').textContent=c.blend.toFixed(2)}
+ $('maxLabel').textContent=S.max;if(document.activeElement!==$('clipFrames'))$('clipFrames').value=S.max;$('addonCount').textContent=S.addons.length;
+ $('addonList').innerHTML=S.addons.map((a,i)=>`<div class="ti ${S.clip===a&&S.src==='clip'?'sel':''}" data-i="${i}">▶ ${a.name} • ${a.clip.duration.toFixed(1)}s</div>`).join('')||'<div class="label">None loaded</div>';
+ $('addonList').querySelectorAll('.ti').forEach(el=>el.onclick=()=>{useClip(S.addons[+el.dataset.i]);S.playing=true;$('btnPlay').textContent='⏸ PAUSE'});
+ 
+ syncSliders()}
+document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(t=>t.classList.remove('active'));el.classList.add('active');$('panel-'+el.dataset.tab).classList.add('active')});
+document.querySelectorAll('.tool').forEach(el=>el.onclick=()=>setTool(el.dataset.tool));
+const bind=(id,fn,ev='oninput')=>$(id)[ev]=fn;
+bind('rigWidth',e=>{S.width=+e.target.value;$('vWidth').textContent=S.width.toFixed(2)});
+S.spineCount=5;bind('spineCount',e=>{S.spineCount=+e.target.value;$('vSpine').textContent=String(S.spineCount)});
+['rx','ry','rz'].forEach(id=>bind(id,()=>{if(S.sel<0)return;toPose();
+ if(id==='rx'&&$('anatomicalArmX')?.checked&&isArmLiftJoint(S.sel)){setAnatomicalArmLift(S.sel,Number($('rx').value));}
+ else {S.fk[S.sel].setFromEuler(new THREE.Euler(Number($('rx').value)*Math.PI/180,Number($('ry').value)*Math.PI/180,Number($('rz').value)*Math.PI/180));if(isArmLiftJoint(S.sel))S.armLift.delete(S.sel)}
+ ['rx','ry','rz'].forEach(k=>$('v'+k[0].toUpperCase()+k[1]).textContent=$(k).value);
+ applyPose();S.root?.updateMatrixWorld(true);
+}));
+bind('armMotionMode',()=>{S.armLift.clear();if(S.sel>=0)syncSliders();say('Arm X motion: '+$('armMotionMode').selectedOptions[0].textContent);},'onchange');
+bind('anatomicalArmX',()=>{if(S.sel>=0)syncSliders();say($('anatomicalArmX').checked?'Anatomical arm mode enabled: X uses measured shoulder direction and selected motion.':'Local Euler rotation enabled.');},'onchange');
+bind('gRot',()=>{$('gRot').classList.add('on');$('gMove').classList.remove('on');tc.setMode('rotate');setTool('fk')},'onclick');
+bind('gMove',()=>{$('gMove').classList.add('on');$('gRot').classList.remove('on');if(S.sel!==S.H)selectBone(S.H);tc.setMode('translate');setTool('fk')},'onclick');
+bind('btnResetBone',()=>{if(S.sel<0)return;toPose();S.fk[S.sel].copy(S.restQ[S.sel]);if(S.sel===S.H)S.hipsOff.set(0,0,0);syncSliders()},'onclick');
+bind('btnResetPose',()=>{if(!S.bones.length)return;S.src='pose';S.playing=false;$('btnPlay').textContent='▶ PLAY';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);S.chains.forEach(c=>{c.target.position.copy(c.rest)});$('hudSrc').textContent='pose';syncSliders()},'onclick');
+function mirror(from,to){if(!S.bones.length)return;if(S.alias){say('Mirror needs _L/_R bone names',1);return}toPose();S.joints.forEach((j,i)=>{if(!j.name.endsWith('_'+from))return;const o=S.idx[j.name.slice(0,-1)+to];if(o===undefined)return;const q=S.fk[i];S.fk[o].set(q.x,-q.y,-q.z,q.w)});S.chains.forEach(a=>{if(!a.name.endsWith('_'+from))return;const b=S.chains.find(c=>c.name===a.name.slice(0,-1)+to);if(b){b.blend=a.blend;b.target.position.set(-a.target.position.x,a.target.position.y,a.target.position.z);b.pole.position.set(-a.pole.position.x,a.pole.position.y,a.pole.position.z)}});refresh()}
+bind('btnMirLR',()=>mirror('L','R'),'onclick');bind('btnMirRL',()=>mirror('R','L'),'onclick');
+bind('btnCreateIK',()=>{if(S.sel<2){say('Select a bone at least 2 levels below the root',1);return}const e=S.sel,m=S.joints[e].parent,r=S.joints[m].parent;if(r<0){say('Selected bone needs two ancestors',1);return}
+ const c=mkChain([S.joints[r].name,S.joints[m].name,S.joints[e].name],V3(0,0,.4),1);if(c){c.name='IK_'+S.joints[e].name;selectIK(S.chains.length-1,c.target)}},'onclick');
+bind('ikfk',e=>{const c=S.chains[S.selChain];if(!c)return;c.blend=+e.target.value;$('vBlend').textContent=c.blend.toFixed(2);if(S.src!=='keys')toPose();refresh()});
+bind('btnIKOn',()=>{const c=S.chains[S.selChain];if(c){c.on=!c.on;refresh()}},'onclick');
+bind('btnIKSnap',()=>{const c=S.chains[S.selChain];if(c){toPose();syncTargets();say('Target snapped to bone')}},'onclick');
+bind('btnIKDel',()=>{const c=S.chains[S.selChain];if(!c)return;ovl.remove(c.target,c.pole);S.chains.splice(S.selChain,1);S.chains.forEach((k,i)=>k.target.userData.chain=k.pole.userData.chain=i);S.selChain=-1;S.gizmoObj=null;syncGizmo();refresh()},'onclick');
+bind('falloff',e=>{S.falloff=+e.target.value;$('vFall').textContent=S.falloff.toFixed(1)});
+bind('btnBind',async()=>{if(!S.geo||!S.W){say('No rig',1);return}if(rigSwitchBusy)return;rigSwitchBusy=true;try{await solveWeights();say('Weights re-solved')}catch(e){console.error('[PROFILE] Weight solve failure',e);say('Weight solve failed: '+e.message+' — see browser console for source line',1)}finally{rigSwitchBusy=false}},'onclick');
+bind('btnSmooth',()=>{smoothWeights();say('Weights smoothed')},'onclick');
+bind('btnWView',()=>setWView(!S.wview),'onclick');
+bind('brushMode',e=>S.brush.mode=e.target.value,'onchange');
+bind('bindProfile',e=>{S.bindProfile=e.target.value;say('Binding profile: '+e.target.selectedOptions[0].textContent+' — click RE-SOLVE WEIGHTS to apply')},'onchange');
+bind('brushSize',e=>{S.brush.r=+e.target.value;$('vBr').textContent=S.brush.r.toFixed(2)});
+bind('brushStrength',e=>{S.brush.s=+e.target.value;$('vBs').textContent=S.brush.s.toFixed(2)});
+document.querySelectorAll('[data-motion]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-motion]').forEach(x=>x.classList.remove('accent'));b.classList.add('accent');S.motion=b.dataset.motion;if(!S.bones.length){say('Build or import a rig before playing motion',1);return;}S.src='proc';S.frame=0;S.playing=true;S.max=Math.max(120,S.max);$('hudSrc').textContent='proc';$('btnPlay').textContent='⏸ PAUSE';say('Playing '+S.motion+' procedural cycle');});
+bind('moSpeed',e=>{S.speed=+e.target.value;$('vSp').textContent=S.speed.toFixed(1)});bind('moStride',e=>{S.stride=+e.target.value;$('vSt').textContent=S.stride.toFixed(1)});
+bind('btnProc',()=>{if(!S.bones.length)return;S.src='proc';S.max=120;S.frame=0;$('hudSrc').textContent='proc';S.playing=true;$('btnPlay').textContent='⏸ PAUSE'},'onclick');
+bind('btnBake',bake,'onclick');
+bind('srcPose',()=>{if(S.bones.length){toPose()}},'onclick');
+bind('srcKeys',()=>{if(S.keys.size){S.src='keys';$('hudSrc').textContent='keys'}else say('No keys yet — bake or add keys',1)},'onclick');
+bind('btnKey',()=>{if(!S.bones.length)return;recordKey(Math.round(S.frame));say('Key @ '+Math.round(S.frame))},'onclick');
+bind('btnDelKey',()=>{S.keys.delete(Math.round(S.frame))},'onclick');bind('btnClearKeys',()=>{S.keys.clear()},'onclick');
+bind('btnLoop',()=>{S.loop=!S.loop;$('btnLoop').textContent='Loop '+(S.loop?'ON':'OFF');$('btnLoop').classList.toggle('on',S.loop)},'onclick');
+bind('btnPlay',()=>{if(!S.bones.length)return;S.playing=!S.playing;if(S.playing&&S.src==='pose'){S.src=S.keys.size?'keys':'proc';$('hudSrc').textContent=S.src}$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY'},'onclick');
+bind('btnDemo',()=>{if($('rigType'))$('rigType').value='humanoid';loadDemo(true)},'onclick');
+bind('btnAutoRig',()=>rig(),'onclick');
+function auditRig(){if(profileQueueCheck('CALIBRATE / AUDIT',auditRig))return;if(!profileRequireCompletedBind('CALIBRATE / AUDIT'))return;const problems=[],B=S.bones.length;if(!B){$('rigAuditOutput').textContent='No rig loaded';return}const seen=new Set();S.joints.forEach((j,i)=>{if(seen.has(j.name))problems.push('Duplicate joint '+j.name);seen.add(j.name);if(j.parent>=i||j.parent< -1)problems.push('Invalid hierarchy '+j.name);if(![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite))problems.push('Non-finite joint '+j.name)});const sw=S.geo?.attributes.skinWeight,si=S.geo?.attributes.skinIndex;if(!sw||!si)problems.push('Missing skin attributes');else for(let i=0;i<sw.count;i++){let total=0;for(let k=0;k<4;k++){const v=sw.getComponent(i,k),j=si.getComponent(i,k);if(!Number.isFinite(v)||v<0||j<0||j>=B){problems.push('Invalid skin data at vertex '+i);break}total+=v}if(Math.abs(total-1)>.03){problems.push('Weight normalization at vertex '+i);break}if(problems.length>12)break}for(const c of S.chains){if(!c.idx?.length||c.idx.some(i=>i<0||i>=B))problems.push('Invalid IK chain '+c.name);if(!c.target?.position?.toArray().every(Number.isFinite))problems.push('Invalid IK target '+c.name)}const skeletons=[];scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.push(o)});if(skeletons.length>1&&new Set(skeletons.map(m=>m.skeleton)).size>1)problems.push('Multiple independent skeletons; check export hierarchy');const pf=rigPreflight();problems.push(...pf.errors);const bindCheck=checkNeutralBind();problems.push(...bindCheck.issues);const message=problems.length?'AUDIT: '+problems.slice(0,4).join(' • '):'AUDIT OK: '+B+' joints, '+S.N+' vertices, '+S.chains.length+' IK chains; hierarchy and weights checked';$('rigAuditOutput').textContent=message;say(message,problems.length?1:0)}
+$('btnRigAudit').addEventListener('click',auditRig);
+/* Measured arm deformation: CPU skinning using Three.js boneTransform; no threshold-only guesses. */
+function measureArmDeformation(){if(profileQueueCheck('ARM DEFORMATION',measureArmDeformation))return;
+ if(!profileRequireCompletedBind('ARM DEFORMATION'))return;
+ const out=$('rigAuditOutput'),m=S.mesh;
+ if(!m?.isSkinnedMesh||!m.geometry?.attributes?.skinWeight){out.textContent='MEASUREMENT UNAVAILABLE: build or adopt a skinned rig first';return}
+ const pos=m.geometry.attributes.position,idx=m.geometry.attributes.skinIndex,weights=m.geometry.attributes.skinWeight;
+ const bones=m.skeleton.bones,n=pos.count,step=Math.max(1,Math.floor(n/25000));
+ const saved=bones.map(b=>({p:b.position.clone(),q:b.quaternion.clone(),s:b.scale.clone()}));
+ const source=S.src,wasPlaying=S.playing;S.playing=false;
+ const v=new THREE.Vector3(),base=new THREE.Vector3(),posed=new THREE.Vector3();
+ const sample=()=>{m.updateMatrixWorld(true);m.skeleton.update();const a=[];for(let i=0;i<n;i+=step){m.boneTransform(i,v);a.push(v.clone().applyMatrix4(m.matrixWorld))}return a};
+ try{
+  // Restore actual captured rest transforms, independent of current animation and IK.
+  if(S.restP?.length===bones.length&&S.restQ?.length===bones.length){bones.forEach((b,i)=>{b.position.copy(S.restP[i]);b.quaternion.copy(S.restQ[i])})}
+  const neutral=sample(),report=[];const height=Math.max(1e-6,S.h||new THREE.Box3().setFromObject(m).getSize(v).y);
+  for(const side of ['L','R']){
+   const bname=['upperArm_'+side,'arm_'+side,'shoulder_'+side,'clavicle_'+side].find(name=>S.joints?.some(j=>j.name===name));
+   const bi=bname===undefined?-1:S.joints.findIndex(j=>j.name===bname);
+   if(bi<0||!bones[bi]){report.push(side+': shoulder bone unavailable');continue}
+   const bone=bones[bi],shoulder=bone.getWorldPosition(new THREE.Vector3());
+   const own=new Set([bi]);for(let j=0;j<S.joints.length;j++){let parent=S.joints[j].parent;while(parent>=0){if(parent===bi){own.add(j);break}parent=S.joints[parent].parent}}
+   const affected=[],unaffected=[];
+   for(let i=0,k=0;i<n;i+=step,k++){
+    let armWeight=0;for(let c=0;c<4;c++)if(own.has(idx.getComponent(i,c)))armWeight+=weights.getComponent(i,c);
+    if(armWeight>=.5)affected.push(k);else if(armWeight<.05)unaffected.push(k);
+   }
+   const q0=bone.quaternion.clone();bone.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/6));
+   const moved=sample();bone.quaternion.copy(q0);
+   const metric=ids=>{let sum=0,max=0,near=0;for(const k of ids){const d=moved[k].distanceTo(neutral[k]);sum+=d;max=Math.max(max,d);if(moved[k].distanceTo(shoulder)<height*.075)near++}return {avg:ids.length?sum/ids.length:0,max,near}};
+   const a=metric(affected),t=metric(unaffected),fmt=x=>(x/height*100).toFixed(2)+'%H';
+   report.push(side+' '+bname+': '+affected.length+' arm samples; arm avg '+fmt(a.avg)+' max '+fmt(a.max)+'; other avg '+fmt(t.avg)+' max '+fmt(t.max)+'; arm vertices near shoulder '+a.near);
+   if(!affected.length)report.push(side+' FAIL: no sampled vertices primarily influenced by arm chain');
+   if(affected.length&&a.avg<height*.002)report.push(side+' WARNING: arm barely responds to 30° rotation');
+   if(t.avg>height*.025)report.push(side+' WARNING: non-arm vertices move substantially during isolated shoulder rotation');
+  }
+  // Neutral return displacement must be approximately zero.
+  const reset=sample();let maxReset=0;for(let k=0;k<reset.length;k++)maxReset=Math.max(maxReset,reset[k].distanceTo(neutral[k]));
+  report.push('Neutral restoration maximum '+(maxReset/height*100).toFixed(5)+'%H; sampled '+neutral.length+' / '+n+' vertices.');
+  out.textContent='MEASURED DEFORMATION (30° isolated shoulder rotation): '+report.join(' | ');
+  say('Measured arm deformation. Review the rig audit panel.');
+ }catch(err){console.error(err);out.textContent='MEASUREMENT ERROR: '+(err?.message||String(err))}
+ finally{bones.forEach((b,i)=>{b.position.copy(saved[i].p);b.quaternion.copy(saved[i].q);b.scale.copy(saved[i].s)});m.updateMatrixWorld(true);m.skeleton.update();S.src=source;S.playing=wasPlaying}
+}
+$('btnMeasureDeform').addEventListener('click',measureArmDeformation);
+
+
+$('rigType').addEventListener('change',()=>{if(!S.geo&&!rigSourceGeometry){say('Preset selected — import a mesh or load the demo to build.');return}if(S.adopted&&!rigSourceGeometry){const g=S.geo.clone();rememberRigSource(g);g.dispose();if(!importedSurfaceMaterials){const mats=Array.isArray(S.mesh.material)?S.mesh.material:[S.mesh.material];importedSurfaceMaterials=mats.map(preserveMaterial)}}rig();resetHistory();say('Rig preset switched: '+$('rigType').selectedOptions[0].text+' — previous skeleton, handles, IK and animation removed.')});
+bind('btnNew',()=>{if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();releaseImportedMaterials();S.geo=null;$('hudInfo').textContent='Empty scene'},'onclick');
+bind('btnImport',()=>$('fileInput').click(),'onclick');bind('btnImport2',()=>$('fileInput').click(),'onclick');
+window.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea,[contenteditable=true]')||document.querySelector('#aboutModal.open')||!document.querySelector('#lookDevModal').hidden||!document.querySelector('#splash').classList.contains('hidden'))return;if(e.code==='Space'){e.preventDefault();$('btnPlay').click()}else if(e.key==='k'||e.key==='K')$('btnKey').click()});
+
+/* ---------- timeline + editable graph editor ---------- */
+const tl=$('tl'),tx=tl.getContext('2d'),gc=$('graphCanvas'),gx=gc.getContext('2d');let tdrag=false;
+let timelineStart=0,clipboardKey=null;
+const clipFPS=()=>Number($('clipFPS').value)||30;
+function timelineSpan(){const z=Number($('timelineZoom').value);return Math.max(10,Math.min(S.max,Math.round(S.max/(1+(z-1)*.12))))}
+function timelineBounds(){const span=timelineSpan(),limit=Math.max(0,S.max-span);timelineStart=Math.min(limit,Math.max(0,timelineStart));$('timelineScroll').max=String(limit);$('timelineScroll').value=String(timelineStart);$('timelineWindow').textContent=`${timelineStart}–${Math.min(S.max,timelineStart+span)}`;return span}
+function focusTimelineFrame(){const span=timelineBounds();if(S.frame<timelineStart||S.frame>timelineStart+span){timelineStart=Math.max(0,Math.min(S.max-span,Math.round(S.frame-span*.5)));timelineBounds()}}
+function jumpTo(f){S.frame=Math.max(0,Math.min(S.max,Math.round(f)));S.playing=false;$('btnPlay').textContent='▶ PLAY';focusTimelineFrame();$('gotoFrame').value=String(Math.round(S.frame));refresh()}
+function cloneKeyframe(k){return {q:k.q.map(q=>q.clone()),h:k.h.clone()}}
+$('setClipLength').addEventListener('click',()=>{const requested=Math.round(Number($('clipFrames').value));if(!Number.isFinite(requested)||requested<1||requested>216000){say('Clip length must be 1–216000 frames',1);return}const last=Math.max(0,...S.keys.keys());if(requested<last&&!confirm(`There are keys through frame ${last}. Shorten the clip and remove keys beyond frame ${requested}?`))return;if(requested<last)for(const f of [...S.keys.keys()])if(f>requested)S.keys.delete(f);S.max=requested;S.frame=Math.min(S.frame,S.max);timelineStart=0;timelineBounds();refresh();say('Clip duration: '+S.max+' frames')});
+$('clipFPS').addEventListener('change',()=>{if(S.src==='clip'&&S.clip?.clip){S.max=Math.max(8,Math.round(S.clip.clip.duration*clipFPS()));S.frame=Math.min(S.frame,S.max);if($('clipFrames'))$('clipFrames').value=S.max;}say('Playback timebase: '+clipFPS()+' FPS');refresh()});
+$('timelineZoom').addEventListener('input',()=>{focusTimelineFrame();timelineBounds()});$('timelineFit').addEventListener('click',()=>{$('timelineZoom').value='1';timelineStart=0;timelineBounds()});$('timelineScroll').addEventListener('input',()=>{timelineStart=Number($('timelineScroll').value);timelineBounds()});
+$('goStart').addEventListener('click',()=>jumpTo(0));$('goEnd').addEventListener('click',()=>jumpTo(S.max));$('jumpFrame').addEventListener('click',()=>jumpTo(Number($('gotoFrame').value)));
+$('prevKey').addEventListener('click',()=>{const f=[...S.keys.keys()].filter(k=>k<S.frame).sort((a,b)=>b-a)[0];if(f!==undefined)jumpTo(f)});$('nextKey').addEventListener('click',()=>{const f=[...S.keys.keys()].filter(k=>k>S.frame).sort((a,b)=>a-b)[0];if(f!==undefined)jumpTo(f)});
+$('copyKey').addEventListener('click',()=>{const k=S.keys.get(Math.round(S.frame));if(!k){say('No keyframe at playhead',1);return}clipboardKey=cloneKeyframe(k);say('Keyframe copied')});$('pasteKey').addEventListener('click',()=>{if(!clipboardKey){say('Copy a keyframe first',1);return}if(!S.bones.length||clipboardKey.q.length!==S.bones.length){say('Clipboard does not match active rig',1);return}S.keys.set(Math.round(S.frame),cloneKeyframe(clipboardKey));S.src='keys';refresh();say('Keyframe pasted')});
+$('shiftKeys').addEventListener('click',()=>{const offset=Math.trunc(Number($('keyShift').value)),at=Math.round(S.frame);if(!Number.isFinite(offset)||!offset)return;const moving=[...S.keys].filter(([f])=>f>=at).sort((a,b)=>offset>0?b[0]-a[0]:a[0]-b[0]);if(moving.some(([f])=>f+offset<0||f+offset>S.max)){say('Shift exceeds clip range — extend clip first',1);return}for(const [f] of moving)S.keys.delete(f);for(const [f,k] of moving)S.keys.set(f+offset,k);refresh();say('Shifted '+moving.length+' keys by '+offset+' frames')});
+
+function resizeCanvas(c,ctx){const r=c.parentElement.getBoundingClientRect();if(!r.width||!r.height)return;c.width=Math.max(1,Math.round(r.width*devicePixelRatio));c.height=Math.max(1,Math.round(r.height*devicePixelRatio));ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+function resizeT(){resizeCanvas(tl,tx);resizeCanvas(gc,gx)}
+function drawTL(){if(S.graphMode)return;const w=tl.width/devicePixelRatio,h=tl.height/devicePixelRatio,span=timelineBounds(),px=w/Math.max(1,span);tx.fillStyle='#0c0c0f';tx.fillRect(0,0,w,h);tx.font='10px monospace';const step=Math.max(1,Math.ceil(span/12/5)*5);const first=Math.ceil(timelineStart/step)*step;for(let f=first;f<=Math.min(S.max,timelineStart+span);f+=step){const x=(f-timelineStart)*px;tx.strokeStyle='#27312b';tx.beginPath();tx.moveTo(x,0);tx.lineTo(x,h);tx.stroke();tx.fillStyle='#9bab9a';tx.fillText(String(f),x+3,12)}tx.fillStyle='#a6ff7a';S.keys.forEach((_,f)=>{if(f<timelineStart||f>timelineStart+span)return;const x=(f-timelineStart)*px,y=h*.56;tx.beginPath();tx.moveTo(x,y-6);tx.lineTo(x+5,y);tx.lineTo(x,y+6);tx.lineTo(x-5,y);tx.fill()});if(S.frame>=timelineStart&&S.frame<=timelineStart+span){const x=(S.frame-timelineStart)*px;tx.fillStyle='#ff7777';tx.fillRect(x-.8,0,2,h)}}
+function graphValue(key){if($('graphChannel').value==='hipsY')return key.h.y;const i=S.sel>=0?S.sel:0;const e=new THREE.Euler().setFromQuaternion(key.q[i]||Q(),'XYZ');return e.x}
+function setGraphValue(key,val){if($('graphChannel').value==='hipsY'){key.h.y=val;return}const i=S.sel>=0?S.sel:0,e=new THREE.Euler().setFromQuaternion(key.q[i]||Q(),'XYZ');e.x=val;key.q[i].setFromEuler(e)}
+function drawGraph(){if(!S.graphMode)return;const w=gc.width/devicePixelRatio,h=gc.height/devicePixelRatio;gx.fillStyle='#0b0c0e';gx.fillRect(0,0,w,h);const pad={l:44,r:14,t:14,b:23},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const ks=[...S.keys.keys()].sort((a,b)=>a-b);let vals=ks.map(f=>graphValue(S.keys.get(f)));if(!vals.length){gx.fillStyle='#858590';gx.font='12px monospace';gx.fillText('Add keyframes to edit animation curves',pad.l+10,h/2);return}let lo=Math.min(...vals),hi=Math.max(...vals);if(Math.abs(hi-lo)<.02){lo-=.5;hi+=.5}else{const m=(hi-lo)*.18;lo-=m;hi+=m}const x=f=>pad.l+f/Math.max(1,S.max)*pw,y=v=>pad.t+(hi-v)/(hi-lo)*ph;
+ gx.font='9px monospace';for(let j=0;j<=4;j++){const yy=pad.t+j*ph/4,v=hi-j*(hi-lo)/4;gx.strokeStyle='#26272d';gx.beginPath();gx.moveTo(pad.l,yy);gx.lineTo(w-pad.r,yy);gx.stroke();gx.fillStyle='#858590';gx.fillText(v.toFixed(2),3,yy+3)}for(let j=0;j<=8;j++){const f=Math.round(S.max*j/8),xx=x(f);gx.strokeStyle='#202127';gx.beginPath();gx.moveTo(xx,pad.t);gx.lineTo(xx,h-pad.b);gx.stroke();gx.fillStyle='#858590';gx.fillText(String(f),xx-5,h-6)}
+ gx.strokeStyle='#a6ff7a';gx.lineWidth=1.8;gx.beginPath();let begun=false;for(let sample=0;sample<=Math.min(800,Math.max(2,S.max));sample++){const frame=sample/Math.min(800,Math.max(2,S.max))*S.max;let a=null,b=null;for(let k=0;k<ks.length;k++){if(ks[k]<=frame)a=ks[k];if(ks[k]>=frame){b=ks[k];break}}let v;if(a===null)v=vals[0];else if(b===null)v=vals[vals.length-1];else if(a===b)v=graphValue(S.keys.get(a));else{const t=shapeT((frame-a)/(b-a));v=graphValue(S.keys.get(a))*(1-t)+graphValue(S.keys.get(b))*t}const xx=x(frame),yy=y(v);if(!begun){gx.moveTo(xx,yy);begun=true}else gx.lineTo(xx,yy)}gx.stroke();
+ ks.forEach((f,i)=>{const xx=x(f),yy=y(vals[i]);gx.fillStyle='#a6ff7a';gx.beginPath();gx.arc(xx,yy,4,0,Math.PI*2);gx.fill();gx.strokeStyle='#101114';gx.stroke()});const cx=x(S.frame);gx.strokeStyle='#ff5a5a';gx.lineWidth=1;gx.beginPath();gx.moveTo(cx,pad.t);gx.lineTo(cx,h-pad.b);gx.stroke();gx.fillStyle='#dfe0e4';gx.fillText($('graphChannel').selectedOptions[0].text+'  •  '+$('interpMode').selectedOptions[0].text,pad.l+6,10)}
+function graphCoords(e){const r=gc.getBoundingClientRect(),w=r.width,h=r.height,pad={l:44,r:14,t:14,b:23},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,ks=[...S.keys.keys()].sort((a,b)=>a-b),vs=ks.map(f=>graphValue(S.keys.get(f)));let lo=vs.length?Math.min(...vs):-.5,hi=vs.length?Math.max(...vs):.5;if(Math.abs(hi-lo)<.02){lo-=.5;hi+=.5}else{const m=(hi-lo)*.18;lo-=m;hi+=m}return{frame:Math.max(0,Math.min(S.max,((e.clientX-r.left-pad.l)/pw)*S.max)),value:hi-((e.clientY-r.top-pad.t)/ph)*(hi-lo),x:e.clientX-r.left,y:e.clientY-r.top,ks,pad,pw,ph,lo,hi}}
+tl.addEventListener('pointerdown',e=>{if(S.graphMode)return;tdrag=true;tl.setPointerCapture(e.pointerId);S.frame=frameFromEvent(e)});tl.addEventListener('pointermove',e=>{if(tdrag)S.frame=frameFromEvent(e)});tl.addEventListener('pointerup',()=>tdrag=false);tl.addEventListener('pointercancel',()=>tdrag=false);
+gc.addEventListener('pointerdown',e=>{if(!S.graphMode)return;const c=graphCoords(e);let nearest=null,dist=13;for(const f of c.ks){const xx=c.pad.l+f/Math.max(1,S.max)*c.pw,yy=c.pad.t+(c.hi-graphValue(S.keys.get(f)))/(c.hi-c.lo)*c.ph,d=Math.hypot(xx-c.x,yy-c.y);if(d<dist){nearest=f;dist=d}}if(nearest!==null){S.graphDrag=nearest;gc.setPointerCapture(e.pointerId);S.frame=nearest;if(S.keys.size){S.src='keys';$('hudSrc').textContent='keys'}}else{S.frame=Math.round(c.frame)}});
+gc.addEventListener('pointermove',e=>{if(S.graphDrag===null||!S.graphMode)return;const c=graphCoords(e),key=S.keys.get(S.graphDrag);if(key){setGraphValue(key,c.value);S.frame=S.graphDrag}});function endGraphDrag(){S.graphDrag=null}gc.addEventListener('pointerup',endGraphDrag);gc.addEventListener('pointercancel',endGraphDrag);
+$('btnGraph').addEventListener('click',()=>{S.graphMode=!S.graphMode;tl.style.display=S.graphMode?'none':'block';gc.style.display=S.graphMode?'block':'none';$('btnGraph').classList.toggle('on',S.graphMode);$('btnGraph').textContent=S.graphMode?'TIMELINE':'GRAPH EDITOR';resizeT();drawTL();drawGraph()});$('interpMode').addEventListener('change',()=>{S.interpolation=$('interpMode').value;drawGraph()});$('graphChannel').addEventListener('change',drawGraph);
+/* ---------- export / import ---------- */
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+/* Bind-pose mathematical verification. Skinning at neutral pose must yield identity for every influencing bone. */
+function verifyBindMatrices(){
+ const m=S.mesh,sk=m?.skeleton,issues=[];if(!m?.isSkinnedMesh||!sk)return {issues:['Missing skinned mesh or skeleton'],maxError:Infinity};
+ m.updateMatrixWorld(true);sk.bones.forEach(b=>b.updateWorldMatrix(true,false));
+ if(sk.bones.length!==sk.boneInverses.length)issues.push('Inverse bind count differs from bone count');
+ const a=new THREE.Matrix4(),id=new THREE.Matrix4(),max=Math.min(sk.bones.length,sk.boneInverses.length);let worst=0;
+ for(let i=0;i<max;i++){
+  a.copy(m.bindMatrixInverse).multiply(sk.bones[i].matrixWorld).multiply(sk.boneInverses[i]).multiply(m.bindMatrix);
+  const e=a.elements,ie=id.elements;let err=0;for(let k=0;k<16;k++)err=Math.max(err,Math.abs(e[k]-ie[k]));worst=Math.max(worst,err);
+  if(err>1e-4&&issues.length<8)issues.push('Bone '+sk.bones[i].name+' bind transform error '+err.toExponential(2));
+ }
+ const det=m.bindMatrix.determinant();if(!Number.isFinite(det)||Math.abs(det)<1e-12)issues.push('Singular mesh bind matrix');
+ return {issues,maxError:worst};
+}
+function checkNeutralBind(){
+ if(!S.mesh?.isSkinnedMesh)return {issues:['No skinned mesh'],maxError:Infinity};
+ const oldQ=S.bones.map(b=>b.quaternion.clone()),oldP=S.bones.map(b=>b.position.clone());
+ try{
+  S.bones.forEach((b,i)=>{if(S.restQ?.[i])b.quaternion.copy(S.restQ[i]);if(S.restP?.[i])b.position.copy(S.restP[i])});
+  S.root.updateMatrixWorld(true);return verifyBindMatrices();
+ }finally{S.bones.forEach((b,i)=>{b.quaternion.copy(oldQ[i]);b.position.copy(oldP[i])});S.root.updateMatrixWorld(true)}
+}
+function rigPreflight(){
+ const errors=[],warnings=[];const g=S.geo,mesh=S.mesh,B=S.bones.length;
+ if(!mesh?.isSkinnedMesh)errors.push('No bound skinned mesh');
+ if(!g?.attributes?.position?.count)errors.push('No mesh vertices');
+ if(!B||!mesh?.skeleton||mesh.skeleton.bones.length!==B)errors.push('Skeleton mismatch');
+ const idx=g?.attributes?.skinIndex,w=g?.attributes?.skinWeight;
+ if(!idx||!w||idx.count!==g.attributes.position.count||w.count!==g.attributes.position.count)errors.push('Skin attributes missing or wrong size');
+ else {let bad=0,zero=0;for(let i=0;i<w.count;i++){let total=0;for(let k=0;k<4;k++){const v=w.getComponent(i,k),j=idx.getComponent(i,k);if(!Number.isFinite(v)||v<0||!Number.isInteger(j)||j<0||j>=B)bad++;total+=v}if(Math.abs(total-1)>.02)zero++}if(bad)errors.push(bad+' invalid bone influences');if(zero)errors.push(zero+' vertices with unnormalized weights')}
+ if(mesh?.skeleton?.boneInverses?.length!==B)errors.push('Bind inverse count mismatch');
+ if(S.joints.some(j=>![j.pos.x,j.pos.y,j.pos.z].every(Number.isFinite)))errors.push('Nonfinite joint coordinates');
+ for(const ch of S.chains){if(ch.idx.some(i=>i<0||i>=B))errors.push('Invalid IK '+ch.name);if(ch.idx.length<2)errors.push('Short IK '+ch.name)}
+ if(S.geometryFit&&S.geometryFit.confidence<.7)warnings.push('Low geometry '+(S.geometryFit.metric||'sampling coverage')+': '+Math.round(S.geometryFit.confidence*100)+'% (heuristic; check actual joint locations)');
+ return {errors:[...new Set(errors)],warnings};
+}
+/* glTF requires joints to be addressable as independent scene nodes.  A bone
+   hierarchy parented *inside* its own SkinnedMesh is not a safe export layout:
+   some exporter paths omit the skin or fail to resolve the joint nodes.
+   Temporarily place the bones alongside the mesh under an export scene and
+   restore the exact original hierarchy in finally. */
+async function serializeRigGLB(clips=[]){
+ if(rigSwitchBusy)throw new Error('Auto-bind is still running; wait for 100% before exporting');
+ const root=S.root,mesh=S.mesh;
+ if(!root||!mesh?.isSkinnedMesh||!mesh.skeleton)throw new Error('A completed skinned rig is required for GLB export');
+ const pre=rigPreflight();if(pre.errors.length)throw new Error('Invalid skin: '+pre.errors.join('; '));
+ const parent=root.parent,slot=parent?parent.children.indexOf(root):-1;
+ const wrapper=new THREE.Scene();wrapper.name='PROFILE_ExportScene';
+ const boneRoots=mesh.skeleton.bones.filter(b=>!b.parent?.isBone);
+ const originalParents=boneRoots.map(b=>({bone:b,parent:b.parent,index:b.parent?.children.indexOf(b)??-1}));
+ const oldMode=mesh.bindMode;
+ try{
+  wrapper.add(root);
+  // Skeleton joints must be siblings of the skinned mesh, not its descendants.
+  // attach() preserves each joint's world transform, including the bind pose.
+  wrapper.updateMatrixWorld(true);
+  for(const bone of boneRoots)wrapper.attach(bone);
+  mesh.bindMode='detached';
+  wrapper.updateMatrixWorld(true);
+  return await new Promise((resolve,reject)=>new GLTFExporter().parse(wrapper,resolve,reject,{binary:true,animations:clips,onlyVisible:false}));
+ }finally{
+  mesh.bindMode=oldMode;
+  for(const {bone,parent:bp,index} of originalParents){
+   if(bp){bp.attach(bone);if(index>=0){const i=bp.children.indexOf(bone);if(i>=0)bp.children.splice(i,1);bp.children.splice(Math.min(index,bp.children.length),0,bone)}}
+  }
+  wrapper.remove(root);
+  if(parent){parent.add(root);if(slot>=0){const i=parent.children.indexOf(root);if(i>=0)parent.children.splice(i,1);parent.children.splice(Math.min(slot,parent.children.length),0,root)}}
+  root.updateMatrixWorld(true);
+ }
+}
+/* Independent export/reimport validation: compares the actual binary glTF payload after decoding. */
+async function validateExportRoundTrip(buffer){
+ const issues=[],stats=[];const loader=new GLTFLoader();
+ const parsed=await new Promise((resolve,reject)=>loader.parse(buffer,'',resolve,reject));
+ const imported=[];parsed.scene.traverse(o=>{if(o.isSkinnedMesh)imported.push(o)});
+ const source=[];S.root.traverse(o=>{if(o.isSkinnedMesh)source.push(o)});
+ if(imported.length!==source.length)issues.push(`Skinned mesh count ${source.length} → ${imported.length}`);
+ stats.push(`skinned meshes: source ${source.length}, reimport ${imported.length}; animation clips: ${parsed.animations.length}`);
+ stats.push(`source skeleton joints: ${source.map(m=>m.skeleton?.bones?.length||0).join(',')||0}; reimport joints: ${imported.map(m=>m.skeleton?.bones?.length||0).join(',')||0}`);
+ if(source.length===0)issues.push('No skinned mesh found under export root; rig hierarchy must be repaired');
+ const tolerance=2e-4;
+ for(let mi=0;mi<Math.min(source.length,imported.length);mi++){
+  const a=source[mi],b=imported[mi],pa=a.geometry.attributes.position,pb=b.geometry.attributes.position;
+  if(pa.count!==pb.count){issues.push(`Mesh ${mi}: vertex count ${pa.count} → ${pb.count}`);continue}
+  let positionError=0;for(let v=0;v<pa.count;v++)for(let k=0;k<3;k++)positionError=Math.max(positionError,Math.abs(pa.getComponent(v,k)-pb.getComponent(v,k)));
+  stats.push(`mesh ${mi} vertex deviation ${positionError.toExponential(2)}`);
+  if(positionError>tolerance)issues.push(`Mesh ${mi}: vertex position mismatch`);
+  const ia=a.geometry.attributes.skinIndex,ib=b.geometry.attributes.skinIndex,wa=a.geometry.attributes.skinWeight,wb=b.geometry.attributes.skinWeight;
+  if(!ia||!ib||!wa||!wb){issues.push(`Mesh ${mi}: missing skin attributes`);continue}
+  const ask=a.skeleton,bsk=b.skeleton;
+  let weightError=0,wrong=0,unweighted=0;
+  for(let v=0;v<pa.count;v++){
+   let sa=0,sb=0;const left=[],right=[];
+   for(let k=0;k<4;k++){const x=wa.getComponent(v,k),y=wb.getComponent(v,k);sa+=x;sb+=y;if(x>1e-7)left.push([ia.getComponent(v,k),x]);if(y>1e-7)right.push([ib.getComponent(v,k),y])}
+   const canonical=(pairs,skeleton)=>{const m=new Map();for(const [index,weight] of pairs){const name=skeleton.bones[index]?.name;if(!name){wrong++;continue}m.set(name,(m.get(name)||0)+weight)}return m};
+   const ca=canonical(left,ask),cb=canonical(right,bsk);
+   const names=new Set([...ca.keys(),...cb.keys()]);
+   for(const name of names){const delta=Math.abs((ca.get(name)||0)-(cb.get(name)||0));weightError=Math.max(weightError,delta);if(delta>0.002)wrong++}
+   if(Math.abs(sa-1)>.01||Math.abs(sb-1)>.01)unweighted++;
+  }
+  stats.push(`mesh ${mi} max weight deviation ${weightError.toExponential(2)}, index mismatches ${wrong}`);
+  if(weightError>0.002||wrong)issues.push(`Mesh ${mi}: weights or bone indices changed`);
+  if(unweighted)issues.push(`Mesh ${mi}: ${unweighted} non-normalized vertices`);
+  if(ask.bones.length!==bsk.bones.length){issues.push(`Mesh ${mi}: bone count changed`);continue}
+  let invError=0;for(let j=0;j<ask.bones.length;j++){
+   const other=bsk.bones.findIndex(b=>b.name===ask.bones[j].name);if(other<0){issues.push(`Bone ${j}: missing ${ask.bones[j].name}`);continue}
+   for(let k=0;k<16;k++)invError=Math.max(invError,Math.abs(ask.boneInverses[j].elements[k]-bsk.boneInverses[other].elements[k]));
+  }
+  stats.push(`mesh ${mi} max inverse-bind deviation ${invError.toExponential(2)}`);
+  if(invError>0.002)stats.push(`mesh ${mi}: inverse-bind matrices differ in node space; verify neutral skin deformation before interpreting as corruption`);
+ }
+ return {issues,stats,clips:parsed.animations.length};
+}
+async function verifyGLBRoundTrip(){
+ if(profileQueueCheck('GLB ROUND-TRIP',verifyGLBRoundTrip))return;
+ if(!profileRequireCompletedBind('ROUND-TRIP'))return;
+ if(!S.root||!S.mesh){say('Load and bind a model first',1);return}
+ const out=$('rigAuditOutput');out.textContent='ROUND-TRIP: preparing neutral pose…';
+ const src=S.src,oldQ=S.fk.map(q=>q.clone()),oldH=S.hipsOff.clone(),oldRoot=S.root.position.clone();
+ const oldIK=S.chains.map(c=>c.on);
+ let stage='preflight';
+ try{
+  S.chains.forEach(c=>c.on=false);S.src='pose';S.fk.forEach((q,i)=>{if(S.restQ[i])q.copy(S.restQ[i])});S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+  const neutral=checkNeutralBind();if(neutral.issues.length)throw new Error(neutral.issues.join('; '));
+  stage='animation validation';out.textContent='ROUND-TRIP: validating animation tracks…';
+  let clips=[];try{clips=makeClip()}catch(e){throw new Error('Invalid animation tracks: '+e.message)}
+  stage='GLB serialization';out.textContent='ROUND-TRIP: exporting binary GLB…';
+  let data,clipWarning='';
+  try{data=await serializeRigGLB(clips)}
+  catch(animationError){
+   if(!clips.length)throw animationError;
+   clipWarning='Animation serialization failed: '+(animationError?.message||animationError)+'; static rig tested separately.';
+   data=await serializeRigGLB([]);
+  }
+  stage='GLB reimport';out.textContent='ROUND-TRIP: parsing exported GLB…';
+  const result=await validateExportRoundTrip(data);
+  if(clipWarning)result.issues.push(clipWarning);else if(result.clips!==clips.length)result.issues.push('Animation clip count '+clips.length+' → '+result.clips);
+  out.textContent=(result.issues.length?'ROUND-TRIP FAILED: '+result.issues.join(' • '):'ROUND-TRIP PASSED: checked mesh and skeleton data survived export/reimport')+'\n'+result.stats.join('\n')+'\nclips '+result.clips;
+  say(result.issues.length?'Round-trip differences detected':'Round-trip checks passed',result.issues.length?1:0);
+ }catch(err){out.textContent='ROUND-TRIP FAILED at '+stage+': '+(err?.stack||err?.message||String(err));say('Round-trip failed at '+stage,1)}
+ finally{S.fk.forEach((q,i)=>q.copy(oldQ[i]));S.hipsOff.copy(oldH);S.root.position.copy(oldRoot);S.src=src;S.chains.forEach((c,i)=>c.on=oldIK[i]);applyPose();S.root.updateMatrixWorld(true)}
+}
+
+/* Front pose studio: pose-only controls; never recalculate inverse binds on a deformed mesh. */
+const profileAccessories=[];
+function profileClearAccessories(){for(const o of profileAccessories.splice(0)){o.parent?.remove(o);o.geometry?.dispose();o.material?.dispose()}}
+function profileArmIndex(side){
+ const names=['arm_'+side,'upperArm_'+side,'upper_arm_'+side,'shoulder_'+side];
+ for(const n of names){const i=J(n);if(Number.isInteger(i)&&i>=0&&S.bones[i])return i}
+ const re=side==='L'?/(?:^|_)(?:l|left)(?:_|$)/i:/(?:^|_)(?:r|right)(?:_|$)/i;
+ return S.bones.findIndex(b=>/upper.?arm|shoulder/i.test(b.name)&&re.test(b.name));
+}
+function profileChildIndex(i){
+ const bone=S.bones[i];if(!bone)return -1;
+ const child=bone.children.find(o=>o.isBone&&/forearm|elbow|lower.?arm/i.test(o.name));
+ if(child)return S.bones.indexOf(child);
+ return S.joints.findIndex(j=>j.parent===i&&/forearm|elbow|lower.?arm/i.test(j.name));
+}
+function profileAlignArm(side,dropDegrees){
+ const i=profileArmIndex(side);if(i<0)return false;
+ const ci=profileChildIndex(i);if(ci<0||!S.fk[i])return false;
+ S.root.updateMatrixWorld(true);
+ const b=S.bones[i],c=S.bones[ci],origin=b.getWorldPosition(V3());
+ const from=c.getWorldPosition(V3()).sub(origin);
+ if(from.lengthSq()<1e-10)return false;
+ from.normalize();
+ // Determine actual left/right world direction from the fitted rest skeleton,
+ // rather than assuming _L is positive X in every imported model.
+ const rootX=S.bones[S.H]?.getWorldPosition(V3()).x??0;
+ const sign=Math.sign(origin.x-rootX)||Math.sign(from.x)||(side==='L'?1:-1);
+ const target=V3(sign*Math.cos(dropDegrees*Math.PI/180),-Math.sin(dropDegrees*Math.PI/180),0).normalize();
+ const delta=Q().setFromUnitVectors(from,target);
+ const currentWorld=b.getWorldQuaternion(Q());
+ const parentWorld=b.parent.getWorldQuaternion(Q());
+ const local=parentWorld.invert().multiply(delta.multiply(currentWorld)).normalize();
+ if(!Number.isFinite(local.x+local.y+local.z+local.w))return false;
+ S.fk[i].copy(local);applyPose();S.root.updateMatrixWorld(true);
+ return true;
+}
+function profileSetPose(kind){if(!S.bones.length||!S.mesh){say('Build or import a rig before selecting a pose',1);return}
+ S.playing=false;S.src='pose';S.chains.forEach(c=>c.on=false);if(S.adopted&&S.restQ.length!==S.bones.length){say('Imported skeleton rest pose is incomplete; preset disabled',1);return}S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+ const drop=kind==='T'?0:kind==='Relax'?82:Number($('poseAngle').value||45);let count=0;for(const side of ['L','R'])if(profileAlignArm(side,drop))count++;
+ profileClearAccessories();if(kind==='Accessory')profileAddAccessories();if(kind==='Relax'||kind==='A')S.relaxedQ=S.fk.map(q=>q.clone());else if(kind==='T')S.relaxedQ=S.restQ.map(q=>q.clone());evaluate();syncSliders();
+ const msg=count===2?`${kind} front pose applied to both arms; edit with FK, then keyframe or export.`:`${kind} pose: ${count}/2 arms aligned. Check bone names and anatomical joint fit.`;
+ $('poseStatus').textContent=msg;say(msg,count===2?0:1);
+}
+// Animation-ready shoulder pose is stored separately from inverse-bind/rest matrices.
+// The T-pose remains the immutable skin bind; only animation quaternions change.
+function profileSetRelaxedArms(degrees=82){
+ if(!S.bones?.length||!S.mesh||!['humanoid','mecha'].includes(S.rigType||'humanoid'))return false;
+ S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+ let count=0;
+ for(const side of ['L','R'])if(profileAlignArm(side,degrees))count++;
+ if(count!==2){S.fk.forEach((q,i)=>q.copy(S.restQ[i]));applyPose();return false;}
+ S.relaxedQ=S.fk.map(q=>q.clone());S.armLift?.clear();
+ applyPose();S.root.updateMatrixWorld(true);return true;
+}
+document.getElementById('poseRelax').onclick=()=>{profileSetPose('Relax');S.relaxedQ=S.fk.map(q=>q.clone());applyPose();syncSliders();};
+function profileAddAccessories(){const material=new THREE.MeshStandardMaterial({color:0x547b8e,metalness:.65,roughness:.35});let added=0;
+ for(const side of ['L','R']){const name=['hand_'+side,'wrist_'+side];const i=name.map(J).find(x=>x!==undefined);if(i===undefined)continue;
+ const bone=S.bones[i];const size=Math.max(.018,(S.h||1.8)*.025);const geom=new THREE.BoxGeometry(size*1.8,size*.8,size*2.5);const mesh=new THREE.Mesh(geom,material.clone());mesh.name='PROFILE_Accessory_Gauntlet_'+side;mesh.position.set(0,size*.3,0);mesh.castShadow=true;bone.add(mesh);profileAccessories.push(mesh);added++;
+ }if(!added)say('Accessory pose requires hand bones; no accessory was attached',1);
+}
+for(const [id,kind] of [['poseT','T'],['poseA','A'],['poseAccessory','Accessory']])$(id).addEventListener('click',()=>profileSetPose(kind));
+$('poseAngle').addEventListener('input',()=>{$('poseAngleValue').textContent=$('poseAngle').value+'°';});
+$('poseReweight').addEventListener('click',async()=>{if(!S.mesh||!S.bones.length){say('Build a rig first',1);return}if(S.adopted){say('Imported rig weights are preserved; use the skin editor for imported skeletons',1);return}
+ const old=S.fk.map(q=>q.clone()),off=S.hipsOff.clone(),source=S.src,chains=S.chains.map(c=>c.on);S.src='pose';S.chains.forEach(c=>c.on=false);S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+ try{await solveWeights();$('poseStatus').textContent='Skin weights recalculated in the original neutral bind pose; pose restored. Inspect shoulders and elbows.';say('Neutral bind weights recalculated')}catch(e){console.error('[PROFILE] Weight recalibration failure',e);say('Weight recalibration failed: '+e.message+' — see browser console for source line',1)}finally{S.fk.forEach((q,i)=>q.copy(old[i]));S.hipsOff.copy(off);S.src=source;S.chains.forEach((c,i)=>c.on=chains[i]);applyPose();evaluate()}
+});
+function profileViewFront(){const h=S.h||1.8,center=S.mesh?S.mesh.getWorldPosition(V3()).add(V3(0,h*.5,0)):V3(0,h*.5,0);controls.target.copy(center);camera.position.copy(center).addScaledVector(profileFacingVector(),h*2.2);camera.lookAt(center);controls.update();say('Front view: '+profileFacing())}
+$('poseFront').addEventListener('click',profileViewFront);
+$('rigFaceView').addEventListener('click',profileViewFront);
+$('gaitPhase').addEventListener('change',()=>{if(S.bones.length)evaluate();say('Joint pitch calibration updated')});$('rootTravel').addEventListener('change',()=>{if(S.bones.length)evaluate();say('Root travel preview updated')});$('gaitDirection').addEventListener('change',()=>{if(S.bones.length)evaluate();$('rigOrientationStatus').textContent='Gait direction changed. Check walk/run and six-leg stepping before exporting.'});
+$('rigFacing').addEventListener('change',()=>{profileViewFront();$('rigOrientationStatus').textContent='Motion pitch and front view aligned to '+profileFacing()+'. Verify joint positions and skinning before export.'});
+$('rigNeutralReset').addEventListener('click',()=>{if(!S.bones.length){say('Build or import a rig first',1);return}S.playing=false;S.src='pose';S.hipsOff.set(0,0,0);S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.chains.forEach(c=>c.on=false);applyPose();S.root?.updateMatrixWorld(true);if($('btnPlay'))$('btnPlay').textContent='▶ PLAY';say('Neutral rest pose restored; IK disabled')});
+
+/* A completed rig is a prerequisite for all structural/deformation checks.
+   Tests must not consume the zero-weight placeholder mesh created during auto-binding. */
+let profileBindComplete=false;
+let profilePendingChecks=[];
+let profileCheckRunning=false;
+function profileQueueCheck(label, callback){
+ if(rigSwitchBusy){
+  if(!profilePendingChecks.some(x=>x.label===label))profilePendingChecks.push({label,callback});
+  $('rigAuditOutput').textContent=label+' QUEUED — binding: '+rigStage+'. Will run automatically after successful completion.';
+  say(label+' queued until binding finishes');return true;
+ }
+ return false;
+}
+async function profileFlushChecks(){
+ if(profileCheckRunning||rigSwitchBusy)return;
+ profileCheckRunning=true;
+ try{while(profilePendingChecks.length){const job=profilePendingChecks.shift();
+  if(!profileBindComplete&&!S.adopted){$('rigAuditOutput').textContent=job.label+' NOT RUN — auto-bind did not complete successfully.';continue}
+  try{await job.callback()}catch(e){$('rigAuditOutput').textContent=job.label+' ERROR: '+(e?.message||e);console.error(e)}
+ }}finally{profileCheckRunning=false}
+}
+
+function profileRequireCompletedBind(label){
+ const out=$('rigAuditOutput');
+ if(rigSwitchBusy){out.textContent=label+' WAITING — auto-bind: '+rigStage+'.';return false}
+ if(!S.mesh?.isSkinnedMesh||(!S.adopted&&!profileBindComplete)){out.textContent=label+' NOT RUN — no completed skin bind. Build the rig and wait for finalization.';say('Complete rig binding before '+label.toLowerCase(),1);return false}
+ return true;
+}
+/* Deterministic, measurable skinning regression; never silently mutates the user's pose. */
+function profileRigRegression(){
+ if(profileQueueCheck('RIG REGRESSION',profileRigRegression))return;
+ const out=$('rigAuditOutput');if(!profileRequireCompletedBind('RIG REGRESSION'))return;if(!S.mesh?.isSkinnedMesh){out.textContent='TEST BLOCKED: no skinned mesh';return}
+ const mesh=S.mesh,g=mesh.geometry,bs=S.bones,attr=g.attributes.position;
+ const oldQ=bs.map(b=>b.quaternion.clone()),oldP=bs.map(b=>b.position.clone()),oldSrc=S.src,oldRoot=S.root.position.clone(),oldHips=S.hipsOff.clone(),oldPlaying=S.playing;S.playing=false;
+ const enabled=S.chains.map(c=>c.on);const errors=[],lines=[];
+ const sample=[];const step=Math.max(1,Math.floor(attr.count/2500));for(let i=0;i<attr.count;i+=step)sample.push(i);
+ const v=new THREE.Vector3(),outV=new THREE.Vector3();
+ const snapshot=()=>{mesh.updateMatrixWorld(true);mesh.skeleton.update();return sample.map(i=>{v.fromBufferAttribute(attr,i);mesh.applyBoneTransform(i,outV.copy(v));return outV.clone()})};
+ try{
+  S.src='pose';S.chains.forEach(c=>c.on=false);bs.forEach((b,i)=>{b.quaternion.copy(S.restQ[i]);b.position.copy(S.restP[i])});mesh.updateMatrixWorld(true);
+  const neutral=snapshot();let maxNeutral=0;for(let j=0;j<sample.length;j++){v.fromBufferAttribute(attr,sample[j]);maxNeutral=Math.max(maxNeutral,neutral[j].distanceTo(v))}
+  lines.push('Neutral displacement: '+maxNeutral.toExponential(3)+' units');if(maxNeutral>Math.max(1e-4,S.h*1e-4))errors.push('Rest geometry moves on bind');
+  for(const side of ['L','R']){
+   const id=S.idx['arm_'+side]??S.idx['upperarm_'+side];if(id===undefined){lines.push(side+': missing shoulder bone');errors.push(side+' shoulder bone missing');continue}
+   const b=bs[id];b.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),.35));mesh.updateMatrixWorld(true);
+   const moved=snapshot();let max=0,avg=0,affected=0;for(let j=0;j<sample.length;j++){const d=moved[j].distanceTo(neutral[j]);max=Math.max(max,d);avg+=d;if(d>S.h*.005)affected++}avg/=sample.length;
+   lines.push(side+' shoulder 20°: avg '+avg.toFixed(5)+', max '+max.toFixed(5)+', moved '+affected+'/'+sample.length);
+   if(!Number.isFinite(max)||max>S.h*2)errors.push(side+' shoulder invalid/extreme movement');if(affected===0)errors.push(side+' shoulder has no skin influence');
+   b.quaternion.copy(S.restQ[id]);mesh.updateMatrixWorld(true);
+  }
+  const reset=snapshot();let maxReset=0;for(let j=0;j<sample.length;j++)maxReset=Math.max(maxReset,reset[j].distanceTo(neutral[j]));lines.push('Restoration drift: '+maxReset.toExponential(3));if(maxReset>1e-5)errors.push('Pose restoration drift');
+  const bind=checkNeutralBind();if(bind.issues.length)errors.push(...bind.issues);
+  out.textContent=(errors.length?'FAIL: '+errors.join(' | '):'PASS: sampled deformation invariants')+'\n'+lines.join('\n')+'\nThis is not anatomical validation or cross-application GLB certification.';
+ }catch(e){out.textContent='RIG REGRESSION ERROR: '+(e.message||e)}finally{bs.forEach((b,i)=>{b.quaternion.copy(oldQ[i]);b.position.copy(oldP[i])});S.src=oldSrc;S.root.position.copy(oldRoot);S.hipsOff.copy(oldHips);S.chains.forEach((c,i)=>c.on=enabled[i]);S.playing=oldPlaying;mesh.updateMatrixWorld(true);mesh.skeleton.update()}
+}
+$('btnEvaluationSelfTest').addEventListener('click',evaluationSelfTest);
+$('btnRigRegression').addEventListener('click',profileRigRegression);
+$('btnRoundTrip').addEventListener('click',verifyGLBRoundTrip);
+$('btnCancelBind').addEventListener('click',()=>{if(!rigSwitchBusy){say('No auto-bind is active');return}rigCancelRequested=true;setRigStage('cancelling — recovering original model');say('Cancelling auto-bind; please wait for the current vertex batch to finish.');});
+
+/* Evaluation edition: read-only structural checks. Not a certification of deformation. */
+function evaluationSelfTest(){
+ if(profileQueueCheck('EVALUATION',evaluationSelfTest))return;
+ if(!profileRequireCompletedBind('EVALUATION'))return {errors:[],warnings:['Binding incomplete'],lines:['NOT RUN: binding incomplete']};
+ const lines=[],errors=[],warnings=[];
+ const test=(name,ok,detail='')=>{lines.push((ok?'PASS ':'FAIL ')+name+(detail?' — '+detail:''));if(!ok)errors.push(name)};
+ test('WebGL renderer',!!renderer&&!!renderer.domElement);
+ test('Active camera',!!activeCamera&&activeCamera.isCamera);
+ test('Animation controls',!!document.getElementById('btnPlay')&&!!document.getElementById('clipFPS'));
+ test('Model geometry',!!S.geo&&!!S.geo.attributes?.position,S.geo?String(S.geo.attributes.position.count)+' vertices':'import a model');
+ test('Rig hierarchy',S.bones.length>0&&S.bones.length===S.joints.length,S.bones.length+' bones');
+ if(S.bones.length&&S.geo){
+  const pre=rigPreflight();const neutral=checkNeutralBind();
+  test('Skin preflight',pre.errors.length===0,pre.errors.slice(0,3).join('; ')||'no structural errors');
+  test('Neutral bind',neutral.issues.length===0,neutral.issues.slice(0,3).join('; ')||'matrix check passed');
+  if(pre.warnings.length)warnings.push(...pre.warnings);
+  if(S.geometryFit&&S.geometryFit.confidence<.75)warnings.push('Geometry landmark review required: '+Math.round(S.geometryFit.confidence*100)+'% '+(S.geometryFit.metric||'coverage')+' (heuristic)');
+  if(S.rigType==='scorpion'&&!S.geometryFit)warnings.push('Scorpion geometry-specific fit not verified');
+ }
+ if(!S.keys.size)warnings.push('No baked animation keys; export will not include a procedural clip unless baked');
+ warnings.push('Joint anatomy, foot contact, paint accuracy, external GLB compatibility require runtime tests');
+ const result=(errors.length?'EVALUATION FAILED':'STRUCTURAL CHECKS PASSED')+' ('+errors.length+' failures)\n'+lines.join('\n')+'\nWARNINGS\n'+warnings.join('\n');
+ const output=document.getElementById('rigAuditOutput');if(output)output.textContent=result;
+ say(errors.length?'Evaluation checks failed — see rig audit':'Evaluation checks completed — see rig audit',errors.length?1:0);
+ return {errors,warnings,lines};
+}
+async function exportGLB(){
+ if(rigSwitchBusy){say('Wait for auto-bind to complete before exporting',1);return}
+ if(!S.root||!S.mesh){say('Nothing to export',1);return}
+ const check=rigPreflight(),bindCheck=checkNeutralBind();
+ if(bindCheck.issues.length||check.errors.length){
+  const problems=[...bindCheck.issues,...check.errors];say('Export blocked: '+problems.slice(0,2).join('; '),1);
+  const out=$('rigAuditOutput');if(out)out.textContent='EXPORT BLOCKED: '+problems.join(' • ');return;
+ }
+ if(check.warnings.length&&!confirm(check.warnings.join('\n')+'\nExport anyway?'))return;
+ const old={q:S.fk.map(q=>q.clone()),h:S.hipsOff.clone(),src:S.src,frame:S.frame,keys:S.keys,playing:S.playing,root:S.root.position.clone(),interp:S.interpolation};
+ const colA=S.geo.attributes.color;
+ const restore=()=>{
+  S.keys=old.keys;S.src=old.src;S.frame=old.frame;S.playing=old.playing;S.interpolation=old.interp;
+  S.fk.forEach((q,i)=>q.copy(old.q[i]));S.hipsOff.copy(old.h);S.root.position.copy(old.root);
+  if(colA)S.geo.setAttribute('color',colA);
+  applyPose();if(ikActive())solveAll();S.root.updateMatrixWorld(true);
+ };
+ try{
+  // Procedural previews are not timeline keys. Sample them into a temporary
+  // clip for export, without overwriting the user's editable animation.
+  if(!S.keys.size&&S.src==='proc'){
+   const sampled=new Map(),step=Math.max(1,Math.ceil(S.max/1800));
+   for(let f=0;f<=S.max;f+=step){
+    S.frame=f;procPose(f);applyPose();if(ikActive())solveAll();profileGroundContact();
+    sampled.set(f,{q:S.fk.map(q=>q.clone()),h:S.hipsOff.clone()});
+   }
+   if(!sampled.has(S.max)){
+    S.frame=S.max;procPose(S.max);applyPose();if(ikActive())solveAll();profileGroundContact();
+    sampled.set(S.max,{q:S.fk.map(q=>q.clone()),h:S.hipsOff.clone()});
+   }
+   S.keys=sampled;
+  }
+  S.src='x';S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);applyPose();S.root.updateMatrixWorld(true);
+  const clips=makeClip();
+  if(!clips.length){
+   if(!confirm('No animation keys or active procedural motion were found. Export a static rig?'))return;
+  }
+  // Preserve imported vertex-color factors in the exported GLB.
+  const bytes=await serializeRigGLB(clips);
+  // Verify the serialized GLB actually contains animation entries before download.
+  const view=new DataView(bytes),jsonLength=view.getUint32(12,true);
+  const jsonText=new TextDecoder().decode(new Uint8Array(bytes,20,jsonLength));
+  const json=JSON.parse(jsonText.trim());
+  if(clips.length&&(!json.animations||!json.animations.length||!json.animations.some(a=>a.channels?.length)))throw new Error('GLB exporter omitted animation channels');
+  download(new Blob([bytes],{type:'model/gltf-binary'}),'PROFILE_MOTION_ENGINE_VERTASCAN_'+Date.now()+'.glb');
+  say('GLB exported: '+(json.animations?.length||0)+' animation clip(s), '+(json.animations?.[0]?.channels?.length||0)+' channels');
+ }catch(err){console.error('PROFILE GLB export:',err);say('Export failed: '+(err?.message||String(err)),1)}
+ finally{restore()}
+}
+bind('btnExport',exportGLB,'onclick');bind('btnExport2',exportGLB,'onclick');
+const rd=(a,n=5)=>Array.from(a,x=>+x.toFixed(n));
+function saveJSON(){if(!S.geo||!S.W){say('Nothing to save',1);return}const g=S.geo,si=g.attributes.skinIndex.array,sw=g.attributes.skinWeight.array;
+ const d={format:'vertascan-motion-engine',v:1,motion:S.motion,rigType:S.rigType||'humanoid',max:S.max,fps:clipFPS(),width:S.width,
+  geo:{p:rd(g.attributes.position.array),i:g.index?Array.from(g.index.array):null},joints:S.joints.map(j=>({n:j.name,p:j.parent,x:rd(j.pos.toArray())})),
+  skin:{i:Array.from(si),w:rd(sw,4)},chains:S.chains.map(c=>({idx:c.idx,t:rd(c.target.position.toArray()),po:rd(c.pole.position.toArray()),r:rd(c.rest.toArray()),b:c.blend,on:c.on,name:c.name,foot:c.foot,side:c.side})),
+  pose:{q:S.fk.map(q=>rd(q.toArray())),h:rd(S.hipsOff.toArray())},keys:[...S.keys].map(([f,k])=>({f,q:k.q.map(q=>rd(q.toArray())),h:rd(k.h.toArray()),root:k.root?rd(k.root.toArray()):null}))};
+ download(new Blob([JSON.stringify(d)],{type:'application/json'}),'PROFILE_MOTION_PROJECT_'+Date.now()+'.json');say('Project saved')}
+bind('btnSaveJSON',saveJSON,'onclick');
+function loadProject(d){
+ if(d?.format!=='vertascan-motion-engine')throw new Error('Not a Motion Engine project file');
+ if(!Array.isArray(d.geo?.p)||d.geo.p.length<9||d.geo.p.length%3||!d.geo.p.every(Number.isFinite)||!Array.isArray(d.joints)||!d.joints.length)throw new Error('Project mesh or joint data is missing or malformed.');
+ const vertexCount=d.geo.p.length/3,boneCount=d.joints.length;
+ if(!Array.isArray(d.skin?.i)||!Array.isArray(d.skin?.w)||d.skin.i.length!==vertexCount*4||d.skin.w.length!==vertexCount*4)throw new Error('Project skin data does not match its mesh vertex count.');
+ if(d.joints.some(j=>!Array.isArray(j.x)||j.x.length!==3||!j.x.every(Number.isFinite)))throw new Error('Project contains a joint with invalid coordinates.');
+ if(d.skin.i.some(i=>!Number.isInteger(i)||i<0||i>=boneCount)||d.skin.w.some(w=>!Number.isFinite(w)||w<0))throw new Error('Project contains invalid skin indices or weights.');
+ if(d.geo.i!=null&&(!Array.isArray(d.geo.i)||d.geo.i.length%3||d.geo.i.some(i=>!Number.isInteger(i)||i<0||i>=vertexCount)))throw new Error('Project contains invalid mesh indices.');
+ if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}clearAll();
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(d.geo.p,3));if(d.geo.i)g.setIndex(d.geo.i);g.computeVertexNormals();S.geo=g;S.adopted=false;rememberRigSource(g);S.width=Number(d.width)||1;S.motion=d.motion||'walk';S.rigType=d.rigType||'humanoid';if($('rigType'))$('rigType').value=S.rigType;S.max=Math.max(1,Number(d.max)||120);if([24,30,60].includes(Number(d.fps)))$('clipFPS').value=String(d.fps);
+ S.joints=d.joints.map(j=>({name:j.n,parent:Number.isInteger(j.p)?j.p:-1,pos:V3(...j.x)}));S.B=S.joints.length;S.N=g.attributes.position.count;S.h=bbox(g).getSize(V3()).y;makeBones();buildSkinned();
+ const si=g.attributes.skinIndex,sw=g.attributes.skinWeight;si.array.set(d.skin.i);sw.array.set(d.skin.w);si.needsUpdate=sw.needsUpdate=true;S.W=new Float32Array(S.N*S.B);for(let i=0;i<S.N;i++){let sum=0;for(let k=0;k<4;k++){const bi=d.skin.i[i*4+k],w=d.skin.w[i*4+k];S.W[i*S.B+bi]+=w;sum+=w}if(sum>1e-8)for(let j=0;j<S.B;j++)S.W[i*S.B+j]/=sum;else S.W[i*S.B+(S.joints.findIndex(j=>!/^root$/i.test(j.name))||0)]=1}applyWeights(true);updateColors();
+ (Array.isArray(d.chains)?d.chains:[]).forEach(c=>{if(!Array.isArray(c.idx)||c.idx.length<2||c.idx.some(i=>!Number.isInteger(i)||i<0||i>=S.joints.length)||!Array.isArray(c.t)||c.t.length!==3||!c.t.every(Number.isFinite)||!Array.isArray(c.po)||c.po.length!==3||!c.po.every(Number.isFinite)||!Array.isArray(c.r)||c.r.length!==3||!c.r.every(Number.isFinite))return;const ch=mkChain(c.idx.map(i=>S.joints[i].name),V3(),Number(c.b)||0);if(!ch)return;ch.target.position.fromArray(c.t);ch.pole.position.fromArray(c.po);ch.rest.fromArray(c.r);ch.on=c.on!==false;ch.name=c.name||ch.name;ch.foot=!!c.foot;ch.side=Number(c.side)||0});
+ buildMarkers();if(d.pose&&Array.isArray(d.pose.q)){d.pose.q.forEach((q,i)=>{if(i<S.fk.length&&Array.isArray(q)&&q.length===4&&q.every(Number.isFinite))S.fk[i].fromArray(q)});if(Array.isArray(d.pose.h)&&d.pose.h.length===3&&d.pose.h.every(Number.isFinite))S.hipsOff.fromArray(d.pose.h)}(Array.isArray(d.keys)?d.keys:[]).forEach(k=>{if(!Number.isFinite(k.f)||!Array.isArray(k.q)||k.q.length!==S.B||k.q.some(q=>!Array.isArray(q)||q.length!==4||!q.every(Number.isFinite))||!Array.isArray(k.h)||k.h.length!==3||!k.h.every(Number.isFinite))return;S.keys.set(k.f,{q:k.q.map(q=>Q().fromArray(q)),h:V3(...k.h)})});
+ S.src=S.keys.size?'keys':'pose';$('hudSrc').textContent=S.src;evaluate();refresh();say('Project loaded')}
+function basename(s){return String(s||'').split(/[\\/]/).pop().split(/[?#]/)[0].toLowerCase()}
+async function loadFile(file,allFiles=[]){const ext=file.name.split('.').pop().toLowerCase();
+ if(ext==='json'){let data;try{data=JSON.parse(await file.text())}catch{throw new Error('Project JSON is invalid or incomplete. Re-export it from PROFILE and try again.')}loadProject(data);return}
+ if(ext==='obj'){const o=new OBJLoader().parse(await file.text());return staticFrom(o)}
+ if(!['glb','gltf','fbx'].includes(ext))throw new Error('Unsupported file type. Choose GLB, GLTF, OBJ, FBX or a PROFILE JSON project.');
+ const localFiles=allFiles.length?allFiles:[file],urlMap=new Map(),urls=[];
+ localFiles.forEach(f=>{const u=URL.createObjectURL(f);urls.push(u);urlMap.set(basename(f.name),u)});
+ try{
+  let object;
+  if(ext==='fbx'){
+   const manager=new THREE.LoadingManager();manager.setURLModifier(url=>urlMap.get(basename(url))||url);
+   object=new FBXLoader(manager).parse(await file.arrayBuffer(),'');
+   staticFrom(object);say('FBX geometry imported. Build a rig to animate it; embedded FBX skeletons are not adopted yet.');return;
+  }
+  const manager=new THREE.LoadingManager();manager.setURLModifier(url=>{const hit=urlMap.get(basename(url));return hit||url});
+  const loader=new GLTFLoader(manager);
+  const gl=await new Promise((resolve,reject)=>{
+   const done=x=>resolve(x),fail=e=>reject(new Error('Could not read '+file.name+'. For .gltf files, select the .gltf together with its .bin and texture files. '+(e?.message||'Check the file and try again.')));
+   if(ext==='glb')file.arrayBuffer().then(buf=>loader.parse(buf,'',done,fail)).catch(fail);
+   else file.text().then(txt=>loader.parse(txt,'',done,fail)).catch(fail);
+  });
+  if(!gl?.scene)throw new Error('No scene was found in the imported model.');
+  if(!adopt(gl.scene)){staticFrom(gl.scene);say('Model geometry imported. Build a rig to animate this static mesh.')}else{S.addons=gl.animations.map((c,i)=>({name:c.name||'Clip '+(i+1),clip:c}));evaluate();refresh();say('Imported skinned model — existing skeleton and weights kept');$('hudInfo').textContent=S.B+' bones • '+S.N+' verts (imported rig)'}
+ }finally{urls.forEach(URL.revokeObjectURL)}
+}
+function staticFrom(o){
+ releaseImportedMaterials();if(rigSourceGeometry){rigSourceGeometry.dispose();rigSourceGeometry=null}
+ o.updateMatrixWorld(true);const gs=[],surfaces=[];
+ o.traverse(m=>{if(!(m.isMesh||m.isSkinnedMesh)||!m.geometry?.attributes?.position)return;
+  const g=m.geometry.clone();g.applyMatrix4(m.matrixWorld);
+  // Recalculate normals after world-space baking for consistent PBR shading.
+  if(!g.attributes.normal)g.computeVertexNormals();
+  // A baked transform invalidates imported tangent space; Three.js derives a safe basis from UVs.
+  g.deleteAttribute('tangent');
+  ['skinIndex','skinWeight'].forEach(n=>g.deleteAttribute(n));
+  const materials=Array.isArray(m.material)?m.material:[m.material];
+  const sourceGroups=g.groups.length?g.groups:[{start:0,count:g.index?g.index.count:g.attributes.position.count,materialIndex:0}];
+  const localMap=materials.map(mm=>{surfaces.push(preserveMaterial(mm||mat));return surfaces.length-1});
+  const gr=sourceGroups.map(q=>({start:q.start,count:q.count,materialIndex:localMap[q.materialIndex]??localMap[0]}));
+  gs.push({g,groups:gr});
+ });
+ if(!gs.length)throw new Error('No usable mesh geometry found.');
+ // Do not fabricate zero tangents: invalid tangent frames can break normal-map lighting.
+ const hasColors=gs.some(({g})=>!!g.attributes.color);
+ const attrs=['position','normal','uv','uv1','uv2',...(hasColors?['color']:[])];
+ const values={};for(const a of attrs)values[a]=[];
+ const indices=[],groups=[];let vertexOffset=0,indexOffset=0;
+ for(const {g,groups:gr} of gs){if(!g.attributes.normal)g.computeVertexNormals();const count=g.attributes.position.count;
+  for(const a of attrs){const at=g.attributes[a]||(a==='uv2'?g.attributes.uv:null),components=a==='position'||a==='normal'||a==='color'?3:2;for(let i=0;i<count;i++)for(let j=0;j<components;j++)values[a].push(at?at.getComponent(i,j):(a==='color'?1:0))}
+  if(g.index){for(let i=0;i<g.index.count;i++)indices.push(g.index.getX(i)+vertexOffset)}else{for(let i=0;i<count;i++)indices.push(i+vertexOffset)}
+  for(const gr0 of gr)groups.push({start:indexOffset+gr0.start,count:gr0.count,materialIndex:gr0.materialIndex});
+  indexOffset+=g.index?.count??count;vertexOffset+=count;g.dispose();
+ }
+ const out=new THREE.BufferGeometry();for(const a of attrs)out.setAttribute(a,new THREE.Float32BufferAttribute(values[a],a==='position'||a==='normal'||a==='color'?3:2));out.setIndex(indices);for(const gr of groups)out.addGroup(gr.start,gr.count,gr.materialIndex);
+ // Import must remain a lightweight preview operation. Rig fitting/weight solving is
+ // explicitly started by BUILD RIG + BIND, not synchronously during GLB parsing.
+ clearAll();importedSurfaceMaterials=surfaces;profileCapturePBRBaseline();S.geo=out;S.adopted=false;
+ rememberRigSource(out);S.N=out.attributes.position.count;S.B=0;
+ const preview=new THREE.Mesh(out,rigMaterial());preview.name='Imported geometry — unrigged preview';
+ preview.frustumCulled=false;preview.castShadow=true;preview.receiveShadow=true;
+ S.mesh=S.root=preview;scene.add(preview);S.h=bbox(out).getSize(V3()).y;
+ refresh();frameModel();$('hudInfo').textContent=S.N+' vertices • UNRIGGED — select BUILD RIG + BIND';
+ say('Imported '+surfaces.length+' material slots. Geometry ready; use RIG → BUILD RIG + BIND when ready.');
+}
+document.querySelectorAll('.tab[role=button]').forEach(t=>t.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t.click()}}));
+$('fileInput').onchange=async e=>{const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;const main=files.find(f=>/\.(glb|gltf|obj|fbx|json)$/i.test(f.name))||files[0];try{say('Importing '+main.name+'…');await new Promise(r=>setTimeout(r,0));await loadFile(main,files)}catch(err){console.error('PROFILE import error:',err);say('Import failed: '+(err?.message||String(err)),1)}};
+
+let profileReferenceLoading=false;
+async function loadDemo(autoRig=false){
+ if(profileReferenceLoading||rigSwitchBusy){say('Wait for the current reference load or bind to finish.',1);return}
+ profileReferenceLoading=true;
+ try{
+  say('Loading locked humanoid reference (embedded GLB)…');
+  const raw=document.getElementById('profile-humanoid-reference')?.textContent?.trim();
+  if(!raw)throw new Error('Embedded humanoid GLB was not found');
+  // Decode in bounded chunks to avoid a single oversized apply()/spread call.
+  const binary=atob(raw),bytes=new Uint8Array(binary.length);
+  for(let p=0;p<binary.length;p+=65536){for(let i=p,end=Math.min(binary.length,p+65536);i<end;i++)bytes[i]=binary.charCodeAt(i)}
+  const gl=await new Promise((resolve,reject)=>new GLTFLoader().parse(bytes.buffer,'',resolve,reject));
+  if(!gl.scene)throw new Error('Embedded humanoid reference has no scene');
+  releaseImportedMaterials();
+  if(!adopt(gl.scene))staticFrom(gl.scene);
+  S.rigType='humanoid';$('rigType').value='humanoid';
+  $('hudInfo').textContent='LOCKED HUMANOID REFERENCE • '+S.N+' vertices';
+  say('Reference loaded from immutable embedded GLB. Use BUILD RIG + BIND to generate weights.');
+  if(autoRig&&!S.adopted){say('Generating humanoid demo rig from reference…');await rig()}
+ }catch(e){console.error('PROFILE reference demo failed',e);say('Reference load failed: '+(e?.message||e),1)}
+ finally{profileReferenceLoading=false}
+}
+
+/* ---------- loop ---------- */
+// Camera presets, orthographic placement and edit controls
+const worldAxes=new THREE.AxesHelper(1.2);worldAxes.position.set(0,.006,0);scene.add(worldAxes);
+const viewDirections={front:[0,0,1],back:[0,0,-1],right:[1,0,0],left:[-1,0,0],top:[0,1,0],bottom:[0,-1,0]};
+function switchView(mode){
+ const target=controls.target.clone(),distance=Math.max(2,camera.position.distanceTo(target));
+ if(mode==='perspective'){activeCamera=camera;camera.position.copy(target).add(V3(distance*.52,distance*.26,distance*.81));camera.up.set(0,1,0)}
+ else{activeCamera=orthoCamera;const v=viewDirections[mode]||viewDirections.front;orthoCamera.position.copy(target).add(V3(...v).multiplyScalar(distance));orthoCamera.up.set(0,Math.abs(v[1])>.5?0:1,Math.abs(v[1])>.5?(v[1]>0?-1:1):0);orthoCamera.lookAt(target)}
+ controls.object=activeCamera;tc.camera=activeCamera;controls.enableRotate=mode==='perspective';controls.update();resize();syncGizmo();$('viewSelect').value=mode;
+}
+function frameViewport(){
+ const obj=S.root||S.mesh;if(!obj){controls.target.set(0,.9,0);orthoScale=2.5;switchView($('viewSelect').value);return}
+ obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj);if(b.isEmpty())return;
+ const c=b.getCenter(V3()),size=b.getSize(V3()),radius=Math.max(.5,size.length()*.65);controls.target.copy(c);orthoScale=radius*1.35;
+ const mode=$('viewSelect').value;if(mode==='perspective'){camera.position.copy(c).add(V3(radius*1.3,radius*.8,radius*1.8));controls.update();resize()}else switchView(mode);
+ say('Framed '+mode+' view');
+}
+$('viewSelect').addEventListener('change',e=>switchView(e.target.value));
+$('viewFit').addEventListener('click',frameViewport);
+$('viewGrid').addEventListener('click',()=>{grid.visible=!grid.visible;ground.visible=grid.visible;$('viewGrid').classList.toggle('on',grid.visible)});
+$('viewAxes').addEventListener('click',()=>{worldAxes.visible=!worldAxes.visible;$('axisCorner').hidden=!worldAxes.visible;$('viewAxes').classList.toggle('on',worldAxes.visible)});
+$('viewSelectTool').addEventListener('click',()=>setTool('select'));
+$('viewMove').addEventListener('click',()=>{if(S.selChain>=0&&S.gizmoObj){setTool('ik')}else{$('gMove').click()}tc.setMode('translate');syncGizmo()});
+$('viewRotate').addEventListener('click',()=>{$('gRot').click();tc.setMode('rotate');syncGizmo()});
+$('gizmoSpace').addEventListener('change',e=>tc.setSpace(e.target.value));
+// Transactional pose and timeline history. Structural changes start a new history session.
+const editHistory={undo:[],redo:[],limit:70,drag:null,locked:false};
+function captureEdit(){return {q:S.fk.map(q=>q.toArray()),h:S.hipsOff.toArray(),targets:S.chains.map(c=>({t:c.target.position.toArray(),p:c.pole.position.toArray(),b:c.blend,on:c.on})),keys:[...S.keys].map(([f,k])=>[f,{q:k.q.map(q=>q.toArray()),h:k.h.toArray()}]),src:S.src,frame:S.frame}}
+function historyButtons(){$('btnUndo').disabled=!editHistory.undo.length;$('btnRedo').disabled=!editHistory.redo.length;$('menuUndo').disabled=!editHistory.undo.length;$('menuRedo').disabled=!editHistory.redo.length}
+function resetHistory(){editHistory.undo.length=editHistory.redo.length=0;editHistory.drag=null;historyButtons()}
+function pushEdit(before){if(!S.bones.length||editHistory.locked)return;const after=captureEdit();if(JSON.stringify(before)===JSON.stringify(after))return;editHistory.undo.push(before);if(editHistory.undo.length>editHistory.limit)editHistory.undo.shift();editHistory.redo.length=0;historyButtons()}
+function applyEdit(x){editHistory.locked=true;S.playing=false;S.src='pose';$('btnPlay').textContent='▶ PLAY';S.fk.forEach((q,i)=>{if(x.q[i])q.fromArray(x.q[i])});S.hipsOff.fromArray(x.h);S.chains.forEach((c,i)=>{if(!x.targets[i])return;c.target.position.fromArray(x.targets[i].t);c.pole.position.fromArray(x.targets[i].p);c.blend=x.targets[i].b;c.on=x.targets[i].on});S.keys=new Map(x.keys.map(([f,k])=>[f,{q:k.q.map(a=>new THREE.Quaternion().fromArray(a)),h:new THREE.Vector3().fromArray(k.h)}]));S.frame=x.frame;S.src=x.src;toPose();evaluate();syncSliders();refresh();historyButtons();editHistory.locked=false}
+function undoEdit(){if(!editHistory.undo.length)return;const now=captureEdit();const prev=editHistory.undo.pop();editHistory.redo.push(now);applyEdit(prev);say('Undo edit')}
+function redoEdit(){if(!editHistory.redo.length)return;const now=captureEdit();const next=editHistory.redo.pop();editHistory.undo.push(now);applyEdit(next);say('Redo edit')}
+$('btnUndo').addEventListener('click',undoEdit);$('btnRedo').addEventListener('click',redoEdit);$('menuUndo').addEventListener('click',()=>{closeFileMenu();undoEdit()});$('menuRedo').addEventListener('click',()=>{closeFileMenu();redoEdit()});$('btnSaveTop').addEventListener('click',()=>$('btnSaveJSON').click());
+tc.addEventListener('mouseDown',()=>{if(S.bones.length)editHistory.drag=captureEdit()});tc.addEventListener('mouseUp',()=>{if(editHistory.drag){pushEdit(editHistory.drag);editHistory.drag=null}});
+for(const id of ['rx','ry','rz','ikfk']){const el=$(id);if(el){el.addEventListener('pointerdown',()=>{editHistory.drag=captureEdit()});el.addEventListener('change',()=>{if(editHistory.drag){pushEdit(editHistory.drag);editHistory.drag=null}})}}
+for(const id of ['btnResetBone','btnResetPose','btnMirLR','btnMirRL','btnKey','btnDelKey','btnClearKeys','btnIKSnap']){const el=$(id);if(el)el.addEventListener('click',()=>{if(!editHistory.drag)return;pushEdit(editHistory.drag);editHistory.drag=null})}
+// Capture pre-click state in capture phase, before the application's existing handler.
+for(const id of ['btnResetBone','btnResetPose','btnMirLR','btnMirRL','btnKey','btnDelKey','btnClearKeys','btnIKSnap'])$(id).addEventListener('click',()=>{editHistory.drag=captureEdit()},true);
+for(const id of ['btnNew','btnDemo','btnAutoRig','btnImport'])$(id).addEventListener('click',resetHistory);
+const oldSyncGizmo=syncGizmo; // Keep native FK / IK gizmo routing.
+function syncViewTools(){for(const [id,ok] of [['viewSelectTool',S.tool==='select'],['viewMove',S.tool==='ik'||(S.tool==='fk'&&tc.mode==='translate')],['viewRotate',S.tool==='fk'&&tc.mode==='rotate']])$(id).classList.toggle('on',ok)}
+document.querySelectorAll('.tool').forEach(el=>el.addEventListener('click',syncViewTools));
+function closeFileMenu(){$('fileDropdown').hidden=true;$('btnFileMenu').setAttribute('aria-expanded','false')}
+$('btnFileMenu').addEventListener('click',()=>{const opening=$('fileDropdown').hidden;$('fileDropdown').hidden=!opening;$('btnFileMenu').setAttribute('aria-expanded',String(opening))});
+document.addEventListener('click',e=>{if(!e.target.closest('#fileMenuWrap'))closeFileMenu()});
+for(const [id,target] of [['menuNew','btnNew'],['menuOpen','btnImport'],['menuSave','btnSaveJSON'],['menuExport','btnExport']])$(id).addEventListener('click',()=>{closeFileMenu();$(target).click()});
+window.addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey){const k=e.key.toLowerCase();if(['s','o','n','z','y'].includes(k)){e.preventDefault();$( {s:'menuSave',o:'menuOpen',n:'menuNew',z:e.shiftKey?'menuRedo':'menuUndo',y:'menuRedo'}[k]).click()}return}
+ if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||aboutModal.classList.contains('open'))return;
+ const k=e.key.toLowerCase();if(k==='f')frameViewport();else if(k==='q')$('viewSelectTool').click();else if(k==='g')$('viewMove').click();else if(k==='r')$('viewRotate').click();else if(k==='escape')closeFileMenu();
+});
+const clock=new THREE.Clock();let fpsT=0,fpsN=0;
+function animate(){requestAnimationFrame(animate);const d=Math.min(clock.getDelta(),.1);controls.update();
+ if(S.playing){if(S.src==='proc'&&document.getElementById('rootTravel')?.checked){S.travelElapsed=(S.travelElapsed||0)+d*Number($('playRate').value)}S.frame+=d*clipFPS()*Number($('playRate').value);if(S.frame>S.max){if(S.loop)S.frame=S.frame%(S.max||1);else{S.frame=S.max;S.playing=false;$('btnPlay').textContent='▶ PLAY'}}}
+ evaluate();updateViz();
+ $('frameLabel').textContent=Math.floor(S.frame);$('timeLabel').textContent=(S.frame/clipFPS()).toFixed(2)+'s';
+ renderer.render(scene,activeCamera);if(ldOpen){try{ldCtx.drawImage(renderer.domElement,0,0,$('ldCanvas').width,$('ldCanvas').height)}catch(e){}$('ldTime').textContent=(S.frame/clipFPS()).toFixed(2)+' s';if(S.playing)$('ldFrame').value=Math.round(S.frame)}drawTL();drawGraph();fpsT+=d;fpsN++;if(fpsT>.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsT=fpsN=0}}
+// Look development: live renderer capture and repeatable pre-export checks.
+let ldOpen=false;const ldCtx=$('ldCanvas').getContext('2d');
+function ldAudit(){const issues=[],ok=[];if(!S.mesh)issues.push('No mesh loaded');else ok.push('Mesh present');
+ if(!S.bones.length)issues.push('No skeleton bound');else ok.push(S.bones.length+' joints in hierarchy');
+ if(S.mesh?.isSkinnedMesh){const a=S.geo?.getAttribute('skinWeight');if(!a)issues.push('Skin weights missing');else{let invalid=0;for(let i=0;i<a.count;i++){const sum=a.getX(i)+a.getY(i)+a.getZ(i)+a.getW(i);if(!Number.isFinite(sum)||Math.abs(sum-1)>.05)invalid++}if(invalid)issues.push(invalid+' vertices have unnormalized skin weights');else ok.push('Skin weight normalization checked')}}
+ else if(S.mesh)issues.push('Mesh is not skinned');
+ if(S.rigType==='scorpion'){const legs=S.chains.filter(c=>/leg[123]_[LR]_foot/.test(c.name));if(legs.length!==6)issues.push('Expected 6 leg IK chains; found '+legs.length);else ok.push('6 leg IK chains');const tail=S.chains.find(c=>/tail_stinger/.test(c.name));if(!tail)issues.push('Tail-tip IK missing');else ok.push('Full tail-to-stinger IK ('+tail.idx.length+' joints)');if(S.tailFitStatus)ok.push(S.tailFitStatus);if(S.scorpionFit){ok.push('Geometry-sampled leg stations: '+S.scorpionFit.fittedLegs+'/6');if(S.scorpionFit.unresolved.length)issues.push('Unresolved geometry landmarks: '+S.scorpionFit.unresolved.join(', '))}}
+ if(!S.keys.size&&S.src!=='clip'&&S.src!=='proc')issues.push('No baked animation keys (pose-only export)');else ok.push('Animation source: '+S.src);
+ const out=['CHECKED',...ok.map(x=>'✓ '+x),...issues.map(x=>'! '+x),'','Inspect joint placement, intersections, ground contact and export playback manually.'];$('ldReport').textContent=out.join('\n');return issues}
+function ldMaterials(){if(!S.mesh)return [mat];const m=S.mesh.material;const all=Array.isArray(m)?m:[m];return $('ldScope').value==='first'?all.slice(0,1):all}
+function ldApply(){if($('ldProtect').checked){$('ldProtectStatus').textContent='Unlock material editing before modifying imported PBR.';return;}const rough=Number($('ldRough').value),metal=Number($('ldMetal').value);for(const m of ldMaterials()){if(m&&(m.isMeshStandardMaterial||m.isMeshPhysicalMaterial)){m.roughness=rough;m.metalness=metal;m.needsUpdate=true}}renderer.toneMappingExposure=Number($('ldExposure').value);$('ldRoughV').textContent=rough.toFixed(2);$('ldMetalV').textContent=metal.toFixed(2);$('ldExposureV').textContent=renderer.toneMappingExposure.toFixed(2)}
+$('ldPreset').addEventListener('change',()=>{if($('ldProtect').checked){say('Original PBR protected — unlock material editing first',1);return;}const presets={ceramic:[.38,.12,0xd9c4b0],steel:[.26,.9,0xb9c4c5],rubber:[.9,0,0x3b4142],bronze:[.3,.8,0xb87842]};const [r,m,c]=presets[$('ldPreset').value];$('ldRough').value=r;$('ldMetal').value=m;ldApply();for(const material of ldMaterials()){if(material?.color){material.color.setHex(c);material.needsUpdate=true}}});
+for(const id of ['ldRough','ldMetal','ldExposure'])$(id).addEventListener('input',ldApply);
+$('ldEnvironment').addEventListener('change',()=>{scene.environment=$('ldEnvironment').value==='studio'?studioEnvironment:null;say(scene.environment?'Studio reflections enabled':'Studio reflections disabled')});
+$('ldRestore').addEventListener('click',()=>{profileRestorePBR();$('ldProtect').checked=true;$('ldProtectStatus').textContent='Original imported surface appearance restored and locked.'});$('ldProtect').addEventListener('change',()=>{$('ldProtectStatus').textContent=$('ldProtect').checked?'Imported PBR protected. Uncheck to edit materials.':'Look Dev material editing unlocked; Restore is always available.'});$('ldPBRAudit').addEventListener('click',profilePBRAudit);
+$('ldLighting').addEventListener('change',()=>{const v=$('ldLighting').value;dir.intensity=v==='contrast'?3.5:v==='flat'?1.4:2.4;fill.intensity=v==='contrast'?.25:v==='flat'?1.2:.7;rim.intensity=v==='contrast'?1.6:v==='flat'?.15:.9});
+function ldToggle(on){ldOpen=on;$('lookDevModal').hidden=!on;if(on){ldAudit();$('ldFrame').max=S.max;$('ldFrame').value=Math.round(S.frame);$('ldPlay').textContent=S.playing?'❚❚ PAUSE':'▶ PLAY'}}
+$('viewMaterials').addEventListener('click',()=>ldToggle(true));$('viewLighting').addEventListener('click',()=>{const modes=['studio','flat','contrast'],sel=$('ldLighting');sel.value=modes[(modes.indexOf(sel.value)+1)%modes.length];sel.dispatchEvent(new Event('change'));$('viewLighting').textContent='☀ '+sel.selectedOptions[0].text.toUpperCase()});$('btnLookDev').addEventListener('click',()=>ldToggle(true));$('ldClose').addEventListener('click',()=>ldToggle(false));$('ldRefresh').addEventListener('click',ldAudit);$('ldExport').addEventListener('click',()=>{ldAudit();$('btnExport').click()});
+$('ldPlay').addEventListener('click',()=>{S.playing=!S.playing;$('btnPlay').textContent=S.playing?'⏸ PAUSE':'▶ PLAY';$('ldPlay').textContent=S.playing?'❚❚ PAUSE':'▶ PLAY'});
+$('ldFrame').addEventListener('input',e=>{S.playing=false;S.frame=+e.target.value;$('btnPlay').textContent='▶ PLAY';$('ldPlay').textContent='▶ PLAY'});
+$('lookDevModal').addEventListener('click',e=>{if(e.target===$('lookDevModal'))ldToggle(false)});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&ldOpen)ldToggle(false)});
+$('tailCurve').addEventListener('input',e=>$('vTailCurve').textContent=Number(e.target.value).toFixed(2));
+$('btnTailRefit').addEventListener('click',()=>{if(!S.geo){say('Import a mesh before scanning its tail',1);return}if($('rigType').value!=='scorpion')$('rigType').value='scorpion';rig();const c=S.chains.find(c=>c.name==='IK_tail_stinger');if(c){c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3()));say(S.tailFitStatus+' • IK snapped to tail tip')}else say('Tail IK chain unavailable',1)});
+// Consistent discoverability: visible tool labels, native hover tips and keyboard-accessible names.
+const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Reload the embedded, immutable humanoid GLB reference and build a demo rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
+document.querySelectorAll('button, .tab, .tool').forEach(el=>{const id=el.id;const txt=(el.innerText||'').replace(/\s+/g,' ').trim();const tip=tooltipHints[id]||el.getAttribute('title')||txt;if(tip&&!el.hasAttribute('title'))el.setAttribute('title',tip);if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',tip||txt);});
+document.querySelectorAll('input[type=range]').forEach(el=>{const label=el.previousElementSibling?.innerText?.replace(/\s+/g,' ').trim();if(label&&!el.title)el.title=label;});
+// About / feature tutorials modal
+const aboutModal=$('aboutModal');
+function openAbout(){aboutModal.classList.add('open');document.body.style.overflow='hidden';$('aboutClose').focus()}
+function closeAbout(){aboutModal.classList.remove('open');document.body.style.overflow='';$('btnAbout').focus()}
+$('btnAbout').addEventListener('click',openAbout);$('aboutClose').addEventListener('click',closeAbout);
+aboutModal.addEventListener('click',e=>{if(e.target===aboutModal)closeAbout()});
+document.querySelectorAll('[data-about-tab]').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.aboutTab;document.querySelectorAll('[data-about-tab]').forEach(b=>{const active=b===btn;b.classList.toggle('on',active);b.setAttribute('aria-selected',String(active))});document.querySelectorAll('[data-about-pane]').forEach(p=>p.classList.toggle('active',p.dataset.aboutPane===key));}));
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&aboutModal.classList.contains('open'))closeAbout()});
+resize();setTool('select');animate();loadDemo(false).catch(e=>{console.error('PROFILE demo initialization failed',e);say('Demo load failed: '+e.message,1)})
+// Launch identity: animated V-vector wings on splash; workspace demo retains its own motion preview.
+const splash=$('splash');splash.classList.remove('hidden');splash.setAttribute('aria-hidden','false');
+function closeSplash(){splash.classList.add('hidden');splash.setAttribute('aria-hidden','true');S.playing=false;$('btnPlay').textContent='▶ PLAY';}
+$('enterStudio').onclick=closeSplash;$('skipIntro').onclick=closeSplash;
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!splash.classList.contains('hidden'))closeSplash()});
+S.motion='walk';S.speed=1;S.stride=1;S.src='pose';S.frame=0;S.playing=false;$('hudSrc').textContent='pose';$('btnPlay').textContent='▶ PLAY';
+const introWalkTimer=setTimeout(()=>{if(splash.classList.contains('hidden'))return;$('splashStatus').textContent='READY • ENTER STUDIO TO BEGIN';},2800);
+
+
+/* SMART MOTION: records committed FK / IK manipulations and builds editable key scripts. */
+const smart=$('smartRecord');let smartEnabled=false,smartBusy=false;
+function smartNotice(msg){$('smartStatus').textContent=msg;}
+smart.addEventListener('click',()=>{smartEnabled=!smartEnabled;smart.setAttribute('aria-pressed',String(smartEnabled));smart.classList.toggle('on',smartEnabled);smart.textContent=smartEnabled?'● AUTO KEY ON':'● AUTO KEY OFF';smartNotice(smartEnabled?'Recording edits at playhead':'Auto key disabled');});
+function smartCommit(reason){
+ if(!smartEnabled||smartBusy||!S.bones.length||rigSwitchBusy)return;
+ smartBusy=true;
+ try{
+  // Keep the actual manipulated skeleton pose, including IK-solved joint rotations.
+  S.root?.updateMatrixWorld(true);
+  const frame=Math.max(0,Math.min(S.max,Math.round(S.frame)));
+  const snapshot={q:S.bones.map(b=>b.quaternion.clone()),h:S.bones[S.H].position.clone(),root:S.root?.position.clone()||V3()};
+  S.keys.set(frame,snapshot);
+  S.fk.forEach((q,i)=>q.copy(snapshot.q[i]));
+  S.hipsOff.copy(snapshot.h).sub(S.hips0);
+  S.src='keys';$('hudSrc').textContent='keys';
+  smartNotice('Key '+frame+' recorded · '+reason+' · '+S.keys.size+' keys');
+  refresh();
+ }catch(err){smartNotice('Record error: '+err.message);console.error(err)}finally{smartBusy=false}
+}
+// Commit only at gesture end, not on every pointer movement (prevents key flooding).
+tc.addEventListener('mouseUp',()=>smartCommit('FK / IK gizmo'));
+for(const id of ['rx','ry','rz','ikfk'])$(id)?.addEventListener('change',()=>{evaluate();smartCommit('joint control')});
+for(const id of ['btnResetBone','btnResetPose','btnMirLR','btnMirRL','btnIKSnap','poseT','poseA'])$(id)?.addEventListener('click',()=>{queueMicrotask(()=>{evaluate();smartCommit('pose command')})});
+// IK targets are represented by the final evaluated bone quaternions, not target objects.
+function smartKeyClone(k){return {q:k.q.map(q=>q.clone()),h:k.h.clone(),root:k.root?.clone()||V3()}}
+$('smartGenerate').addEventListener('click',()=>{
+ if(!S.bones.length){smartNotice('Load and bind a rig first');return}
+ if(rigSwitchBusy){smartNotice('Wait for binding to complete');return}
+ const kind=$('smartScript').value,amp=Number($('smartAmp').value),cycles=Math.max(1,Math.min(12,Number($('smartCycles').value)||2));
+ const begin=Math.round(S.frame),end=S.max,span=end-begin;
+ if(span<4){smartNotice('Move playhead earlier or extend clip');return}
+ // Preserve the current pose as a stable baseline, including existing IK results.
+ evaluate();const base={q:S.bones.map(b=>b.quaternion.clone()),h:S.bones[S.H].position.clone(),root:S.root?.position.clone()||V3()};
+ const samples=Math.min(240,Math.max(16,cycles*24));const sourceKeys=[...S.keys].sort((a,b)=>a[0]-b[0]).map(([f,k])=>[f,smartKeyClone(k)]);let added=0;
+ for(let i=0;i<=samples;i++){
+  const f=Math.round(begin+i*span/samples),t=i/samples,phase=t*cycles*Math.PI*2;
+  const k=smartKeyClone(base);
+  if(kind==='bounce'){
+   const contact=Math.max(0,Math.sin(phase));
+   k.h.y+=amp*S.h*.22*contact*contact;
+   const hip=S.H;k.q[hip].multiply(new THREE.Quaternion().setFromAxisAngle(AX.x,amp*.12*Math.sin(phase)));
+  }else if(kind==='sway'){
+   const hip=S.H;k.q[hip].multiply(new THREE.Quaternion().setFromAxisAngle(AX.z,amp*.24*Math.sin(phase)));
+   k.h.x+=amp*S.h*.055*Math.sin(phase);
+  }else if(kind==='pulse'){
+   k.h.y+=amp*S.h*.018*(1-Math.cos(phase));
+   const chest=J('chest');if(chest!==undefined)k.q[chest].multiply(new THREE.Quaternion().setFromAxisAngle(AX.x,amp*.06*Math.sin(phase)));
+  }else{
+   // Cycle an existing animation: sample the original keyed range without overwriting it during sampling.
+   const existing=sourceKeys;
+   if(existing.length>=2){const sourceFrame=existing[0][0]+(existing[existing.length-1][0]-existing[0][0])*(t*cycles%1);
+    let a=existing[0],b=existing[existing.length-1];for(let j=0;j<existing.length-1;j++)if(sourceFrame>=existing[j][0]&&sourceFrame<=existing[j+1][0]){a=existing[j];b=existing[j+1];break}
+    const u=a[0]===b[0]?0:(sourceFrame-a[0])/(b[0]-a[0]);
+    k.q.forEach((q,j)=>{if(a[1].q[j]&&b[1].q[j])q.slerpQuaternions(a[1].q[j],b[1].q[j],u)});k.h.copy(a[1].h).lerp(b[1].h,u);
+   }else{k.h.y+=amp*S.h*.04*(1-Math.cos(phase));}
+  }
+  S.keys.set(f,k);added++;
+ }
+ // Force seamless start/end for generated cycles.
+ if(kind!=='bounce'&&kind!=='cycle')S.keys.set(end,smartKeyClone(S.keys.get(begin)));
+ S.src='keys';$('hudSrc').textContent='keys';S.playing=false;refresh();smartNotice(kind+' script: '+added+' samples / '+cycles+' cycles');
+});
+$('smartAudit').addEventListener('click',()=>{
+ const problems=[],warnings=[],frames=[...S.keys.keys()].sort((a,b)=>a-b);
+ if(!S.bones.length)problems.push('No rig');if(!frames.length)problems.push('No recorded keys');
+ if(frames.some(f=>!Number.isInteger(f)||f<0||f>S.max))problems.push('Keys outside clip range');
+ for(const f of frames){const k=S.keys.get(f);if(k.q.length!==S.bones.length){problems.push('Joint count mismatch at '+f);break}
+  if(k.q.some(q=>![q.x,q.y,q.z,q.w].every(Number.isFinite)||Math.abs(q.length()-1)>.02)){problems.push('Invalid quaternion at '+f);break}
+  if(![k.h.x,k.h.y,k.h.z].every(Number.isFinite)){problems.push('Invalid hips at '+f);break}
+ }
+ for(let i=1;i<frames.length;i++){
+  const a=S.keys.get(frames[i-1]),b=S.keys.get(frames[i]),dt=(frames[i]-frames[i-1])/clipFPS();
+  if(dt>0&&a.h.distanceTo(b.h)/dt>Math.max(2,S.h*5)){warnings.push('Large hip velocity near '+frames[i]);break}
+ }
+ if(frames.length>=2){const a=S.keys.get(frames[0]),b=S.keys.get(frames[frames.length-1]);if(a.h.distanceTo(b.h)>S.h*.025||a.q.some((q,i)=>b.q[i]&&q.angleTo(b.q[i])>.08))warnings.push('Cycle seam differs between first and last key')}
+ if(S.chains.some(c=>c.on))warnings.push('IK targets are not exported as independent animation tracks; baked joint rotations are used');
+ const report=(problems.length?'FAIL: '+problems.join(' • '):'PASS: '+frames.length+' keys, '+S.bones.length+' joints, '+(S.max/clipFPS()).toFixed(2)+'s')+(warnings.length?' | WARN: '+warnings.join(' • '):' | No basic continuity warnings');
+ smartNotice(report);$('rigAuditOutput').textContent=report;say(problems.length?'Animation audit failed':warnings.length?'Animation audit warnings':'Animation audit passed',problems.length?1:0);
+});
+
+console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');

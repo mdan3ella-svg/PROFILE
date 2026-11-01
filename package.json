@@ -1,0 +1,14 @@
+{
+  "name": "profile-verta-offline-builder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}
