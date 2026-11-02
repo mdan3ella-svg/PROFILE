@@ -1,15 +1,12 @@
 {
-  "name": "profile-motion-engine-offline-builder",
-  "private": true,
-  "version": "2026.11.1",
-  "scripts": {
-    "build:offline": "node build-offline.mjs",
-    "check": "node verify.mjs"
+  "name":"profile-motion-engine-offline-builder",
+  "private":true,
+  "version":"0.3.0",
+  "type":"module",
+  "scripts":{
+    "check":"node scripts/check.mjs",
+    "build:offline":"node scripts/build-offline.mjs"
   },
-  "dependencies": {
-    "three": "0.160.0"
-  },
-  "devDependencies": {
-    "esbuild": "0.24.2"
-  }
+  "dependencies":{"three":"0.160.0"},
+  "devDependencies":{"esbuild":"0.25.12"}
 }

@@ -32,3 +32,39 @@ The scorpion GLB contains nine named nodes, no skin, and no animation. Rigid bin
 
 ## Blender / open metarig interchange
 Select a metarig in Blender and execute `blender_export_metarig.py` from its Scripting workspace. Load `profile-metarig-guide.json` in the application's Rig panel. The importer matches compatible bone names, supports proportional model-bounds placement or absolute coordinates, reports unmatched joints, supports optional L/R mirroring and explicit rebinding. This is an interoperable **landmark guide**, not an embedded Rigify engine; full Rigify control rig, constraints, drivers, and native Blender modifiers do not run in browser. Rigify GPL code is not bundled. Results require manual inspection and calibration. The browser app still depends on CDN Three.js unless built using the separate offline build process.
+
+## Motion Studio expansion (November 2026)
+
+Use **MOTION STUDIO** in the timeline header to open the dedicated animation workspace. It adds additive/override per-bone position, quaternion rotation and scale layers (static pose offsets applied after animation evaluation); a six-preset locomotion driver linked to the existing gait system; basic look-at relationships and a connection to existing IK chain targets; named snapshot takes and JSON compilation; keyed channel visualization; camera review; PNG capture and a frame contact sheet. It also includes basic rig/animation state checks.
+
+**Scope limits:** These layers are static weighted offsets, not yet independently keyframed or blended NLA tracks. The take compiler saves/loads timeline snapshots and exports JSON rather than compiling all takes into one multi-clip GLB. Camera captures use the active WebGL canvas; reliable captures on all browsers and continuous video recording need runtime verification. Bone look-at does not enforce joint limits; IK reach depends on an existing valid IK chain. No claims of offline operation, Blender-equivalent animation NLA, professional certification, anatomical accuracy or universal GLB export compatibility are made.
+
+The hosted HTML still imports Three.js over the network. Preserve the existing `assets/humanoid.glb` and `assets/scorpion.glb` in the GitHub Pages repository. This lightweight delivery excludes 3D assets.
+
+
+## Motion Studio extended animation update (November 2026)
+- Per-frame keyed transform layers (bone rotation SLERP, translation, scale); additive/override mode, mute and bake-to-timeline. The compositor is procedural per frame rather than a complete nonlinear animation editor.
+- Saved timeline takes can be compiled as multiple named clips into a single GLB. Confirm target importers correctly recognize all animation clips.
+- Per-bone angular deviation limit relative to rest, tracking / reach, and experimental foot stabilization (not a full constraint graph, robust contact IK or physically modeled stance).
+- Keyframed perspective camera interpolation, optional live WebM capture, PNG snapshots and contact sheets. Recording codec/permission support varies by browser.
+- The `npm run build:offline` script requires one-time internet access to install pinned `three` and `esbuild` dependencies (`npm install`), then bundles local JavaScript and any assets in `assets/`. There is no already-certified single-file HTML in this source release.
+- Automated checks verify JavaScript syntax and controls only. Full physical rigs, export round-trip and browser interoperability remain unverified; do not represent this as certified production software.
+
+## Advanced nonlinear editing update (November 2026)
+
+The Motion Studio panel now includes modules 08–12:
+- **NLA strips:** add saved takes as time-positioned strips; choose start, duration, speed including reverse, fade-in/out, blend weight, override or additive blending. Restrict each strip to selected bone channels through an editable bone mask. The strip preview is evaluated during playback. These are pose-channel masks; not a full transform-axis-specific mixer.
+- **Ordered constraints:** add per-bone angular limits, rotation copy, or aim-to-bone targets; reorder or remove constraints. A dependency check rejects cycles. These evaluation constraints are separate from the original IK stack.
+- **Character root motion path:** author XYZ waypoints at explicit frames, interpolate world-space root position and display a path line.
+- **Shot sequencer:** capture camera poses as independently timed shots; support cuts and overlaps with configurable crossfade. Existing video recording captures the active rendered output.
+
+**Known limitations:** These are in-memory authoring tools. The standalone NLA strip stack, path/shot edits, and ordered constraints are not currently serialized by native project saves or baked automatically into GLB exports. Use the existing timeline bake and multi-clip export for ordinary keyed animation; output from NLA and paths requires an additional integration/baking pass for interoperable GLB delivery. Foot contact still uses experimental heuristics rather than a validated multi-contact solver. A CDN-hosted Three.js build remains online-only. The provided offline build workflow requires local npm dependencies, and no independently confirmed fully offline artifact is included. Static checks do not constitute a browser regression test or certification.
+
+
+## Priority composition export and project persistence patch (2026-11-02)
+- Version 2 project JSON includes Motion Studio layer key maps, takes, angular limits, camera keys, NLA strips, ordered constraints, waypoints, camera shot sequencing and active editor toggles. Older version 1 projects remain readable.
+- Composed NLA/constraints/path/foot IK are sampled into a separate `Composed_NLA_Constraints_Path` glTF animation clip (up to 3,600 samples) alongside available original takes. This is dense sampling, not an editable nonlinear graph in glTF.
+- Root waypoints have editable time-keyed cubic Hermite interpolation, with optional travel-direction alignment; line preview samples the curve.
+- Contact assist adds planted-anchor hysteresis and uses available enabled foot IK chains rather than translating the whole rig as a fallback. This is **not** a force-based dynamics solver; no force, friction, mass or ground collision model is implemented and results are not physically validated.
+- The hosted HTML still imports Three.js from CDN. `npm install && npm run build:offline` is required to produce an offline artifact on a machine with npm dependencies.
+- JS module syntax check passed. Browser runtime and exported GLB round-trip tests have not passed in this execution environment.
