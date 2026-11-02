@@ -79,3 +79,24 @@ The Motion Studio preview now renders the same active scene with its own Three.j
 ## Color workflow / VIS / tutorials refresh (2026-11-02)
 
 The splash screen now distinguishes rig and skin (lime), animation/NLA (purple), locomotion/path (orange), constraints (cyan), camera review (green), and live VIS (blue). The built-in About dialog has Color Workflow, VIS Telemetry, and QA / Limitations chapters. The VIS dock includes a shortcut to the live Motion Studio and an About workflow guide. Existing FPS, joint rotation and sampled weight statistics remain scene-derived; advanced editor counters show `—` unless corresponding editor rows are exposed, rather than displaying fabricated metrics. This is a user-interface/documentation enhancement, **not** an additional validated simulation system. The hosted Three.js CDN dependency remains.
+
+
+## Release gate — 2026-11-02 (not certified)
+
+The hosted `index.html` still depends on CDN Three.js. A self-contained, offline file must be **built**, not merely renamed:
+
+1. Put original `humanoid.glb` and `scorpion.glb` in `assets/`.
+2. With internet available once on your build computer, run `npm ci` (if lockfile present) or `npm install`.
+3. Run `npm run check`, then `npm run verify:glb -- assets/humanoid.glb assets/scorpion.glb`.
+4. Run `npm run build:offline`, then `npm run verify:offline`.
+5. Open `offline/PROFILE_MOTION_ENGINE_OFFLINE.html` with network disabled. Import models, move bones, scrub all animation presets, save/reopen a project and export/reimport GLB in a browser and in Blender.
+
+The offline builder now fails if either demo asset is missing. `verify:offline` rejects remote script tags, an importmap, unresolved Three.js imports, or absent embedded demo assets. Passing this check establishes packaging conditions, **not** full runtime functionality.
+
+### What the new validation does and does not prove
+
+- `verify:glb` checks GLB v2 headers, chunks, JSON, skin joint references, animation sampler references, and presence of weight attributes. It cannot prove accuracy of weight values, hinge placement, exported clip interpolation, or compatibility with Blender.
+- Source model audit: `humanoid.glb` has 1 unskinned mesh and 0 clips; `scorpion.glb` has 9 unskinned meshes and 0 clips. Both therefore require PROFILE-generated rigs.
+- Foot-contact support remains kinematic foot anchoring, not a physical contact-force, friction, inverse-dynamics, or certified stability solver. Do not advertise force-based gait simulation.
+- Constraints are evaluated in the application; their mathematical correctness and cross-runtime export fidelity have not passed an independent compliance suite.
+- Required before any professional certification: automated real-browser rig regression, runtime assertion checks across presets, synthetic contact tests for multiple slopes and velocities, GLB round trips in a second engine, performance and stability testing on target browsers/devices, and independent reviewer signoff.
