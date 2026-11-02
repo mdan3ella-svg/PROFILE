@@ -195,7 +195,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
 <div id="peReport" role="status" style="font:10px/1.5 ui-monospace,monospace;color:#a9d9aa;white-space:pre-wrap">Edit pivots in rest pose; rebinding is explicit, not automatic. Save a project before editing.</div>
 </div></div><div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
-        <div class="label">Scorpion tail fitting</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
+        <div class="label">Scorpion tail fitting</div><label class="label" for="tailSpacing">Spine/tail minimum joint separation (% model depth) <span id="vTailSpacing">3.0%</span></label><input id="tailSpacing" type="range" min="0.5" max="12" step="0.5" value="3" title="Minimum joint-to-joint rest distance for tail guides, relative to model depth"/><button class="btn" id="btnSpreadTail" title="Redistribute scorpion tail rest pivots along their current polyline without modifying skin weights until rebind">SPREAD SCORPION SPINE / TAIL</button><div class="label" id="tailSpreadStatus">Ten tail segments · arc-length spacing · manual rebind required after edits</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
@@ -502,6 +502,14 @@ function materialRegionProfiles(g, materials, fallback){
  const distribution={};for(let i=0;i<n;i++){let best=0,bestVotes=-1;for(let j=0;j<types.length;j++){const v=votes[i*types.length+j];if(v>bestVotes){bestVotes=v;best=j}}region[i]=best;const key=types[best]==='inherit'?fallback:types[best];distribution[key]=(distribution[key]||0)+1}
  return {region,types,distribution,materials:names.length,groups:groups.length};
 }
+function profileArcResample(points,count){
+ const clean=[];for(const p of points)if(p&&Number.isFinite(p.x+p.y+p.z)&&(!clean.length||clean[clean.length-1].distanceTo(p)>1e-8))clean.push(p.clone());
+ if(!clean.length)return Array.from({length:count},()=>V3());
+ if(clean.length===1)return Array.from({length:count},(_,i)=>clean[0].clone().add(V3(0,i*.01,0)));
+ const cumulative=[0];for(let i=1;i<clean.length;i++)cumulative.push(cumulative[i-1]+clean[i].distanceTo(clean[i-1]));
+ const total=cumulative[cumulative.length-1];if(total<1e-8)return Array.from({length:count},()=>clean[0].clone());
+ return Array.from({length:count},(_,i)=>{const dist=total*i/Math.max(1,count-1);let k=1;while(k<cumulative.length-1&&cumulative[k]<dist)k++;const span=cumulative[k]-cumulative[k-1],t=span>1e-9?(dist-cumulative[k-1])/span:0;return clean[k-1].clone().lerp(clean[k],t)});
+}
 function profileShellIslands(vertices){
  // Indexed triangle connectivity, restricted to vertices belonging to this named component.
  // Separate, disconnected rigid CAD pieces may articulate independently; a continuous
@@ -543,6 +551,7 @@ function profileAssignScorpionShells(W,JP){
   const used=new Set();for(const island of selected){const joint=nearest(island);used.add(joint);
    for(const i of island){W.fill(0,i*B,i*B+B);W[i*B+joint]=1}}
   if(name==='tail'&&selected.length===1)issues.push('Tail is a connected shell: one rigid bone used; separate tail links in CAD for articulated rigid motion');
+  if(leg&&selected.length===1)issues.push(raw+': entire leg is one rigid mesh; internal knee/ankle movement requires separate geometry parts');
   reports.push({part:raw,vertices:vertices.length,islands:selected.length,joints:[...used].map(j=>S.joints[j].name),rigid:true});
  }
  return {parts:reports,issues};
@@ -899,22 +908,33 @@ function buildCreatureJoints(type,bb,h,w){
  }
  const valid=bins.filter(Boolean),verticalRange=valid.length?Math.max(...valid.map(v=>v.y))-Math.min(...valid.map(v=>v.y)):0;
  const useFit=fit&&valid.length>=7&&verticalRange>sz.y*.08;
- const count=10;let par=pelvis,curve=[tailStart];
- for(let i=1;i<=count;i++){
-  const t=i/(count+1);let v=null;
-  if(useFit){const k=Math.min(11,Math.round(t*11));v=bins[k];if(!v){for(let off=1;off<=11&&!v;off++)v=bins[k-off]||bins[k+off]||null}}
+ const count=10;let par=pelvis;
+ // Original samples are measurements along Z, NOT equal distances along the curved tail.
+ // Resample by arc length so segments do not cluster where the tail is vertical.
+ const sampled=[tailStart.clone()];
+ for(let i=1;i<=11;i++){
+  const t=i/11;let v=null;
+  if(useFit){v=bins[i];if(!v)for(let off=1;off<=11&&!v;off++)v=bins[i-off]||bins[i+off]||null;}
   if(!v)v=V3(cx,mn.y+sz.y*(.56+lift*(.05*t+.48*t*t)),mn.z+sz.z*(.60-.57*t+.08*t*t));
-  curve.push(v.clone());par=add('tail_seg_'+String(i).padStart(2,'0'),par,(v.x-mn.x)/Math.max(sz.x,1e-6),(v.y-mn.y)/Math.max(sz.y,1e-6),(v.z-mn.z)/Math.max(sz.z,1e-6));
+  if(v.distanceTo(sampled[sampled.length-1])>Math.max(sz.z,1e-6)*.002)sampled.push(v.clone());
  }
  let tip;
- if(useFit){
-  // Snap to a vertex at the distal end of the sampled tail; never an arbitrary box fraction.
-  const last=valid[valid.length-1],far=candidates.filter(v=>v.z<=minZ+span*.16);
-  far.sort((a,b)=>a.distanceTo(last)-b.distanceTo(last));
-  tip=(far[0]||last).clone();
- }else tip=V3(cx,mn.y+sz.y*(.56+lift*.62),mn.z+sz.z*.055);
- add('tail_stinger',par,(tip.x-mn.x)/Math.max(sz.x,1e-6),(tip.y-mn.y)/Math.max(sz.y,1e-6),(tip.z-mn.z)/Math.max(sz.z,1e-6));
- S.tailFitStatus=useFit?'Geometry-scanned tail candidate: '+count+' links; verify tail ownership':'Fallback arc: '+count+' links (tail scan inconclusive)';
+ if(useFit){const last=valid[valid.length-1],far=candidates.filter(v=>v.z<=minZ+span*.16);far.sort((a,b)=>a.distanceTo(last)-b.distanceTo(last));tip=(far[0]||last).clone()}
+ else tip=V3(cx,mn.y+sz.y*(.56+lift*.62),mn.z+sz.z*.055);
+ if(tip.distanceTo(sampled[sampled.length-1])>Math.max(sz.z,1e-6)*.002)sampled.push(tip.clone());
+ const spaced=profileArcResample(sampled,count+2);
+ const gapFraction=Number($('tailSpacing')?.value||3)/100;
+ const gap=Math.max(sz.z*gapFraction,1e-5);
+ // Minimum-spacing enforcement will extend short sections along the local tangent.
+ for(let i=1;i<spaced.length;i++){
+  const delta=spaced[i].clone().sub(spaced[i-1]);
+  if(delta.length()<gap){if(delta.length()<1e-8)delta.copy(spaced[Math.min(i+1,spaced.length-1)]).sub(spaced[Math.max(0,i-1)]);if(delta.length()<1e-8)delta.set(0,.4,-1);delta.normalize();spaced[i].copy(spaced[i-1]).addScaledVector(delta,gap)}
+ }
+ for(let i=1;i<=count;i++){
+  const v=spaced[i];par=add('tail_seg_'+String(i).padStart(2,'0'),par,(v.x-mn.x)/Math.max(sz.x,1e-6),(v.y-mn.y)/Math.max(sz.y,1e-6),(v.z-mn.z)/Math.max(sz.z,1e-6));
+ }
+ tip=spaced[count+1];add('tail_stinger',par,(tip.x-mn.x)/Math.max(sz.x,1e-6),(tip.y-mn.y)/Math.max(sz.y,1e-6),(tip.z-mn.z)/Math.max(sz.z,1e-6));
+ S.tailFitStatus=(useFit?'Geometry-scanned':'Fallback')+' arc-length tail: '+count+' links, minimum spacing '+gap.toFixed(4)+' model units; verify pivots';
  add('mech_torso_plate',ch,.5,.66,.23);add('mech_reactor',sp2,.5,.64,.32);return out;
 }
 let rigSourceGeometry=null,rigSwitchBusy=false,rigStage="idle",rigCancelRequested=false,rigStartedAt=0;
@@ -2232,6 +2252,19 @@ $('ldFrame').addEventListener('input',e=>{S.playing=false;S.frame=+e.target.valu
 $('lookDevModal').addEventListener('click',e=>{if(e.target===$('lookDevModal'))ldToggle(false)});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&ldOpen)ldToggle(false)});
 $('tailCurve').addEventListener('input',e=>$('vTailCurve').textContent=Number(e.target.value).toFixed(2));
+$('tailSpacing').addEventListener('input',e=>$('vTailSpacing').textContent=Number(e.target.value).toFixed(1)+'%');
+$('btnSpreadTail').addEventListener('click',()=>{
+ if(S.rigType!=='scorpion'||!S.mesh?.isSkinnedMesh||S.adopted)return peInfo('Generate a scorpion rig before spacing its spine.',true);
+ const indices=S.joints.map((j,i)=>/^tail_(?:seg_\d+|stinger)$/.test(j.name)?i:-1).filter(i=>i>=0);
+ if(indices.length<2)return peInfo('Missing scorpion tail chain.',true);
+ const prior=S.joints.map(j=>j.pos.clone()),points=[S.joints[indices[0]].parent>=0?S.joints[S.joints[indices[0]].parent].pos.clone():S.joints[indices[0]].pos.clone(),...indices.map(i=>S.joints[i].pos.clone())];
+ const spread=profileArcResample(points,points.length);const range=S.geo.boundingBox||(S.geo.computeBoundingBox(),S.geo.boundingBox);
+ const depth=Math.max(1e-5,range.max.z-range.min.z),gap=depth*Number($('tailSpacing').value)/100;
+ for(let i=1;i<spread.length;i++){const d=spread[i].clone().sub(spread[i-1]);if(d.length()<gap){if(d.length()<1e-8)d.set(0,.3,-1);d.normalize();spread[i].copy(spread[i-1]).addScaledVector(d,gap)}}
+ indices.forEach((idx,k)=>S.joints[idx].pos.copy(spread[k+1]));peHistory.push(prior);peCommit();
+ $('tailSpreadStatus').textContent='Spread '+indices.length+' spine/tail pivots · minimum '+gap.toFixed(4)+' model units. REBIND to apply weights.';
+ peInfo('Scorpion spine pivots redistributed. Inspect pivots and REBIND; original mesh does not contain individual articulated tail links.');
+});
 $('btnTailRefit').addEventListener('click',async()=>{if(!S.geo){say('Import a mesh before scanning its tail',1);return}if($('rigType').value!=='scorpion')$('rigType').value='scorpion';await rig();const c=S.chains.find(c=>c.name==='IK_tail_stinger');if(c&&profileBindComplete){c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3()));say(S.tailFitStatus+' • IK snapped to tail tip')}else say('Tail IK chain unavailable',1)});
 // Consistent discoverability: visible tool labels, native hover tips and keyboard-accessible names.
 const tooltipHints={btnImport:'Import a GLB, GLTF, OBJ mesh or saved project',btnDemo:'Reload the embedded, immutable humanoid GLB reference and build a demo rig',btnNew:'Clear the current scene and start a new rig',btnExport:'Export the current rig as a GLB file',btnPlay:'Play or pause the current animation',btnAutoRig:'Generate a skeleton and bind mesh skin weights',gRot:'Use the gizmo to rotate the selected bone',gMove:'Use the gizmo to move the hips/root',btnResetBone:'Reset the selected bone to its rest rotation',btnResetPose:'Reset the complete skeleton pose',btnMirLR:'Copy left-side pose values to the right side',btnMirRL:'Copy right-side pose values to the left side',btnCreateIK:'Create an IK chain from the selected bone',btnIKOn:'Enable or disable the selected IK chain',btnIKDel:'Delete the selected IK chain',btnIKSnap:'Move the IK target onto its bone position',btnBind:'Recalculate skin weights from the skeleton',btnSmooth:'Smooth the current skin-weight distribution',btnWView:'Show or hide skin-weight colors',btnProc:'Preview procedural motion',btnBake:'Bake the procedural motion into timeline keyframes',srcPose:'Use the live pose as the animation source',srcKeys:'Use timeline keyframes as the animation source',btnExport2:'Export rig and keyed animation as GLB',btnSaveJSON:'Save the editable project as JSON',btnImport2:'Import a model or a saved Motion Engine project',btnKey:'Add a keyframe at the current frame',btnDelKey:'Delete the keyframe at the current frame',btnClearKeys:'Clear all animation keyframes',btnLoop:'Toggle timeline looping'};
