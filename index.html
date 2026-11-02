@@ -180,7 +180,19 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
 <div id="scorpionQA" role="status" style="padding:10px;margin:7px 0;color:#b2e7ff;background:#101d26;border:1px solid #285065;border-radius:7px;font:10px/1.6 ui-monospace,monospace;white-space:pre-wrap">SCORPION DEMO: supplied asset available in the release package. Run the dedicated demo then review the measured calibration results.</div>
 <div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit verifies neutral-pose inverse bind matrices, weights, hierarchy and IK. Auto IK is OFF until enabled. Geometry fitting is approximate; inspect deformations before export.</div>
         <div class="group" style="margin-bottom:9px;border:1px solid #42677a;border-radius:8px;padding:8px"><div class="gh">RIG ORIENTATION · NON-DESTRUCTIVE</div><div class="gb"><label class="label" for="rigFacing">Character forward direction</label><select id="rigFacing"><option value="-Z" selected>−Z · glTF forward (Y up)</option><option value="+Z">+Z · reverse forward</option><option value="+X">+X · facing camera at +X</option><option value="-X">−X · facing camera at −X</option></select><label class="label" for="gaitDirection">Gait direction relative to character forward</label><select id="gaitDirection"><option value="1" selected>Forward — corrected</option><option value="-1">Reverse — alternate rig orientation</option></select><label class="label" for="gaitPhase">Limb swing calibration</label><select id="gaitPhase"><option value="1" selected>Standard · thigh advances forward</option><option value="-1">Flip joint pitch · mirrored rig</option></select><label class="label"><input type="checkbox" id="rootTravel"> Translate root during locomotion (preview only)</label><div class="row"><button class="btn" id="rigFaceView">VIEW CHARACTER FRONT</button><button class="btn" id="rigNeutralReset">RESET NEUTRAL POSE</button></div><div id="rigOrientationStatus" role="status" class="label">glTF coordinates: +Y is UP; -Z is FORWARD. Select the actual model-facing direction. This does not alter bind matrices.</div></div></div><label class="label" for="rigType">Rig preset · rebuilds skeleton; anatomy fitting requires manual verification</label><select id="rigType" title="Choose a rig layout. glTF uses Y-up and -Z-forward; quadruped and scorpion models may require facing-axis calibration"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
-        <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
+        <div class="group" id="precisionBoneEditor" style="border:1px solid #648b55;background:#101b14"><div class="gh">PRECISION BONE EDITOR · REST PIVOTS <span class="badge">NEW</span></div><div class="gb">
+<div class="label">Select a bone in Scene / Skeleton, then edit its REST position. Units follow the imported model.</div>
+<div class="label">Selected joint <b id="peJoint">none</b></div>
+<label class="label">Edit increment <input id="peStep" type="number" min="0.0001" max="100" step="0.001" value="0.01" style="width:90px" aria-label="Joint move increment"></label>
+<label class="label">Minimum separation <input id="peGap" type="number" min="0.0001" max="100" step="0.005" value="0.05" style="width:90px" aria-label="Minimum joint separation"></label>
+<div class="label">REST PIVOT (global model-space coordinates)</div><div class="row"><input aria-label="Rest X" id="peX" type="number" step="any" placeholder="X" style="min-width:0;width:30%"><input aria-label="Rest Y" id="peY" type="number" step="any" placeholder="Y" style="min-width:0;width:30%"><input aria-label="Rest Z" id="peZ" type="number" step="any" placeholder="Z" style="min-width:0;width:30%"></div>
+<div class="row"><button class="btn" id="peApply" title="Commit rest-pivot coordinates and recalculate inverse bind matrices">APPLY REST PIVOT</button><button class="btn" id="peUndo" title="Undo last rest pivot edit">UNDO PIVOT</button></div>
+<div class="row"><button class="btn" data-pe-axis="x" data-pe-dir="-1">X−</button><button class="btn" data-pe-axis="x" data-pe-dir="1">X+</button><button class="btn" data-pe-axis="y" data-pe-dir="-1">Y−</button><button class="btn" data-pe-axis="y" data-pe-dir="1">Y+</button><button class="btn" data-pe-axis="z" data-pe-dir="-1">Z−</button><button class="btn" data-pe-axis="z" data-pe-dir="1">Z+</button></div>
+<div class="row"><button class="btn" id="peSpread" title="Separate near-coincident sibling pivots while respecting parents">SPREAD CLOSE SIBLINGS</button><button class="btn" id="peSnapVertex" title="Move selected rest joint to the nearest mesh vertex">SNAP TO NEAREST VERTEX</button></div>
+<label class="label"><input type="checkbox" id="peChildren" checked> Move descendant pivots together (retain child offsets)</label>
+<div class="row"><button class="btn accent" id="peRebind" title="Recalculate skin weights against the edited rest skeleton">RECALCULATE VERTEX WEIGHTS</button></div>
+<div id="peReport" role="status" style="font:10px/1.5 ui-monospace,monospace;color:#a9d9aa;white-space:pre-wrap">Edit pivots in rest pose; rebinding is explicit, not automatic. Save a project before editing.</div>
+</div></div><div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
         <div class="label">Scorpion tail fitting</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
       </div></div>
@@ -204,7 +216,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
         <div class="label">Binding profile · material regions auto-detected</div><select id="bindProfile"><option value="auto">Auto — rig category</option><option value="organic">Organic / flesh — blended skin</option><option value="android">Android — rigid shells + flexible joints</option><option value="hard">Hard surface / mech — rigid components</option><option value="rubber">Rubber / flexible polymer</option><option value="cloth">Fabric / soft attachments</option></select>
         <div class="label">Rebinding replaces painted weights. Organic, rubber and cloth blend joints; hard surfaces use rigid component assignment where topology permits. Save first.</div>
         <div id="materialRegionReport" role="status" class="label">Import a GLB to inspect material regions.</div><div class="label"><span>Falloff exponent</span><span id="vFall">4.0</span></div><input type="range" id="falloff" min="1" max="8" step="0.5" value="4"/>
-        <button class="btn accent" id="btnBind">RE-SOLVE WEIGHTS</button><button class="btn" id="btnRigidShell" title="Assign every named scorpion mechanical leg shell to one nearest chain joint; tail partitions by nearest tail segment">▣ RIGID SHELL BIND</button><div id="rigidShellReport" role="status" class="label">Rigid shell assignment applies to named Scorpion demo components.</div>
+        <button class="btn accent" id="btnBind">RE-SOLVE WEIGHTS</button><button class="btn" id="btnRigidShell" title="Preserve each named mechanical shell as one rigid part; for tail, each connected topology island gets exactly one bone">▣ RIGID SHELL BIND</button><div id="rigidShellReport" role="status" class="label">Rigid shell assignment applies to named Scorpion demo components.</div>
         <div class="row"><button class="btn" id="btnSmooth">Smooth</button><button class="btn" id="btnWView">Weights: OFF</button></div>
       </div></div>
       <div class="group"><div class="gh">WEIGHT PAINT • <span id="activeBone">none</span></div><div class="gb">
@@ -489,10 +501,25 @@ function materialRegionProfiles(g, materials, fallback){
  const distribution={};for(let i=0;i<n;i++){let best=0,bestVotes=-1;for(let j=0;j<types.length;j++){const v=votes[i*types.length+j];if(v>bestVotes){bestVotes=v;best=j}}region[i]=best;const key=types[best]==='inherit'?fallback:types[best];distribution[key]=(distribution[key]||0)+1}
  return {region,types,distribution,materials:names.length,groups:groups.length};
 }
+function profileShellIslands(vertices){
+ // Indexed triangle connectivity, restricted to vertices belonging to this named component.
+ // Separate, disconnected rigid CAD pieces may articulate independently; a continuous
+ // welded surface MUST NOT be split into different bones at arbitrary vertices.
+ const geo=S.geo,idx=geo.index,part=geo.getAttribute('profilePartId'),id=Math.round(part.getX(vertices[0]));
+ const parent=new Int32Array(geo.attributes.position.count);parent.fill(-1);
+ for(const v of vertices)parent[v]=v;
+ function find(v){let t=v;while(parent[t]!==t)t=parent[t];while(parent[v]!==v){let w=parent[v];parent[v]=t;v=w}return t}
+ function join(a,b){if(parent[a]<0||parent[b]<0)return;let x=find(a),y=find(b);if(x!==y)parent[y]=x}
+ const count=idx?idx.count:geo.attributes.position.count;
+ for(let k=0;k+2<count;k+=3){const x=idx?idx.getX(k):k,y=idx?idx.getX(k+1):k+1,z=idx?idx.getX(k+2):k+2;
+  if(Math.round(part.getX(x))===id&&Math.round(part.getX(y))===id&&Math.round(part.getX(z))===id){join(x,y);join(y,z)}}
+ const groups=new Map();for(const v of vertices){const root=find(v);if(!groups.has(root))groups.set(root,[]);groups.get(root).push(v)}
+ return [...groups.values()];
+}
 function profileAssignScorpionShells(W,JP){
- const attr=S.geo?.getAttribute('profilePartId'), names=S.geo?.userData?.profilePartNames;
- if(!attr||!Array.isArray(names))return {issues:['No named shell metadata available'],parts:[]};
- const pos=S.geo.attributes.position,B=S.B, groups=new Map();
+ const attr=S.geo?.getAttribute('profilePartId'),names=S.geo?.userData?.profilePartNames;
+ if(!attr||!Array.isArray(names))return {issues:['Named shell metadata missing'],parts:[]};
+ const pos=S.geo.attributes.position,B=S.B,groups=new Map();
  for(let i=0;i<S.N;i++){const id=Math.round(attr.getX(i));if(!groups.has(id))groups.set(id,[]);groups.get(id).push(i)}
  const reports=[],issues=[];
  for(const [id,vertices] of groups){
@@ -501,30 +528,31 @@ function profileAssignScorpionShells(W,JP){
   let candidates=[];
   if(leg){const lr=leg.includes('left')?'L':'R',station=leg.includes('front')?1:leg.includes('side')?2:3;
    candidates=['hip','upper','lower','foot'].map(n=>S.idx['leg'+station+'_'+lr+'_'+n]).filter(Number.isInteger);
-  }else if(name==='tail'){
-   candidates=S.joints.map((j,k)=>/^tail_(?:seg_\d+|stinger)$/.test(j.name)?k:-1).filter(k=>k>=0);
-  }else if(name==='body'||name==='front ramp'){
-   candidates=['chest','hips','root'].map(n=>S.idx[n]).filter(Number.isInteger);
-  }
-  if(!candidates.length){issues.push(raw+': no compatible bone');continue}
-  // Named leg/body shells: choose a single bone from centroid of geometry.
-  const center=new THREE.Vector3();for(const v of vertices)center.set(center.x+pos.getX(v),center.y+pos.getY(v),center.z+pos.getZ(v));center.multiplyScalar(1/vertices.length);
-  const nearest=point=>{let best=candidates[0],dist=Infinity;for(const j of candidates){const d=JP[j].distanceToSquared(point);if(d<dist){dist=d;best=j}}return best};
-  const fixed=name!=='tail'?nearest(center):null;
-  const point=new THREE.Vector3(),used=new Set();
-  for(const i of vertices){if(fixed===null)point.set(pos.getX(i),pos.getY(i),pos.getZ(i));const joint=fixed===null?nearest(point):fixed;
-   W.fill(0,i*B,i*B+B);W[i*B+joint]=1;used.add(joint)}
-  reports.push({part:raw,vertices:vertices.length,joints:[...used].map(j=>S.joints[j].name),rigid:fixed!==null});
+  }else if(name==='tail')candidates=S.joints.map((j,k)=>/^tail_(?:seg_\d+|stinger)$/.test(j.name)?k:-1).filter(k=>k>=0);
+  else if(name==='body'||name==='front ramp')candidates=['chest','hips','root'].map(n=>S.idx[n]).filter(Number.isInteger);
+  if(!candidates.length){issues.push(raw+': no mapped bone');continue}
+  const nearest=vs=>{const center=new THREE.Vector3();for(const v of vs){center.x+=pos.getX(v);center.y+=pos.getY(v);center.z+=pos.getZ(v)}center.multiplyScalar(1/vs.length);
+   let best=candidates[0],dist=Infinity;for(const j of candidates){const d=JP[j].distanceToSquared(center);if(d<dist){best=j;dist=d}}return best};
+  // A single contiguous tail mesh is not a set of mechanical hinges: splitting individual
+  // vertices creates shear and triangles stretching across bone boundaries.
+  // Each disconnected island is instead rigidly attached as a whole.
+  const islands=name==='tail'?profileShellIslands(vertices):[vertices];
+  let selected=islands;
+  if(name==='tail' && islands.length>128){selected=[vertices];issues.push('Tail has '+islands.length+' tiny topology islands: locked to one bone pending CAD segmentation');}
+  const used=new Set();for(const island of selected){const joint=nearest(island);used.add(joint);
+   for(const i of island){W.fill(0,i*B,i*B+B);W[i*B+joint]=1}}
+  if(name==='tail'&&selected.length===1)issues.push('Tail is a connected shell: one rigid bone used; separate tail links in CAD for articulated rigid motion');
+  reports.push({part:raw,vertices:vertices.length,islands:selected.length,joints:[...used].map(j=>S.joints[j].name),rigid:true});
  }
  return {parts:reports,issues};
 }
 function profileRigidShellRebind(){
  if(S.rigType!=='scorpion'||!S.geo||!S.W){say('Load and bind the Scorpion demo first',1);return}
  const JP=S.joints.map(j=>j.pos),result=profileAssignScorpionShells(S.W,JP);
- if(result.issues.length){say(result.issues.join('; '),1);return}
+ if(!result.parts.length){say(result.issues.join('; ')||'No compatible parts',1);return}
  applyWeights(true);updateColors();S.rigidShellReport=result;
  const out=$('rigidShellReport');if(out)out.textContent='Rigid shell binding: '+result.parts.map(p=>p.part+' → '+p.joints.join('/')).join(' | ');
- say('Applied rigid named-shell binding; inspect tail segment hinges and leg pivots');
+ say('Rigid shell bind applied. '+result.issues.join('; ').slice(0,180));
 }
 async function computeAutoWeights(){
  const ui=yieldUI; // Legacy compatibility, shared globally with component solver.
@@ -1379,7 +1407,7 @@ function smoothWeights(){if(S.rigType==='scorpion'&&S.bindProfile==='hard'){say(
 function syncGizmo(){tc.detach();if(S.tool==='fk'&&S.sel>=0){tc.setSpace($('gizmoSpace')?.value||'local');tc.attach(S.bones[S.sel])}else if(S.tool==='ik'&&S.gizmoObj){tc.setMode('translate');tc.setSpace($('gizmoSpace')?.value||'world');tc.attach(S.gizmoObj)}}
 tc.addEventListener('mouseDown',toPose);
 tc.addEventListener('objectChange',()=>{if(S.tool==='fk'&&S.sel>=0){const b=S.bones[S.sel];if(tc.mode==='rotate')S.fk[S.sel].copy(b.quaternion);else if(S.sel===S.H)S.hipsOff.copy(b.position).sub(S.hips0);syncSliders()}});
-function selectBone(i){S.sel=i;S.selChain=-1;if(S.tool==='fk')syncGizmo();updateColors();refresh()}
+function selectBone(i){S.sel=i;S.selChain=-1;queueMicrotask(peSync);if(S.tool==='fk')syncGizmo();updateColors();refresh()}
 function selectIK(ci,obj){S.selChain=ci;S.gizmoObj=obj;if(S.tool!=='ik'){setTool('ik')}else syncGizmo();refresh()}
 function setTool(t){S.tool=t;document.querySelectorAll('.tool').forEach(e=>e.classList.toggle('active',e.dataset.tool===t));if(t==='fk')tc.setMode($('gMove').classList.contains('on')?'translate':'rotate');syncGizmo()}
 let down=null;
@@ -2090,7 +2118,7 @@ async function loadScorpionDemo(){
    'VERTEX PREFLIGHT: '+weightCheck.errors.length+' issues — '+(weightCheck.errors.join('; ')||'none'),
    'PRESET VALIDATION: '+(report?JSON.stringify({invalid:report.invalid,unnormal:report.unnormal,unassigned:report.zero}):'unavailable'),
    'SEMANTIC MESH REGIONS: '+meshInfo.map(m=>m.name).join(', '),
-    'NAMED PART ASSIGNMENT: each named leg/body shell binds rigidly to ONE bone. The single tail mesh uses nearest tail-segment assignment.',
+    'NAMED PART ASSIGNMENT: each named leg/body shell binds rigidly to ONE bone. Tail connected islands each attach to one bone. A welded tail cannot bend rigidly without separated CAD links.',
     'WARNING: named part ownership does not certify pivot geometry or deformation. Test all six legs and tail.',
    'PBR: check Look Dev before/after weight display; export and re-import to verify deformation.'
   ];
@@ -2306,6 +2334,65 @@ $('smartAudit').addEventListener('click',()=>{
  const report=(problems.length?'FAIL: '+problems.join(' • '):'PASS: '+frames.length+' keys, '+S.bones.length+' joints, '+(S.max/clipFPS()).toFixed(2)+'s')+(warnings.length?' | WARN: '+warnings.join(' • '):' | No basic continuity warnings');
  smartNotice(report);$('rigAuditOutput').textContent=report;say(problems.length?'Animation audit failed':warnings.length?'Animation audit warnings':'Animation audit passed',problems.length?1:0);
 });
+
+
+/* Precision rest-pivot editor: no network dependency; uses existing state and solver. */
+const peHistory=[];
+function peSync(){const j=S.joints[S.sel];if(!$('peJoint'))return;$('peJoint').textContent=j?.name||'none';for(const [a,k] of [['X','x'],['Y','y'],['Z','z']])$('pe'+a).value=j?Number(j.pos[k].toFixed(6)):'';}
+function peInfo(msg,fail=false){const e=$('peReport');if(e){e.textContent=msg;e.style.color=fail?'#ff9e92':'#a9d9aa'}say(msg,fail)}
+function peEdit(index,destination,includeChildren){
+ if(!S.mesh?.isSkinnedMesh||!S.mesh.skeleton||!S.joints[index])return peInfo('Build or import a skinned rig first.',true);
+ if(![destination.x,destination.y,destination.z].every(Number.isFinite))return peInfo('Coordinates must be finite.',true);
+ if(S.adopted)return peInfo('Imported native skeleton editing requires a dedicated bind-space conversion; use generated rigs.',true);
+ const previous=S.joints.map(j=>j.pos.clone()), delta=destination.clone().sub(previous[index]);
+ if(delta.length()<1e-9)return;
+ peHistory.push(previous);if(peHistory.length>40)peHistory.shift();
+ const affected=new Set([index]);if(includeChildren)for(let i=index+1;i<S.joints.length;i++){let p=S.joints[i].parent;while(p>=0){if(p===index){affected.add(i);break}p=S.joints[p].parent}}
+ affected.forEach(i=>S.joints[i].pos.add(delta));
+ peCommit();peInfo('Moved '+S.joints[index].name+' by '+delta.length().toFixed(5)+' units · '+affected.size+' joint pivots. Weights unchanged until REBIND.');
+}
+function peCommit(){
+ S.playing=false;S.src='pose';S.frame=0;S.keys.clear();S.clip=null;S.chains.forEach(c=>c.on=false);tc.detach();
+ S.fk.forEach((q,i)=>q.copy(S.restQ[i]));S.hipsOff.set(0,0,0);
+ S.joints.forEach((j,i)=>{const p=j.parent;S.restP[i].copy(j.pos);if(p>=0)S.restP[i].sub(S.joints[p].pos);S.bones[i].position.copy(S.restP[i]);S.bones[i].quaternion.copy(S.restQ[i])});
+ S.hips0.copy(S.restP[S.H]);S.root.updateMatrixWorld(true);
+ // Recompute inverse bind matrices after changing joint rests: prevents mesh jumping.
+ S.mesh.skeleton.calculateInverses();S.mesh.skeleton.update();S.mesh.updateMatrixWorld(true);
+ buildMarkers();peSync();refresh();syncRigGuides();
+}
+function peStep(){const v=Number($('peStep').value);return Number.isFinite(v)&&v>0?v:0.01}
+$('peApply').addEventListener('click',()=>{if(S.sel<0)return peInfo('Choose a skeleton bone first',true);peEdit(S.sel,V3(Number($('peX').value),Number($('peY').value),Number($('peZ').value)),$('peChildren').checked)});
+document.querySelectorAll('[data-pe-axis]').forEach(btn=>btn.addEventListener('click',()=>{if(S.sel<0)return peInfo('Choose a skeleton bone first',true);const next=S.joints[S.sel].pos.clone();next[btn.dataset.peAxis]+=peStep()*Number(btn.dataset.peDir);peEdit(S.sel,next,$('peChildren').checked)}));
+$('peUndo').addEventListener('click',()=>{const old=peHistory.pop();if(!old||old.length!==S.joints.length)return peInfo('No compatible pivot edit to undo',true);old.forEach((p,i)=>S.joints[i].pos.copy(p));peCommit();peInfo('Last pivot edit undone.');});
+$('peSpread').addEventListener('click',()=>{
+ if(!S.mesh?.isSkinnedMesh||S.adopted)return peInfo('Build a generated rig before spreading joints',true);
+ const gap=Number($('peGap').value);if(!(gap>0&&Number.isFinite(gap)))return peInfo('Enter a positive minimum separation',true);
+ const old=S.joints.map(j=>j.pos.clone());let moves=0;
+ // Displace only same-parent joints, preserving the parent-child chains and root.
+ const groups=new Map();S.joints.forEach((j,i)=>{if(j.parent<0)return;if(!groups.has(j.parent))groups.set(j.parent,[]);groups.get(j.parent).push(i)});
+ for(const siblings of groups.values())for(let a=0;a<siblings.length;a++)for(let b=a+1;b<siblings.length;b++){
+   const ia=siblings[a],ib=siblings[b],ja=S.joints[ia],jb=S.joints[ib];let d=jb.pos.clone().sub(ja.pos),len=d.length();if(len>=gap)continue;
+   if(len<1e-8){let axis=(b-a)%3;d.set(axis===0?1:0,axis===1?1:0,axis===2?1:0);if(/_R$/.test(jb.name))d.x=-Math.abs(d.x||1)}else d.multiplyScalar(1/len);
+   jb.pos.addScaledVector(d,gap-len);moves++;
+ }
+ if(!moves)return peInfo('No close sibling pivots found.');peHistory.push(old);peCommit();peInfo('Separated '+moves+' close sibling pairs to at least '+gap+' model units. Inspect and rebind.');
+});
+$('peSnapVertex').addEventListener('click',()=>{
+ if(S.sel<0||!S.geo?.getAttribute('position'))return peInfo('Select a bone and load model geometry first',true);
+ const positions=S.geo.getAttribute('position'),point=S.joints[S.sel].pos;let chosen=null,bd=Infinity;
+ for(let i=0;i<positions.count;i++){const dx=positions.getX(i)-point.x,dy=positions.getY(i)-point.y,dz=positions.getZ(i)-point.z,d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;chosen=V3(positions.getX(i),positions.getY(i),positions.getZ(i))}}
+ if(chosen)peEdit(S.sel,chosen,$('peChildren').checked);
+});
+$('peRebind').addEventListener('click',async()=>{
+ if(!S.mesh?.isSkinnedMesh||!S.joints.length)return peInfo('Generate a rig before rebinding.',true);
+ if(S.adopted)return peInfo('Rebinding imported native skeletons is not supported in this editor.',true);
+ if(rigSwitchBusy)return peInfo('An auto-rig operation is already running.',true);
+ if(!confirm('Replace current vertex weights using edited rest pivots? Existing hand-painted weights will be lost.'))return;
+ rigSwitchBusy=true;rigCancelRequested=false;
+ try{await solveWeights();const check=checkNeutralBind();if(check.issues.length)throw new Error(check.issues.join('; '));updateColors();peInfo('Rebind complete. Run CALIBRATE / AUDIT and test poses before export.');}
+ catch(e){peInfo('Rebind failed: '+e.message,true)}finally{rigSwitchBusy=false}
+});
+peSync();
 
 console.log('%cPROFILE | MOTION ENGINE | VERTASCAN','font-size:14px;font-weight:800;color:#a6ff7a');
 </script>

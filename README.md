@@ -24,3 +24,7 @@ Syntax and GLB container integrity are mechanically checked. Six-leg IK controls
 - A single tail mesh still requires authored mechanical splits for true rigid segments.
 - Generic FBX skin adoption is incomplete. Imported GLB animation compatibility should be tested in each target engine.
 - The single-file build's base64 decoding has a transient memory cost proportional to the 31 MB of assets. For constrained devices, use the hosted multi-file edition.
+
+
+## 2026-11-02 rigid binding patch
+The scorpion GLB contains nine named nodes, no skin, and no animation. Rigid bind now maps each named body/leg part to exactly one bone and groups tail vertices by indexed triangle connectivity before assigning one bone per island. Continuous welded tail shells cannot articulate without deformation; such shells are locked rigidly to a single bone and reported. This is a geometry-safety correction, not calibrated mechanical pivot validation. Other rig presets retain the existing skinning logic; no claim of comprehensive dynamic certification is made. Run `npm run check` and check joint rotation, FK/IK, motion and GLB exports in a browser before production use.
