@@ -28,3 +28,7 @@ Syntax and GLB container integrity are mechanically checked. Six-leg IK controls
 
 ## 2026-11-02 rigid binding patch
 The scorpion GLB contains nine named nodes, no skin, and no animation. Rigid bind now maps each named body/leg part to exactly one bone and groups tail vertices by indexed triangle connectivity before assigning one bone per island. Continuous welded tail shells cannot articulate without deformation; such shells are locked rigidly to a single bone and reported. This is a geometry-safety correction, not calibrated mechanical pivot validation. Other rig presets retain the existing skinning logic; no claim of comprehensive dynamic certification is made. Run `npm run check` and check joint rotation, FK/IK, motion and GLB exports in a browser before production use.
+
+
+## Blender / open metarig interchange
+Select a metarig in Blender and execute `blender_export_metarig.py` from its Scripting workspace. Load `profile-metarig-guide.json` in the application's Rig panel. The importer matches compatible bone names, supports proportional model-bounds placement or absolute coordinates, reports unmatched joints, supports optional L/R mirroring and explicit rebinding. This is an interoperable **landmark guide**, not an embedded Rigify engine; full Rigify control rig, constraints, drivers, and native Blender modifiers do not run in browser. Rigify GPL code is not bundled. Results require manual inspection and calibration. The browser app still depends on CDN Three.js unless built using the separate offline build process.
