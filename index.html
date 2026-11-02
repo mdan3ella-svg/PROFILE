@@ -210,6 +210,17 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
         <div class="tree" id="ikList"></div>
         <div class="label"><span>IK ↔ FK blend (selected chain)</span><span id="vBlend">1.00</span></div><input type="range" id="ikfk" min="0" max="1" step="0.01" value="1"/>
         <div class="row"><button class="btn" id="btnIKOn">Toggle</button><button class="btn" id="btnIKDel">Delete</button><button class="btn" id="btnIKSnap">Snap to bone</button></div>
+        <div class="group" style="margin:8px 0 0"><div class="gh">SCORPION · TAIL TIP IK CONTROLLER</div><div class="gb">
+          <div class="label" id="tailIKState" role="status">Load and rig scorpion to activate tail controls</div>
+          <div class="row"><button class="btn accent" id="tailIKActivate" title="Enable the existing full tail chain, select its green tip target and use the translate gizmo">ENABLE TIP IK + SELECT TARGET</button><button class="btn" id="tailIKOff">TAIL FK / OFF</button></div>
+          <label class="label">Target move step (model units) <input type="number" id="tailIKStep" value="0.05" min="0.0001" step="0.01" style="width:90px"/></label>
+          <div class="label">TIP TARGET · WORLD XYZ</div><div class="row"><input id="tailIKX" type="number" step="any" placeholder="X" aria-label="Tail target world X" style="width:30%;min-width:0"><input id="tailIKY" type="number" step="any" placeholder="Y" aria-label="Tail target world Y" style="width:30%;min-width:0"><input id="tailIKZ" type="number" step="any" placeholder="Z" aria-label="Tail target world Z" style="width:30%;min-width:0"></div>
+          <div class="row"><button class="btn" id="tailIKApply">SET TIP TARGET</button><button class="btn" id="tailIKReset">SNAP TO CURRENT TIP</button></div>
+          <div class="row"><button class="btn" data-tail-axis="x" data-tail-dir="-1">X−</button><button class="btn" data-tail-axis="x" data-tail-dir="1">X+</button><button class="btn" data-tail-axis="y" data-tail-dir="-1">Y−</button><button class="btn" data-tail-axis="y" data-tail-dir="1">Y+</button><button class="btn" data-tail-axis="z" data-tail-dir="-1">Z−</button><button class="btn" data-tail-axis="z" data-tail-dir="1">Z+</button></div>
+          <div class="label">Bend guide / pole · WORLD XYZ</div><div class="row"><input id="tailPoleX" type="number" step="any" placeholder="X" aria-label="Tail pole X" style="width:30%;min-width:0"><input id="tailPoleY" type="number" step="any" placeholder="Y" aria-label="Tail pole Y" style="width:30%;min-width:0"><input id="tailPoleZ" type="number" step="any" placeholder="Z" aria-label="Tail pole Z" style="width:30%;min-width:0"></div>
+          <div class="row"><button class="btn" id="tailPoleApply">SET POLE</button><button class="btn" id="tailPoleSelect">SELECT BLUE POLE GIZMO</button></div>
+          <div class="label">Target moves do not recalculate or blend vertex weights. Rigid part binding is preserved.</div>
+        </div></div></div>
       </div></div>
     </div>
     <div class="panel" id="panel-skin">
@@ -1199,6 +1210,18 @@ function autoChains(){const ln=a=>S.alias?S.alias[a]:a;const candidates=[['upLeg
  const tailNames=Array.from({length:10},(_,i)=>'tail_seg_'+String(i+1).padStart(2,'0')).concat('tail_stinger');
  if(tailNames.every(n=>S.idx[n]!==undefined))mkChain(tailNames,V3(0,1,-.7),1);
 }
+// Dedicated scorpion tail controls edit the existing target, never the vertex weights.
+function tailIKChain(){return S.rigType==='scorpion'?S.chains.find(c=>c.name==='IK_tail_stinger'&&c.idx.length>=3):null}
+function tailIKSync(){const c=tailIKChain(),state=$('tailIKState');if(!state)return;if(!c){state.textContent='Scorpion tail chain unavailable — build the Scorpion rig';return}
+ const n=c.idx.length;const length=c.idx.slice(1).reduce((a,idx,k)=>a+S.joints[idx].pos.distanceTo(S.joints[c.idx[k]].pos),0);
+ state.textContent=(c.on?'IK ACTIVE':'FK / IK OFF')+' • '+n+' joints • rest chain '+length.toFixed(3)+' units • blend '+c.blend.toFixed(2);
+ for(const [id,v] of [['tailIKX',c.target.position.x],['tailIKY',c.target.position.y],['tailIKZ',c.target.position.z],['tailPoleX',c.pole.position.x],['tailPoleY',c.pole.position.y],['tailPoleZ',c.pole.position.z]]){const e=$(id);if(e&&document.activeElement!==e)e.value=v.toFixed(4)}
+}
+function tailIKEnable(){const c=tailIKChain();if(!c){say('Build the Scorpion rig first: no tail-tip chain',1);return null}
+ if(S.src!=='pose'){S.src='pose';S.playing=false;$('btnPlay').textContent='▶ PLAY';$('hudSrc').textContent='pose';S.root?.updateMatrixWorld(true);c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3()));}
+ c.on=true;c.blend=1;selectIK(S.chains.indexOf(c),c.target);tailIKSync();return c}
+function tailIKMove(x,y,z){const c=tailIKEnable();if(!c)return;if(![x,y,z].every(Number.isFinite)){say('Invalid tail-tip XYZ coordinates',1);return}
+ c.target.position.set(x,y,z);tailIKSync();say('Tail-tip IK target moved (rigid shell weights unchanged)')}
 function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.some(i=>i===undefined))return null;
  S.root.updateMatrixWorld(true);const end=S.bones[idx[idx.length-1]].getWorldPosition(V3()),mid=S.bones[idx[Math.min(1,idx.length-2)]].getWorldPosition(V3()),r=Math.max(.02,S.h*.02);
  const target=new THREE.Mesh(new THREE.BoxGeometry(r*1.6,r*1.6,r*1.6),new THREE.MeshBasicMaterial({color:0x55ff55,depthTest:false,transparent:true,opacity:.85}));const pole=new THREE.Mesh(new THREE.SphereGeometry(r,10,10),new THREE.MeshBasicMaterial({color:0x55aaff,depthTest:false,transparent:true,opacity:.85}));
@@ -1206,7 +1229,7 @@ function mkChain(names,poleOff,blend){const idx=names.map(n=>S.idx[n]);if(idx.so
  const endName=names[names.length-1];const c={name:'IK_'+endName,idx,target,pole,blend:blend,on:false,rest:end.clone(),foot:/foot/i.test(endName),side:/(?:_R(?:_|$)|Right)/.test(names.join('_'))?1:0};const pw=idx.map(i=>S.bones[i].getWorldPosition(V3()));c.len=pw.slice(1).reduce((sum,v,i)=>sum+v.distanceTo(pw[i]),0);c.root0=pw[0];target.userData.chain=pole.userData.chain=S.chains.length;target.userData.kind='target';pole.userData.kind='pole';
  S.chains.push(c);ovl.add(target,pole);return c}
 function solveChain(ch){if(!ch.on||ch.blend<=0)return;const bs=ch.idx.map(i=>S.bones[i]),n=bs.length;S.root.updateMatrixWorld(true);
- const P=bs.map(b=>b.getWorldPosition(V3())),L=[];for(let i=0;i<n-1;i++)L.push(P[i].distanceTo(P[i+1]));const T=ch.target.position.clone(),root=P[0].clone(),total=L.reduce((a,b)=>a+b,0),footQ=ch.foot?bs[n-1].getWorldQuaternion(Q()):null,lastFk=bs[n-1].quaternion.clone();
+ const P=bs.map(b=>b.getWorldPosition(V3())),L=[];for(let i=0;i<n-1;i++)L.push(P[i].distanceTo(P[i+1]));if(L.some(l=>!Number.isFinite(l)||l<1e-6)){if(!ch.warnedShort){say("IK chain contains overlapping pivots; spread tail joints in Rig before using IK",1);ch.warnedShort=true}return;}const T=ch.target.position.clone(),root=P[0].clone(),total=L.reduce((a,b)=>a+b,0),footQ=ch.foot?bs[n-1].getWorldQuaternion(Q()):null,lastFk=bs[n-1].quaternion.clone();
  if(n===3){/* exact analytic two-bone IK (law of cosines); the knee is pushed toward the pole vector */
   const ax=T.clone().sub(root),d=ax.length();if(d>1e-6){ax.divideScalar(d);const dd=Math.min(Math.max(d,Math.abs(L[0]-L[1])+1e-4),total-1e-5),x=(L[0]*L[0]+dd*dd-L[1]*L[1])/(2*dd),hh=Math.sqrt(Math.max(0,L[0]*L[0]-x*x));
    let pd=ch.pole.position.clone().sub(root);pd.addScaledVector(ax,-pd.dot(ax));if(pd.length()<1e-6){pd=P[1].clone().sub(root);pd.addScaledVector(ax,-pd.dot(ax))}if(pd.length()<1e-6)pd=Math.abs(ax.y)<.9?V3(0,1,0).cross(ax):V3(1,0,0).cross(ax);pd.normalize();
@@ -1508,7 +1531,7 @@ function refresh(){$('boneCount').textContent=S.joints.length;$('hudIK').textCon
  $('addonList').innerHTML=S.addons.map((a,i)=>`<div class="ti ${S.clip===a&&S.src==='clip'?'sel':''}" data-i="${i}">▶ ${a.name} • ${a.clip.duration.toFixed(1)}s</div>`).join('')||'<div class="label">None loaded</div>';
  $('addonList').querySelectorAll('.ti').forEach(el=>el.onclick=()=>{useClip(S.addons[+el.dataset.i]);S.playing=true;$('btnPlay').textContent='⏸ PAUSE'});
  
- syncSliders()}
+ syncSliders();tailIKSync()}
 document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(t=>t.classList.remove('active'));el.classList.add('active');$('panel-'+el.dataset.tab).classList.add('active')});
 document.querySelectorAll('.tool').forEach(el=>el.onclick=()=>setTool(el.dataset.tool));
 const bind=(id,fn,ev='oninput')=>$(id)[ev]=fn;
@@ -1533,6 +1556,13 @@ bind('btnCreateIK',()=>{if(S.sel<2){say('Select a bone at least 2 levels below t
 bind('ikfk',e=>{const c=S.chains[S.selChain];if(!c)return;c.blend=+e.target.value;$('vBlend').textContent=c.blend.toFixed(2);if(S.src!=='keys')toPose();refresh()});
 bind('btnIKOn',()=>{const c=S.chains[S.selChain];if(c){c.on=!c.on;refresh()}},'onclick');
 bind('btnIKSnap',()=>{const c=S.chains[S.selChain];if(c){toPose();syncTargets();say('Target snapped to bone')}},'onclick');
+bind('tailIKActivate',()=>{if(tailIKEnable())say('Drag green target or use XYZ / step controls to pose tail from tip')},'onclick');
+bind('tailIKOff',()=>{const c=tailIKChain();if(!c)return;c.on=false;tailIKSync();refresh();say('Tail IK disabled: segment FK available')},'onclick');
+bind('tailIKApply',()=>tailIKMove(Number($('tailIKX').value),Number($('tailIKY').value),Number($('tailIKZ').value)),'onclick');
+bind('tailIKReset',()=>{const c=tailIKChain();if(!c)return;S.root?.updateMatrixWorld(true);c.target.position.copy(S.bones[c.idx[c.idx.length-1]].getWorldPosition(V3()));tailIKSync();say('Tail target snapped to current tip')},'onclick');
+bind('tailPoleApply',()=>{const c=tailIKEnable();if(!c)return;const p=['tailPoleX','tailPoleY','tailPoleZ'].map(id=>Number($(id).value));if(!p.every(Number.isFinite)){say('Invalid tail pole coordinates',1);return}c.pole.position.set(...p);tailIKSync()},'onclick');
+bind('tailPoleSelect',()=>{const c=tailIKEnable();if(c)selectIK(S.chains.indexOf(c),c.pole)},'onclick');
+document.querySelectorAll('[data-tail-axis]').forEach(b=>b.addEventListener('click',()=>{const c=tailIKChain();if(!c){say('Build Scorpion rig first',1);return}const step=Number($('tailIKStep').value);if(!Number.isFinite(step)||step<=0){say('Choose a positive movement step',1);return}const p=c.target.position.clone();p[b.dataset.tailAxis]+=step*Number(b.dataset.tailDir);tailIKMove(p.x,p.y,p.z)}));
 bind('btnIKDel',()=>{const c=S.chains[S.selChain];if(!c)return;ovl.remove(c.target,c.pole);S.chains.splice(S.selChain,1);S.chains.forEach((k,i)=>k.target.userData.chain=k.pole.userData.chain=i);S.selChain=-1;S.gizmoObj=null;syncGizmo();refresh()},'onclick');
 bind('falloff',e=>{S.falloff=+e.target.value;$('vFall').textContent=S.falloff.toFixed(1)});
 bind('btnBind',async()=>{if(!S.geo||!S.W){say('No rig',1);return}if(rigSwitchBusy)return;rigSwitchBusy=true;try{await solveWeights();say('Weights re-solved')}catch(e){console.error('[PROFILE] Weight solve failure',e);say('Weight solve failed: '+e.message+' — see browser console for source line',1)}finally{rigSwitchBusy=false}},'onclick');
