@@ -365,7 +365,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
 @media(prefers-reduced-motion:reduce){#motionSuite *{scroll-behavior:auto!important;transition:none!important}}
 </style>
 <div id="motionSuite" hidden role="dialog" aria-modal="true" aria-label="PROFILE Motion Studio">
- <div class="mshead"><b style="color:#a6ff7a">PROFILE / MOTION STUDIO</b><span style="color:#91adc1">LAYERS · CURVES · CLIPS · DRIVERS · CAMERAS</span><button id="msPlay">▶ PLAY</button><button id="msKey">◆ KEY POSE</button><button id="msClose" style="margin-left:auto">✕ CLOSE</button></div>
+ <div class="mshead"><b style="color:#a6ff7a">PROFILE / MOTION STUDIO</b><span style="color:#91adc1">LAYERS · CURVES · CLIPS · DRIVERS · CAMERAS</span><button id="msPlay">▶ PLAY</button><button id="msKey">◆ KEY POSE</button><button type="button" id="msReturnMain" style="margin-left:auto;background:#a6ff7a;color:#0a1709;font-weight:800">↩ MAIN RIGGING APP</button><button id="msClose">✕ CLOSE</button></div>
  <nav class="studio-nav" aria-label="Motion Studio workflow navigation">
  <button type="button" class="studio-nav-btn selected" data-focus="layers" aria-pressed="true"><span class="studio-dot"></span>01 LAYERS</button>
  <button type="button" class="studio-nav-btn" data-focus="locomotion" aria-pressed="false"><span class="studio-dot"></span>02 LOCOMOTION</button>
@@ -378,7 +378,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
  <button type="button" class="studio-nav-btn" data-focus="paths" aria-pressed="false"><span class="studio-dot"></span>09 PATHS</button>
  <button type="button" class="studio-nav-btn" data-focus="cameras" aria-pressed="false"><span class="studio-dot"></span>10 CAMERAS</button>
  </nav>
- <div class="studio-guidance" role="status" aria-live="polite"><b id="studioFocusLabel">ANIMATION LAYERS</b><span id="studioFocusHelp">Purple · Layer poses, set weights, key channels and bake composites.</span><span class="studio-guidance-right">Select a module above to locate its real editing controls</span></div>
+ <div class="studio-guidance" role="status" aria-live="polite"><b id="studioFocusLabel">ANIMATION LAYERS</b><span id="studioFocusHelp">Purple · Layer poses, set weights, key channels and bake composites.</span><span class="studio-guidance-right">Select a module to open its working panel · ↩ MAIN RIGGING APP returns to the 3D workspace</span></div>
  <div class="msgrid"><div class="mscol">
  <fieldset class="msviolet"><legend>01 / ANIMATION LAYERS</legend><div class="msrow"><input id="msLayerName" aria-label="Layer name" placeholder="Layer name"><button id="msLayerAdd">+ LAYER</button></div><select id="msLayerList" size="4" aria-label="Animation layers"></select><label>Mode <select id="msLayerMode"><option value="add">Additive</option><option value="override">Override</option></select></label><label>Channel <select id="msChannel"><option value="rot">Bone rotation</option><option value="pos">Bone translation</option><option value="scale">Bone scale</option></select></label><label>Weight <input type="range" id="msWeight" min="0" max="1" step=".01" value="1"></label><div class="msrow"><button id="msLayerRecord">◆ KEY AT FRAME</button><button id="msLayerClear">CLEAR</button><button id="msLayerDelete">DELETE</button></div><label>Layer interpolation <select id="msLayerInterp"><option value="linear">Linear / quaternion SLERP</option><option value="step">Stepped / hold</option><option value="smooth">Smoothstep</option></select></label><div class="msrow"><button id="msLayerBake">BAKE LAYERS TO TIMELINE</button><button id="msLayerRemoveKey">REMOVE FRAME KEY</button></div><label><input type="checkbox" id="msLayerMute"> Mute layer</label></fieldset>
  <fieldset class="msorange"><legend>02 / PROCEDURAL LOCOMOTION</legend><label>Preset <select id="msMotion"><option>walk</option><option>run</option><option>idle</option><option>jump</option><option>sneak</option><option>strut</option></select></label><label>Speed <input id="msSpeed" type="range" min="0.1" max="3" step=".05" value="1"></label><label>Stride <input id="msStride" type="range" min="0.1" max="2.5" step=".05" value="1"></label><div class="msrow"><button id="msPreviewMotion">PREVIEW</button><button id="msBakeMotion">BAKE KEYS</button></div><div class="mscaption">Uses the existing rig-specific gait solver and baked-key pipeline.</div></fieldset>
@@ -393,24 +393,33 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
 <script id="motionStudioUXWiring">
 (()=>{
  const suite=document.getElementById('motionSuite');if(!suite)return;
- const advanced=document.getElementById('advancedNla');
- const map={layers:['.msviolet','ANIMATION LAYERS','Purple · Layer poses, key transform channels and blend weighted tracks.'],locomotion:['.msorange','LOCOMOTION DRIVERS','Orange · Preview gait presets, adjust stride and bake motion.'],targets:['.mscyan','TARGET RELATIONSHIPS','Cyan · Assign tracking bones, adjust target reach and IK.'],viewer:['.mscenter fieldset','MOTION REVIEW VIEWER','Green · Inspect camera angles, capture PNGs and review blocking.'],clips:['.mscol:last-child fieldset','CLIP COMPILER & GRAPH','Purple · Store takes, inspect curves and compile animation exports.'],nla:['#nStripList','NONLINEAR CLIP STRIPS','Purple · Arrange takes on strips, retime, mask and blend.'],masks:['#nMask','PER-BONE CHANNEL MASKS','Purple · Restrict clip influence to selected bones and channels.'],constraints:['#nConstraintList','ORDERED CONSTRAINT STACKS','Cyan · Add joint limits, aim and copy constraints.'],paths:['#nPathList','CHARACTER MOTION PATHS','Orange · Edit frame-based spline path waypoints.'],cameras:['#nShotList','CINEMATIC SHOT SEQUENCER','Green · Set shot starts, ends and camera switching.']};
- const target=(key)=>{const selector=map[key]?.[0];if(!selector)return null;const node=suite.querySelector(selector);return node?.closest('fieldset')||node};
- function focus(key){const item=map[key];if(!item)return;const nav=suite.querySelector('.studio-nav');const button=nav.querySelector('[data-focus="'+key+'"]');if(!button)return;
- nav.querySelectorAll('.studio-nav-btn').forEach(b=>{const on=b===button;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on))});
- suite.querySelector('#studioFocusLabel').textContent=item[1];suite.querySelector('#studioFocusHelp').textContent=item[2];
- suite.querySelector('.studio-guidance').style.setProperty('--focus-color',getComputedStyle(button).getPropertyValue('--focus-color'));
- suite.querySelectorAll('.studio-focused').forEach(e=>e.classList.remove('studio-focused'));
- const field=target(key);if(!field)return;field.classList.add('studio-focused');
- const container=field.closest('#advancedNla')||field.closest('.mscol')||field.closest('.mscenter');
- if(container){container.scrollTop=Math.max(0,field.offsetTop-container.offsetTop-18)}
- if(key==='nla'||key==='masks'||key==='constraints'||key==='paths'||key==='cameras')advanced?.scrollIntoView({block:'end',behavior:'smooth'});
- else field.scrollIntoView({block:'nearest',behavior:'smooth'});
+ const adv=document.getElementById('advancedNla');
+ const items={layers:['#msLayerList','ANIMATION LAYERS','Key bone transforms and adjust layer weights.'],locomotion:['#msMotion','LOCOMOTION DRIVERS','Select a gait, preview or bake to keys.'],targets:['#msTracking','TARGET RELATIONSHIPS','Set target, IK reach and joint limits.'],viewer:['#msPreview','MOTION REVIEW VIEWER','Set viewpoints, capture frames or record.'],clips:['#msTakeList','CLIP COMPILER','Save takes or export a multi-clip GLB.'],nla:['#nStripList','NLA CLIP STRIPS','Add, retime and blend animation strips.'],masks:['#nMask','BONE MASKS','Restrict clip influences to bone channels.'],constraints:['#nConstraintList','CONSTRAINT STACKS','Configure ordered joint constraints.'],paths:['#nPathList','CHARACTER PATHS','Edit spline-based root motion.'],cameras:['#nShotList','CAMERA SHOTS','Edit the cinematic camera sequencer.']};
+ const report=document.getElementById('studioFocusHelp');
+ const sel=(key)=>suite.querySelector(items[key]?.[0]||'#__none__')?.closest('fieldset');
+ const nav=[...suite.querySelectorAll('.studio-nav-btn')];
+ const scrollToPanel=(field)=>{
+  if(!field)return;
+  let a=field.parentElement;
+  while(a && a!==suite){if(a.scrollHeight>a.clientHeight+3){a.scrollTop+=field.getBoundingClientRect().top-a.getBoundingClientRect().top-15;}a=a.parentElement;}
+ };
+ function focus(key){const info=items[key],field=sel(key);if(!info||!field){if(report)report.textContent='Panel not found: '+key;return;}
+  nav.forEach(b=>{const yes=b.dataset.focus===key;b.classList.toggle('selected',yes);b.setAttribute('aria-pressed',String(yes));});
+  suite.querySelectorAll('fieldset.studio-focused').forEach(el=>el.classList.remove('studio-focused'));field.classList.add('studio-focused');
+  document.getElementById('studioFocusLabel').textContent=info[1];report.textContent=info[2];
+  if(adv)adv.style.display=['nla','masks','constraints','paths','cameras'].includes(key)?'block':'none';
+  requestAnimationFrame(()=>scrollToPanel(field));
  }
- suite.querySelectorAll('.studio-nav-btn').forEach(b=>b.addEventListener('click',()=>focus(b.dataset.focus)));
- document.getElementById('msLaunch')?.addEventListener('click',()=>{suite.querySelector('.studio-nav')?.scrollTo(0,0);requestAnimationFrame(()=>focus('layers'))});
+ nav.forEach(b=>b.addEventListener('click',()=>focus(b.dataset.focus)));
+ const back=()=>{suite.hidden=true;document.getElementById('canvas')?.focus?.();};
+ document.getElementById('msReturnMain')?.addEventListener('click',back);
+ document.getElementById('msLaunch')?.addEventListener('click',()=>{suite.hidden=false;focus('layers')});
+ document.getElementById('msClose')?.addEventListener('click',back);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!suite.hidden)back();});
+ suite.dataset.workflowReady='true';
 })();
 </script>
+<style id="msNavigationFix">#motionSuite .studio-nav-btn{cursor:pointer;pointer-events:auto}#motionSuite .studio-nav-btn.selected{outline:2px solid var(--focus-color,#aeff72);outline-offset:-2px}#motionSuite #msReturnMain{background:#a6ff7a!important;color:#071407!important;border-color:#a6ff7a!important}#advancedNla{display:none}#motionSuite [hidden]{display:none!important}#engineHealth{position:fixed;z-index:1600;bottom:14px;left:14px;background:#302013;color:#ffcc8d;border:1px solid #b87c45;padding:10px 14px;border-radius:6px;font:12px monospace;max-width:440px;display:none}</style><div id="engineHealth" role="alert"></div><script>window.addEventListener('error',function(e){const m=String(e.message||'');if(/module|import|three|failed to fetch/i.test(m)){const d=document.getElementById('engineHealth');if(d){d.style.display='block';d.textContent='3D engine failed to load. Check Three.js network dependency and console: '+m;}}});window.addEventListener('unhandledrejection',function(e){const m=String(e.reason||'');if(/module|import|three|fetch/i.test(m)){const d=document.getElementById('engineHealth');if(d){d.style.display='block';d.textContent='3D engine dependency error: '+m;}}});</script>
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
