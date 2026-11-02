@@ -68,3 +68,7 @@ The Motion Studio panel now includes modules 08–12:
 - Contact assist adds planted-anchor hysteresis and uses available enabled foot IK chains rather than translating the whole rig as a fallback. This is **not** a force-based dynamics solver; no force, friction, mass or ground collision model is implemented and results are not physically validated.
 - The hosted HTML still imports Three.js from CDN. `npm install && npm run build:offline` is required to produce an offline artifact on a machine with npm dependencies.
 - JS module syntax check passed. Browser runtime and exported GLB round-trip tests have not passed in this execution environment.
+
+## 2026-11-02 — Motion Studio visual workflow correction
+
+The Motion Studio overlay now includes a persistent 10-module navigation ribbon with functional jumps to Animation Layers, Locomotion, Target Relationships, Review Viewer, Clips/Curves, NLA Strips, Bone Masks, Constraints, Character Paths and Cameras. Each module is discipline-color-coded (purple/orange/cyan/green), with matching fieldset accents, selected-module descriptions and focus outlines. The navigation is UI-only and preserves the existing animation engine and data model. Static source/syntax verification passed. Automated Chromium navigation was blocked by the environment (`ERR_BLOCKED_BY_ADMINISTRATOR`), so visual and workflow browser QA still needs confirmation after deployment.
