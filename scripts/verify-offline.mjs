@@ -1,0 +1,12 @@
+import {readFile} from 'node:fs/promises';
+const file=process.argv[2]||'offline/PROFILE_MOTION_ENGINE_OFFLINE.html';
+const html=await readFile(file,'utf8');
+const failures=[];
+if(/<script[^>]+\bsrc\s*=\s*["']https?:/i.test(html))failures.push('remote script');
+if(/<script[^>]*type=["']importmap/i.test(html))failures.push('importmap remains');
+if(/from\s*["']three(?:\/|["'])/.test(html))failures.push('unbundled import');
+if(!html.includes('window.__PROFILE_EMBEDDED_ASSETS__'))failures.push('embedded asset loader absent');
+for(const name of ['humanoid','scorpion'])if(!new RegExp('"'+name+'":"data:model/gltf-binary;base64,').test(html))failures.push(`${name} model not embedded`);
+if(/<script[^>]+\bsrc\s*=\s*["']\/?\//i.test(html))failures.push('scheme-relative remote script');
+console.log(failures.length?'FAIL: '+failures.join('; '):'PASS: local modules and both demo models embedded; no remote script references');
+if(failures.length)process.exit(1);

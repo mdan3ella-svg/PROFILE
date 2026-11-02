@@ -11,7 +11,7 @@ let code=built.outputFiles[0].text;
 const assets={};
 for(const [key,file] of [['humanoid','assets/humanoid.glb'],['scorpion','assets/scorpion.glb']]){
  try{const buf=await readFile(path.join(base,file));assets[key]=`data:model/gltf-binary;base64,${buf.toString('base64')}`}
- catch{console.warn(`Optional GLB missing: ${file} — demo must be imported manually`)}
+ catch{throw new Error(`Offline release requires ${file}; place your original model in assets/ before building`)}
 }
 // The hosted application requests ./assets/*.glb; intercept only these exact paths.
 const loader=`<script>window.__PROFILE_EMBEDDED_ASSETS__=${JSON.stringify(assets)};if(Object.keys(window.__PROFILE_EMBEDDED_ASSETS__).length){const original=window.fetch.bind(window);window.fetch=(input,options)=>{const url=typeof input==='string'?input:input instanceof URL?input.href:input?.url||'';const match=String(url).match(/(?:^|\\/)assets\\/(humanoid|scorpion)\\.glb(?:[?#]|$)/);if(match&&window.__PROFILE_EMBEDDED_ASSETS__[match[1]])return original(window.__PROFILE_EMBEDDED_ASSETS__[match[1]],options);return original(input,options)}}<\/script>`;
@@ -21,3 +21,4 @@ html=html.replace(/<script type="importmap">[\s\S]*?<\/script>/,'');
 try {const manual=await readFile(path.join(base,'operator-manual.html'),'utf8');const m64=Buffer.from(manual).toString('base64');html=html.replace("src='./operator-manual.html'",`src='data:text/html;base64,${m64}'`);html=html.replace("src='./operator-manual.html'",`src='data:text/html;base64,${m64}'`);html=html.replace(".src='./operator-manual.html'",`.src='data:text/html;base64,${m64}'`)}catch{}
 await mkdir(path.join(base,'offline'),{recursive:true});const out=path.join(base,'offline','PROFILE_MOTION_ENGINE_OFFLINE.html');await writeFile(out,html);
 console.log('Built',out,'bytes',Buffer.byteLength(html));
+console.log('Run npm run verify:offline to check the generated bundle.');
