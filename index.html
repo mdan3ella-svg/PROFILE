@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PROFILE | MOTION ENGINE | VERTASCAN — Evaluation PBR Audit</title>
+<title>PROFILE | MOTION ENGINE | VERTASCAN — Engineering Evaluation · 2026.11</title>
 <meta name="description" content="Single-file 3D rigging engine: auto-rig, skin weights and painting, FK/IK with pole vectors and blend, procedural motion, keyframes, GLB and project import/export. By Vertascan."/>
 <meta name="theme-color" content="#08080a"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23000'/%3E%3Cpath d='M6 8l10 18L26 8' fill='none' stroke='%23a6ff7a' stroke-width='3'/%3E%3C/svg%3E"/>
@@ -177,7 +177,7 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
     <div class="panel" id="panel-rig">
       <div class="group"><div class="gh">AUTO-RIG</div><div class="gb">
         <div class="group" style="margin-bottom:9px;border:1px solid #42677a;border-radius:8px;padding:8px"><div class="gh">FRONT POSE STUDIO · EDITABLE</div><div class="gb"><div class="row" style="flex-wrap:wrap;gap:5px"><button class="btn" id="poseRelax">ARMS DOWN / RELAX</button><button class="btn" id="poseT">T-POSE</button><button class="btn" id="poseA">A-POSE</button><button class="btn" id="poseAccessory">ACCESSORY</button></div><label class="label" for="poseAngle">A-pose arm drop <span id="poseAngleValue">45°</span></label><input type="range" id="poseAngle" min="15" max="75" value="45" step="5"><div class="row"><button class="btn" id="poseReweight" title="Recompute skin weights using original neutral bind geometry, not a deformed pose">RECALIBRATE WEIGHTS</button><button class="btn" id="poseFront">FRONT VIEW</button></div><div class="label">Pose presets rotate the existing rig without changing its bind pose. Accessories attach to hand bones and export with the rig. Adjust FK and keyframe after applying.</div><div id="poseStatus" role="status" style="font-size:10px;color:#9bc5d8">Build or import a humanoid rig to enable presets.</div></div></div><button class="btn accent" id="btnAutoRig">⚡ BUILD RIG + BIND</button><button class="btn" id="btnCancelBind" type="button" title="Cancel a stuck auto-bind operation and recover the unrigged model">■ CANCEL AUTO-BIND</button><button class="btn" id="btnRoundTrip" title="Export to memory and reimport to check geometry, skin weights and inverse binds">↻ VERIFY GLB ROUND-TRIP</button><button class="btn" id="btnRigRegression" title="Measure neutral rest displacement, isolated bone movement and pose restoration">🧪 RIG REGRESSION TEST</button><button class="btn" id="btnMeasureDeform" title="Measure skinned vertex movement during isolated arm rotation">📏 MEASURE ARM DEFORMATION</button><button class="btn" id="btnPresetCalibration" title="Inspect all rig-specific limb chains, bind weights and IK alignment">◎ PRESET CALIBRATION</button><button class="btn" id="btnRigAudit" title="Check joints, skin weights, IK and duplicate scene rigs">✓ CALIBRATE / AUDIT</button><button id="btnEvaluationSelfTest" type="button" title="Run structural rig and animation readiness checks">RUN EVALUATION CHECKS</button>
-<div id="scorpionQA" role="status" style="padding:10px;margin:7px 0;color:#b2e7ff;background:#101d26;border:1px solid #285065;border-radius:7px;font:10px/1.6 ui-monospace,monospace;white-space:pre-wrap">SCORPION DEMO: bundled model ready. Run the dedicated demo then review the measured calibration results.</div>
+<div id="scorpionQA" role="status" style="padding:10px;margin:7px 0;color:#b2e7ff;background:#101d26;border:1px solid #285065;border-radius:7px;font:10px/1.6 ui-monospace,monospace;white-space:pre-wrap">SCORPION DEMO: supplied asset available in the release package. Run the dedicated demo then review the measured calibration results.</div>
 <div id="rigAuditOutput" role="status" style="font-size:10px;color:#b7c8b1;line-height:1.5;padding:5px 0">Rig audit verifies neutral-pose inverse bind matrices, weights, hierarchy and IK. Auto IK is OFF until enabled. Geometry fitting is approximate; inspect deformations before export.</div>
         <div class="group" style="margin-bottom:9px;border:1px solid #42677a;border-radius:8px;padding:8px"><div class="gh">RIG ORIENTATION · NON-DESTRUCTIVE</div><div class="gb"><label class="label" for="rigFacing">Character forward direction</label><select id="rigFacing"><option value="-Z" selected>−Z · glTF forward (Y up)</option><option value="+Z">+Z · reverse forward</option><option value="+X">+X · facing camera at +X</option><option value="-X">−X · facing camera at −X</option></select><label class="label" for="gaitDirection">Gait direction relative to character forward</label><select id="gaitDirection"><option value="1" selected>Forward — corrected</option><option value="-1">Reverse — alternate rig orientation</option></select><label class="label" for="gaitPhase">Limb swing calibration</label><select id="gaitPhase"><option value="1" selected>Standard · thigh advances forward</option><option value="-1">Flip joint pitch · mirrored rig</option></select><label class="label"><input type="checkbox" id="rootTravel"> Translate root during locomotion (preview only)</label><div class="row"><button class="btn" id="rigFaceView">VIEW CHARACTER FRONT</button><button class="btn" id="rigNeutralReset">RESET NEUTRAL POSE</button></div><div id="rigOrientationStatus" role="status" class="label">glTF coordinates: +Y is UP; -Z is FORWARD. Select the actual model-facing direction. This does not alter bind matrices.</div></div></div><label class="label" for="rigType">Rig preset · rebuilds skeleton; anatomy fitting requires manual verification</label><select id="rigType" title="Choose a rig layout. glTF uses Y-up and -Z-forward; quadruped and scorpion models may require facing-axis calibration"><option value="humanoid">Humanoid / Biped</option><option value="mecha">Mecha Torso / Biped</option><option value="quadruped">Quadruped / Four Legs</option><option value="scorpion">Scorpion Mecha / Six Legs + Tail</option><option value="dragon">Dragon / Winged Creature + Tail</option><option value="vehicle">Vehicle / Chassis + Wheels + Steering</option></select>
         <div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
@@ -301,6 +301,14 @@ import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
 import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+
+async function profileDemoBuffer(name){
+ const data=globalThis.__PROFILE_EMBEDDED_ASSETS__?.[name];
+ if(data){const binary=atob(data);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return bytes.buffer;}
+ const response=await fetch('./assets/'+name+'.glb');
+ if(!response.ok)throw new Error('Missing assets/'+name+'.glb (HTTP '+response.status+'). Keep the assets directory beside index.html.');
+ return await response.arrayBuffer();
+}
 const $=id=>document.getElementById(id), V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z), Q=()=>new THREE.Quaternion();
 const say=(m,bad)=>{const s=$('status');s.style.color=bad?'#ff8a8a':'#a6ff7a';s.textContent=m||'';if(m)clearTimeout(say.t),say.t=setTimeout(()=>s.textContent='',4000)};
 window.addEventListener('error',e=>say('Error: '+e.message,1));window.addEventListener('unhandledrejection',e=>say('Error: '+(e.reason&&e.reason.message||e.reason),1));
@@ -2033,9 +2041,7 @@ async function loadDemo(autoRig=false){
  profileReferenceLoading=true;
  try{
   say('Loading bundled humanoid reference…');
-  const response=await fetch('./assets/humanoid.glb');
-  if(!response.ok)throw new Error('Cannot load assets/humanoid.glb (HTTP '+response.status+')');
-  const buffer=await response.arrayBuffer();
+  const buffer=await profileDemoBuffer('humanoid');
   if(new DataView(buffer).getUint32(0,true)!==0x46546c67)throw new Error('Humanoid asset is not a GLB');
   const gl=await new Promise((resolve,reject)=>new GLTFLoader().parse(buffer,'',resolve,reject));
   if(!gl.scene)throw new Error('Embedded humanoid reference has no scene');
@@ -2043,7 +2049,7 @@ async function loadDemo(autoRig=false){
   if(!adopt(gl.scene))staticFrom(gl.scene);
   S.rigType='humanoid';$('rigType').value='humanoid';
   $('hudInfo').textContent='LOCKED HUMANOID REFERENCE • '+S.N+' vertices';
-  say('Reference loaded from immutable embedded GLB. Use BUILD RIG + BIND to generate weights.');
+  say('Reference loaded from supplied GLB. Use BUILD RIG + BIND to generate weights.');
   if(autoRig&&!S.adopted){say('Generating humanoid demo rig from reference…');await rig()}
  }catch(e){console.error('PROFILE reference demo failed',e);say('Reference load failed: '+(e?.message||e),1)}
  finally{profileReferenceLoading=false}
@@ -2059,10 +2065,8 @@ async function loadScorpionDemo(){
  const button=$('btnScorpionDemo');button.disabled=true;
  const qa=$('scorpionQA');
  try{
-  qa.textContent='SCORPION FIXTURE: loading named mechanical model…';
-  const response=await fetch('./assets/scorpion.glb');
-  if(!response.ok)throw new Error('Cannot load assets/scorpion.glb (HTTP '+response.status+')');
-  const buffer=await response.arrayBuffer();
+  qa.textContent='SCORPION FIXTURE: reading supplied mechanical model…';
+  const buffer=await profileDemoBuffer('scorpion');
   if(new DataView(buffer).getUint32(0,true)!==0x46546c67)throw new Error('Scorpion asset is not a GLB');
   const gl=await new Promise((resolve,reject)=>new GLTFLoader().parse(buffer,'',resolve,reject));
   if(!gl.scene)throw new Error('No glTF scene');
