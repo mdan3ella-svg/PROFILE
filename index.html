@@ -217,7 +217,15 @@ button:disabled{opacity:.35;cursor:not-allowed!important}.viewbar .btn.on{border
 <div id="peReport" role="status" style="font:10px/1.5 ui-monospace,monospace;color:#a9d9aa;white-space:pre-wrap">Edit pivots in rest pose; rebinding is explicit, not automatic. Save a project before editing.</div>
 </div></div><div class="label"><span>Rig width</span><span id="vWidth">1.00</span></div><input type="range" id="rigWidth" min="0.6" max="1.6" step="0.05" value="1"/>
         <div class="label"><span>Spine segments</span><span id="vSpine">5</span></div><input type="range" id="spineCount" min="3" max="14" step="1" value="5" title="Choose the number of articulated spine joints generated on the next rig build"/>
-        <div class="label">Scorpion tail fitting</div><label class="label" for="tailSpacing">Spine/tail minimum joint separation (% model depth) <span id="vTailSpacing">3.0%</span></label><input id="tailSpacing" type="range" min="0.5" max="12" step="0.5" value="3" title="Minimum joint-to-joint rest distance for tail guides, relative to model depth"/><button class="btn" id="btnSpreadTail" title="Redistribute scorpion tail rest pivots along their current polyline without modifying skin weights until rebind">SPREAD SCORPION SPINE / TAIL</button><div class="label" id="tailSpreadStatus">Ten tail segments · arc-length spacing · manual rebind required after edits</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
+        <div class="group" id="scorpionReferenceBuilder" style="border:1px solid #e4ad68;background:#241a12;padding:9px;border-radius:9px"><div class="gh" style="color:#ffcb87">SCORPION REFERENCE · 43-PART MECHANICAL RIG</div><div class="gb">
+<div class="label">Calibrated to supplied scorpion(3).glb · +Y up</div><div id="scRefDimensions" role="status" style="white-space:pre-wrap;color:#f6d2a1;font:11px/1.55 ui-monospace,monospace">Reference: W 5.5544 · H 3.4827 · L 5.0455 model units</div>
+<label class="label">Fitting source</label><select id="scRefMode"><option value="reference" selected>Measured 43-part model landmarks</option><option value="adaptive">Generic geometry-scanned fitting</option></select>
+<div id="scRefKnobs"></div>
+<label class="label"><input type="checkbox" id="scRefMirror" checked> Preserve mirrored left/right hinge positions</label>
+<label class="label"><input type="checkbox" id="scRefRigid" checked> Apply hard-surface single-bone weights to each connected shell</label>
+<div class="row"><button class="btn accent" id="scRefBuild">BUILD CALIBRATED SCORPION RIG</button><button class="btn" id="scRefInspect">INSPECT FIT / DIMENSIONS</button></div>
+<div class="label" id="scRefReport">Refitted guides require rebind. All distances use the GLB model-unit scale.</div>
+</div></div><div class="label">Scorpion tail fitting</div><label class="label" for="tailSpacing">Spine/tail minimum joint separation (% model depth) <span id="vTailSpacing">3.0%</span></label><input id="tailSpacing" type="range" min="0.5" max="12" step="0.5" value="3" title="Minimum joint-to-joint rest distance for tail guides, relative to model depth"/><button class="btn" id="btnSpreadTail" title="Redistribute scorpion tail rest pivots along their current polyline without modifying skin weights until rebind">SPREAD SCORPION SPINE / TAIL</button><div class="label" id="tailSpreadStatus">Ten tail segments · arc-length spacing · manual rebind required after edits</div><label class="label" for="tailCurve">Curvature / lift <span id="vTailCurve">0.65</span></label><input type="range" id="tailCurve" min="0" max="1.8" step="0.05" value="0.65" title="Procedural fallback tail arc; mesh-fitting samples override when detected"/><label class="label"><input type="checkbox" id="tailFit" checked/> Fit tail joints to mesh surface slices</label><button class="btn" id="btnTailRefit" title="Rebuild scorpion skeleton using geometry-scanned tail tip">⤴ SCAN + SNAP TAIL TIP</button><div class="label">Custom joints</div><button class="btn" id="btnVertexJoint" title="Enable vertex-to-joint mode, then click a point on the mesh">＋ CREATE JOINT FROM VERTEX</button><div class="label" id="jointModeHint">Select a parent bone first; then enable vertex mode and click the mesh.</div>
       </div></div>
       <div class="group"><div class="gh">FK • <span id="selName">none</span></div><div class="gb">
         <div class="row"><button class="btn on" id="gRot">ROTATE</button><button class="btn" id="gMove">MOVE HIPS</button></div>
@@ -685,6 +693,21 @@ function profileAssignScorpionShells(W,JP){
    candidates=['hip','upper','lower','foot'].map(n=>S.idx['leg'+station+'_'+lr+'_'+n]).filter(Number.isInteger);
   }else if(name==='tail')candidates=S.joints.map((j,k)=>/^tail_(?:seg_\d+|stinger)$/.test(j.name)?k:-1).filter(k=>k>=0);
   else if(name==='body'||name==='front ramp')candidates=['chest','hips','root'].map(n=>S.idx[n]).filter(Number.isInteger);
+  if(!candidates.length && document.getElementById('scRefMode')?.value==='reference'){
+   // Unnamed mechanical CAD parts: infer owner from its WHOLE mesh centroid,
+   // never from independent vertices. This prevents surface stretching.
+   const center=new THREE.Vector3();for(const vi of vertices)center.add(V3(pos.getX(vi),pos.getY(vi),pos.getZ(vi)));center.multiplyScalar(1/vertices.length);
+   const b=bbox(S.geo),xMid=(b.min.x+b.max.x)*.5,spread=b.max.x-b.min.x,height=b.max.y-b.min.y;
+   const lateral=Math.abs(center.x-xMid);
+   if(lateral<spread*.18 && center.y>b.min.y+height*.51){
+    candidates=S.joints.map((j,k)=>/^tail_(?:seg_\d+|stinger)$/.test(j.name)?k:-1).filter(k=>k>=0);
+   }else if(lateral>spread*.115){
+    const side=center.x<xMid?'L':'R';
+    const zStations=[1.05,.23,-.52];const bb=bbox(S.geo);const zNorm=(center.z-bb.min.z)/(bb.max.z-bb.min.z);const refZ=zStations.map(z=>(z-SCORPION_REF.min[2])/(SCORPION_REF.max[2]-SCORPION_REF.min[2]));
+    let pair=1,d=Infinity;for(let k=0;k<3;k++)if(Math.abs(zNorm-refZ[k])<d){d=Math.abs(zNorm-refZ[k]);pair=k+1}
+    candidates=['hip','upper','lower','foot'].map(part=>S.idx['leg'+pair+'_'+side+'_'+part]).filter(Number.isInteger);
+   }else candidates=['hips','chest','mech_core'].map(n=>S.idx[n]).filter(Number.isInteger);
+  }
   if(!candidates.length){issues.push(raw+': no mapped bone');continue}
   const nearest=vs=>{const center=new THREE.Vector3();for(const v of vs){center.x+=pos.getX(v);center.y+=pos.getY(v);center.z+=pos.getZ(v)}center.multiplyScalar(1/vs.length);
    let best=candidates[0],dist=Infinity;for(const j of candidates){const d=JP[j].distanceToSquared(center);if(d<dist){best=j;dist=d}}return best};
@@ -962,8 +985,54 @@ async function solveWeights(){
 }
 function buildSkinned(){const g=S.geo;g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(new Uint16Array(S.N*4),4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(new Float32Array(S.N*4),4));/* No artificial vertex color channel: preserve the imported GLB's PBR color semantics. */
  const m=new THREE.SkinnedMesh(g,rigMaterial());m.frustumCulled=false;m.castShadow=m.receiveShadow=true;S.roots.forEach(r=>m.add(r));scene.add(m);m.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(S.bones);skeleton.calculateInverses();m.bind(skeleton,m.matrixWorld.clone());m.updateMatrixWorld(true);S.mesh=S.root=m}
+// Reference measured from operator's scorpion(3).glb (43 meshes, full object transforms).
+// Landmarks are measured MODEL coordinates. Map them through the source bounds
+// to accommodate non-destructive proportional scaling and scene normalization.
+const SCORPION_REF={min:[-2.81063633,0.03713904,-2.23349373],max:[2.74378884,3.51980007,2.81196024],
+ legs:{L:[[[ -0.83,.84,1.05],[-1.20,1.21,1.74],[-1.31,.65,2.25]], [[-.80,.84,.23],[-1.74,1.21,.17],[-2.24,.65,.19]], [[-.67,.84,-.52],[-1.31,1.37,-1.18],[-1.57,.74,-1.69]]],
+ R:[[[.74,.84,1.05],[1.14,1.21,1.74],[1.23,.65,2.25]],[[.74,.84,.23],[1.67,1.21,.17],[2.17,.65,.19]],[[.66,.84,-.52],[1.22,1.37,-1.18],[1.50,.74,-1.69]]]},
+ tail:[[-.03,1.93,-1.61],[-.03,2.47,-1.83],[-.03,3.12,-1.45],[-.03,3.41,-.74],[-.03,3.32,-.21],[-.03,2.94,.62],[-.03,2.35,1.13]]};
+function scRefNum(id,def){const v=Number(document.getElementById(id)?.value);return Number.isFinite(v)?v:def}
+function buildScorpionReference(bb){
+ const mn=bb.min, size=bb.getSize(V3()),a=SCORPION_REF.min,b=SCORPION_REF.max;
+ const width=scRefNum('scRefWidth',1),height=scRefNum('scRefHeight',1),length=scRefNum('scRefLength',1);
+ const step=V3(size.x/(b[0]-a[0]),size.y/(b[1]-a[1]),size.z/(b[2]-a[2]));
+ const map=(p)=>V3(mn.x+(p[0]-a[0])*step.x*width,mn.y+(p[1]-a[1])*step.y*height,mn.z+(p[2]-a[2])*step.z*length);
+ const out=[],push=(name,parent,pos)=>{out.push({name,parent,pos});return out.length-1};
+ const root=push('root',-1,map([-.03,.037,.20]));
+ const hips=push('hips',root,map([-.03,.92,.28]));
+ let p=hips;const sn=Math.max(3,Math.min(14,Math.round(scRefNum('scRefSpine',5))));
+ for(let i=1;i<=sn;i++){const t=i/sn;p=push('spine_'+String(i).padStart(2,'0'),p,map([-.03,.92+.15*t,.28+.18*t]))}
+ const chest=push('chest',p,map([-.03,1.11,.48]));push('neck',chest,map([-.03,1.28,.65]));push('head',chest,map([-.03,1.36,.75]));
+ push('mech_core',chest,map([-.03,1.06,.28]));push('abdomen_01',hips,map([-.03,.91,.09]));push('abdomen_02',hips,map([-.03,.94,-.42]));
+ const spread=scRefNum('scRefLegSpread',1),offset=scRefNum('scRefPivotOffset',0),mirror=document.getElementById('scRefMirror')?.checked!==false;
+ for(let pair=1;pair<=3;pair++)for(const side of ['L','R']){
+  const pts=SCORPION_REF.legs[side][pair-1].map(v=>v.slice());
+  for(const v of pts){v[0]=-.03+(v[0]+.03)*spread+(side==='L'?-offset:offset)}
+  if(mirror && side==='R')for(let k=0;k<3;k++){const q=SCORPION_REF.legs.L[pair-1][k];pts[k][0]=-.03+(-.03-q[0])*spread+offset;pts[k][1]=q[1];pts[k][2]=q[2]}
+  const name='leg'+pair+'_'+side;
+  const hip=push(name+'_hip',hips,map(pts[0]));
+  const upper=push(name+'_upper',hip,map(pts[1]));
+  const lower=push(name+'_lower',upper,map(pts[2]));
+  push(name+'_foot',lower,map([pts[2][0],.075,pts[2][2]]));
+ }
+ const lift=scRefNum('scRefTailLift',1),separation=Math.max(.005,scRefNum('scRefTailGap',.10));
+ const curve=SCORPION_REF.tail.map(v=>map([v[0],SCORPION_REF.tail[0][1]+(v[1]-SCORPION_REF.tail[0][1])*lift,v[2]]));
+ let chain=hips;
+ const points=profileArcResample(curve,12);
+ for(let i=1;i<points.length;i++){
+  const v=points[i].clone(),prior=points[i-1];const dir=v.clone().sub(prior);
+  if(dir.length()<separation)v.copy(prior).add(dir.length()>1e-7?dir.normalize().multiplyScalar(separation):V3(0,separation,0));
+  chain=push(i===11?'tail_stinger':'tail_seg_'+String(i).padStart(2,'0'),chain,v);
+ }
+ push('mech_torso_plate',chest,map([-.03,1.12,.40]));push('mech_reactor',chest,map([-.03,1.08,.28]));
+ S.scorpionFit={fittedLegs:6,total:6,unresolved:[],method:'43-part measured reference'};
+ S.tailFitStatus='Measured 43-part tail guide, arc-length spaced; rigid shell articulation needs separate linked shells';
+ return out;
+}
 function buildCreatureJoints(type,bb,h,w){
  if(type==='humanoid')return buildJoints(h,w);
+ if(type==='scorpion'&&document.getElementById('scRefMode')?.value!=='adaptive')return buildScorpionReference(bb);
  const out=[],sz=bb.getSize(V3()),mn=bb.min,mx=bb.max;
  const add=(name,parent,x,y,z)=>{const pos=V3(mn.x+sz.x*(.5+(x-.5)*Math.max(.25,Math.min(2,w))),mn.y+sz.y*y,mn.z+sz.z*z);out.push({name,parent,pos});return out.length-1};
  if(type==='mecha'){
@@ -2628,6 +2697,23 @@ $('ldFrame').addEventListener('input',e=>{S.playing=false;S.frame=+e.target.valu
 $('lookDevModal').addEventListener('click',e=>{if(e.target===$('lookDevModal'))ldToggle(false)});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&ldOpen)ldToggle(false)});
 $('tailCurve').addEventListener('input',e=>$('vTailCurve').textContent=Number(e.target.value).toFixed(2));
+// Paired incremental sliders and precise number fields share the same value and limits.
+(function initScorpionReferenceUI(){
+ const opts=[['scRefWidth','Width multiplier',.5,1.5,.005,1],['scRefHeight','Height multiplier',.5,1.5,.005,1],['scRefLength','Length multiplier',.5,1.5,.005,1],['scRefLegSpread','Leg lateral spacing',.65,1.6,.005,1],['scRefPivotOffset','Lateral pivot offset',-.35,.35,.005,0],['scRefTailLift','Tail vertical curvature',.5,1.5,.005,1],['scRefTailGap','Minimum tail link distance',.01,.4,.005,.10],['scRefSpine','Spine bone count',3,14,1,5]];
+ const box=document.getElementById('scRefKnobs');if(!box)return;
+ for(const [id,label,min,max,step,def] of opts){
+  const row=document.createElement('div');row.style.cssText='padding:5px 0;border-bottom:1px solid #59412c';
+  const lab=document.createElement('label');lab.className='label';lab.textContent=label;lab.htmlFor=id;
+  const line=document.createElement('div');line.style.cssText='display:flex;gap:8px;align-items:center';
+  const slider=document.createElement('input');slider.id=id;slider.type='range';slider.min=min;slider.max=max;slider.step=step;slider.value=def;slider.style.flex='1';
+  const number=document.createElement('input');number.id=id+'Number';number.type='number';number.min=min;number.max=max;number.step=step;number.value=def;number.style.cssText='width:77px;background:#101519;color:#ffe0b0;border:1px solid #8e6b3d;border-radius:4px;padding:5px';
+  slider.addEventListener('input',()=>{number.value=slider.value});
+  number.addEventListener('change',()=>{const v=Math.max(min,Math.min(max,Number(number.value)||def));slider.value=v;number.value=v});
+  line.append(slider,number);row.append(lab,line);box.append(row);
+ }
+ document.getElementById('scRefInspect').addEventListener('click',()=>{const bb=S.geo?bbox(S.geo):null;document.getElementById('scRefReport').textContent=bb?'Current mesh bounds: '+bb.getSize(V3()).toArray().map(x=>x.toFixed(4)).join(' × ')+' units. Reference 5.5544 × 3.4827 × 5.0455. Fit is proportionally mapped; verify anatomical hinge locations.':'Import the supplied 43-part scorpion model first, then inspect.'});
+ document.getElementById('scRefBuild').addEventListener('click',async()=>{if(!S.geo){say('Load scorpion(3).glb before building',true);return;}document.getElementById('rigType').value='scorpion';document.getElementById('bindProfile').value='hard';S.bindProfile='hard';await rig();if(document.getElementById('scRefRigid').checked&&S.mesh?.isSkinnedMesh)document.getElementById('btnRigidShell')?.click();document.getElementById('scRefReport').textContent='Rig generated from 43-part reference landmarks. Inspect all pivots; skeleton geometry only is calibrated, mechanical connection correctness is not certified.'});
+})();
 $('tailSpacing').addEventListener('input',e=>$('vTailSpacing').textContent=Number(e.target.value).toFixed(1)+'%');
 $('btnSpreadTail').addEventListener('click',()=>{
  if(S.rigType!=='scorpion'||!S.mesh?.isSkinnedMesh||S.adopted)return peInfo('Generate a scorpion rig before spacing its spine.',true);
